@@ -2700,6 +2700,17 @@ dependencies = [
 [[package]]
 name = "x402z-server"
 version = "0.1.0"
+dependencies = [
+ "axum",
+ "base64",
+ "ed25519-dalek",
+ "hex",
+ "rand",
+ "serde",
+ "serde_json",
+ "tokio",
+ "x402z-protocol",
+]
 
 [[package]]
 name = "zcash_address"

@@ -65,3 +65,18 @@ impl PaymentRequired {
         Ok(())
     }
 }
+
+/// Claims the facilitator signs once it has seen the payment with the merchant UFVK.
+/// Wire format of `X-PAYMENT-RECEIPT`: `base64url(claims_json) "." base64url(ed25519_sig)`
+/// (no padding); the signature covers the exact decoded `claims_json` bytes.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ReceiptClaims {
+    pub memo_nonce: String,
+    pub amount_zat: u64,
+    pub pay_to: String,
+    pub txid: String,
+    /// 0 = seen in the mempool only.
+    pub confirmations: u32,
+    pub issued_at: u64,
+}

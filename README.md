@@ -17,8 +17,9 @@ agent -> GET /api/quote -> 402 {scheme, network, payTo, amountZat, memoNonce, ex
 |---|---|
 | `crates/spendguard`: cap, allowlist, approval threshold | **Done.** 11 unit tests |
 | `crates/x402z-protocol`: 402 challenge type and validation | **Done.** 4 tests |
-| `crates/x402z-server`, `x402z-facilitator`, `x402z-agent` | **Scaffold only.** They check config and exit non-zero |
-| Encrypted audit log, receipts, lightwalletd scanning, dashboard | Not started (M2–M4) |
+| `crates/x402z-server`: paywalled `/api/quote`, receipt verification, dashboard | **Done.** 4 tests (ed25519 receipt, replay, underpaid, expired, wrong address) |
+| `x402z-facilitator`, `x402z-agent` | **Scaffold only.** They check config and exit non-zero |
+| Encrypted audit log, receipt *issuing*, lightwalletd scanning, agent ledger writer | Not started (M2–M3) |
 
 Nothing is mocked. The binaries do no fake work: they stop with an error.
 
@@ -27,6 +28,17 @@ Nothing is mocked. The binaries do no fake work: they stop with an error.
 1. `cargo test` → you should see `11 passed` (spendguard) and `4 passed` (protocol).
 2. `cargo run -p x402z-facilitator` with no `.env` → it prints `error: ZCASH_LWD_URL not configured` and exits with code 2.
 3. `cp .env.example .env` and fill it in → each binary moves on to the next missing var, then reports `not implemented yet (milestone Mx)` and exits with code 1.
+
+## Dashboard (served by x402z-server)
+
+Fill in `X402Z_MERCHANT_UA`, `X402Z_RECEIPT_PUBKEY` and `X402Z_FACILITATOR_URL`, run `cargo run -p x402z-server`, then open http://127.0.0.1:4020.
+
+- Press **Request paid data →** and within a second you get a live HTTP 402 challenge (payTo, amount, memo nonce, 15-minute countdown), and the event shows up in the **Live payment feed**.
+- Send a request with a valid `X-PAYMENT-RECEIPT` and the feed shows `PAID` plus the txid, and `/api/quote` returns 200.
+- A bad, replayed, underpaid or expired receipt shows up as `REJECTED` and comes back with a fresh 402 and an `x-payment-error` header.
+- **Spend caps / audit trail** read `X402Z_AGENT_LEDGER`, a JSON file `{agents:[{agent,dailyCapZat,spentTodayZat,approvalThresholdZat,allowedHosts}], audit:[{ts,agent,host,amountZat,decision,reason}]}`. If it is unset or unreadable the page shows a red banner naming the variable. Nothing writes this file yet: the agent is still a scaffold.
+- Receipt wire format: `base64url(claims_json).base64url(ed25519_sig)`, with claims as in `x402z_protocol::ReceiptClaims`.
+- The layout collapses to one column below 860px, so it works on a phone (`X402Z_BIND=0.0.0.0:4020`).
 
 ## spendguard rules
 

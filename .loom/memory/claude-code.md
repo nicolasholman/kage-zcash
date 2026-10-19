@@ -19,6 +19,11 @@
 - **claude-code**: Now the protocol types and the three binaries that fail loudly on missing config.
 - **claude-code**: All 15 tests pass and the missing-env failure works. Now the `.gitignore`, `.env.example` and README.
 - **claude-code**: I couldn't port the leash policy logic: Loom's sandbox blocked access to `../leash/packages/core`, which sits outside this project. So I wrote the spend-cap and allowlist logic from scratch, following the rules in CLAUDE.md. It hasn't been compared against leash yet. The rest of the scaffold is in …
+- **user**: Read CLAUDE.md and docs/zecathon-near-factcheck.md first. Do not claim the 42K grant (it was rejected). Before pinning any testnet lightwalletd URL, faucet or crate feature flags, check them against the live docs. Real Zcash testnet tooling only, no mocks, and fail loudly. Do not run git. Finish wi…
+- **claude-code**: Writing the facilitator's crate manifest, then fetching the real Zcash crates so I can check their APIs against source.
+- **claude-code**: Fetched. Starting the build in the background while I check the real APIs.
+- **claude-code**: The crate already decrypts Ironwood bundles, so the earlier pool blocker partly goes away. Checking why the build failed.
+- **claude-code**: API Error: Can't reach the API server — check your internet or DNS (ENOTFOUND)
 
 ## Files recently touched
 - `/Volumes/Extreme SSD/Projects/zec-shielded-x402/Cargo.toml`
@@ -37,7 +42,25 @@
 - `crates/x402z-facilitator/src/main.rs`
 - `crates/x402z-server/Cargo.toml`
 - `crates/x402z-server/src/main.rs`
+- `/Volumes/Extreme SSD/Projects/zec-shielded-x402/crates/x402z-facilitator/Cargo.toml`
 
+
+---
+## What this project has learned (relevant to the work at hand)
+
+### Constraints reality imposes
+- The 42K grant for the zec-shielded-x402 project was rejected and must not be claimed.
+
+### Known failures — do not repeat these
+- The Leash core package at ../leash/packages/core could not be read from Loom's sandbox, so the spend-cap and allowlist logic was written from the CLAUDE.md spec rather than ported and has not been compared against Leash.
+
+### Decisions and why
+- In spendguard, the daily spend cap resets at UTC midnight and a spend amount too large to add up counts as a refusal.
+- The spendguard host allowlist denies everything by default, and a `*.example.com` pattern matches only subdomains.
+- In spendguard, a policy refusal always takes precedence over a human-approval prompt, and spend is recorded only after a payment is actually sent.
+
+### How this project does things
+- The x402z server, facilitator and agent binaries exit with code 2 and name the missing setting when required config is absent, and they return no fake data.
 
 ---
 # Loom unified memory — zec-shielded-x402
