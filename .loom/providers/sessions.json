@@ -6,12 +6,12 @@
    "instanceId": "claude-code",
    "provider": "claude-code",
    "status": "running",
-   "resumeCursor": "a0722f6e-4c87-421e-9ade-a6112cfb26b2",
+   "resumeCursor": "4b367f0c-914d-4886-a39c-d02f1d463427",
    "runtimePayload": {
     "cwd": "/Volumes/Extreme SSD/Projects/zec-shielded-x402"
    },
    "runtimeMode": "auto-accept-edits",
-   "lastSeenAt": 1792452535256
+   "lastSeenAt": 1792452835214
   }
  ]
 }

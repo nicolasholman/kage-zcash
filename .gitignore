@@ -4,3 +4,5 @@
 *.db
 !/.loom/log.db
 node_modules/
+
+.cargo-home/

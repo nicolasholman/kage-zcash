@@ -10,6 +10,34 @@
 - `grok-code` (grok-code) — grok-code
 - `antigravity` (antigravity-cli) — antigravity
 
+## Recent baton handoffs
+- 2026-10-19T23:25:50.450Z: — → claude-code
+
+## Recent conversation (condensed)
+- **user**: Read CLAUDE.md and docs/zecathon-near-factcheck.md first. Do not claim the 42K grant (it was rejected). Before pinning any testnet lightwalletd URL, faucet or crate feature flags, check them against the live docs. Real Zcash testnet tooling only, no mocks, and fail loudly. Do not run git. Finish wi…
+- **claude-code**: Leash core path is blocked by Loom's sandbox, so I'm writing spendguard from the CLAUDE.md spec now and will flag the port as a blocker.
+- **claude-code**: Now the protocol types and the three binaries that fail loudly on missing config.
+- **claude-code**: All 15 tests pass and the missing-env failure works. Now the `.gitignore`, `.env.example` and README.
+- **claude-code**: I couldn't port the leash policy logic: Loom's sandbox blocked access to `../leash/packages/core`, which sits outside this project. So I wrote the spend-cap and allowlist logic from scratch, following the rules in CLAUDE.md. It hasn't been compared against leash yet. The rest of the scaffold is in …
+
+## Files recently touched
+- `/Volumes/Extreme SSD/Projects/zec-shielded-x402/Cargo.toml`
+- `/Volumes/Extreme SSD/Projects/zec-shielded-x402/crates/spendguard/Cargo.toml`
+- `/Volumes/Extreme SSD/Projects/zec-shielded-x402/crates/spendguard/src/lib.rs`
+- `/Volumes/Extreme SSD/Projects/zec-shielded-x402/crates/x402z-protocol/Cargo.toml`
+- `/Volumes/Extreme SSD/Projects/zec-shielded-x402/crates/x402z-protocol/src/lib.rs`
+- `/Volumes/Extreme SSD/Projects/zec-shielded-x402/crates/x402z-protocol/tests/challenge.rs`
+- `/Volumes/Extreme SSD/Projects/zec-shielded-x402/.gitignore`
+- `/Volumes/Extreme SSD/Projects/zec-shielded-x402/.env.example`
+- `/Volumes/Extreme SSD/Projects/zec-shielded-x402/README.md`
+- `Cargo.lock`
+- `crates/x402z-agent/Cargo.toml`
+- `crates/x402z-agent/src/main.rs`
+- `crates/x402z-facilitator/Cargo.toml`
+- `crates/x402z-facilitator/src/main.rs`
+- `crates/x402z-server/Cargo.toml`
+- `crates/x402z-server/src/main.rs`
+
 
 ---
 # Loom unified memory — zec-shielded-x402
