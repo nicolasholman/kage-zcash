@@ -1,0 +1,17 @@
+{
+ "version": 1,
+ "bindings": [
+  {
+   "threadId": "main",
+   "instanceId": "claude-code",
+   "provider": "claude-code",
+   "status": "running",
+   "resumeCursor": "a0722f6e-4c87-421e-9ade-a6112cfb26b2",
+   "runtimePayload": {
+    "cwd": "/Volumes/Extreme SSD/Projects/zec-shielded-x402"
+   },
+   "runtimeMode": "auto-accept-edits",
+   "lastSeenAt": 1792452535256
+  }
+ ]
+}

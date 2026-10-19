@@ -1,0 +1,6 @@
+/target
+.env
+*.sqlite
+*.db
+!/.loom/log.db
+node_modules/
