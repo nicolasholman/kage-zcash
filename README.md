@@ -18,16 +18,16 @@ agent -> GET /api/quote -> 402 {scheme, network, payTo, amountZat, memoNonce, ex
 | `crates/spendguard`: cap, allowlist, approval threshold | **Done.** 11 unit tests |
 | `crates/x402z-protocol`: 402 challenge type and validation | **Done.** 4 tests |
 | `crates/x402z-server`: paywalled `/api/quote`, receipt verification, dashboard, per-IP 402 rate limit | **Done.** 10 tests (ed25519 receipt, replay, underpaid, expired, wrong address, 429 + Retry-After) |
-| `crates/x402z-facilitator`: lightwalletd gRPC, UFVK trial decryption (Sapling, Orchard, Ironwood), receipt signing | **Done.** 4 integration tests on real shielded transactions (real keys, real Halo2 proofs, real ed25519). Verified live against testnet.zec.rocks |
-| `crates/x402z-agent`: 402 → spendguard → `zcash_client_sqlite` wallet → pay → receipt → retry, ledger writer | **Done.** 4 ledger tests. The live run reached the wallet and stopped: it has no testnet funds (see "Live testnet run") |
+| `crates/x402z-facilitator`: lightwalletd gRPC, UFVK trial decryption (Sapling, Orchard, Ironwood), receipt signing | **Done.** 5 integration tests on real shielded transactions (real keys, real Halo2 proofs, real ed25519). Verified live against testnet.zec.rocks |
+| `crates/x402z-agent`: 402 → spendguard → `zcash_client_sqlite` wallet → pay → receipt → retry, ledger writer | **Done.** 4 ledger tests. Paid live on testnet (see "Live testnet run") |
 | Encrypted audit log (only the owner's viewing key can read it) | Not started. The ledger is plain JSON |
-| A paid end-to-end run on testnet | **Not done yet.** Needs a funded testnet wallet (see below) |
+| A paid end-to-end run on testnet | **Done.** txid [`030c3cbf78ce8460553bba4e82c0ba813f039bd3ecf4d7f2e81c59837dc28351`](https://testnet.zecblock.com/tx/030c3cbf78ce8460553bba4e82c0ba813f039bd3ecf4d7f2e81c59837dc28351), mined in block 4521112 (see "Live testnet run") |
 
 Nothing is mocked. If a binary is missing a key, a wallet or funds, it stops with an error and a non-zero exit code. It never fakes a payment.
 
 ## Do X → see Y
 
-1. Run `cargo test --workspace`. You should see 33 tests pass: spendguard 11, protocol 4, server 10, agent 4, facilitator 4. The facilitator tests build real shielded transactions with Halo2 proofs and take about 30 s.
+1. Run `cargo test --workspace`. You should see 34 tests pass: spendguard 11, protocol 4, server 10, agent 4, facilitator 5. The facilitator tests build real shielded transactions with Halo2 proofs and take about 30 s.
 2. Run `cargo run -p x402z-facilitator` with no `.env`. It prints `error: X402Z_MERCHANT_UFVK not configured` and exits with code 2.
    - If `ZCASH_LWD_URL` is unset, it says so and uses `https://testnet.zec.rocks:443`.
    - If lightwalletd is unreachable, it prints `error: cannot connect to lightwalletd: …` and exits with code 1.
@@ -59,7 +59,7 @@ Nothing is mocked. If a binary is missing a key, a wallet or funds, it stops wit
   - `200 confirmed`, with a `receipt`.
   - `202 pending`: found, but below `X402Z_MIN_CONFIRMATIONS` (default 1).
   - `404 not_found`.
-  - `422 rejected`: no matching output, wrong recipient, underpaid, foreign `payTo`, or a nonce already receipted for another tx.
+  - `422 rejected`: no matching output, wrong recipient, underpaid, foreign `payTo`, a `payTo` that carries a transparent receiver (`BadPayTo`; only shielded receivers are accepted), or a nonce already receipted for another tx.
   - `400`: bad challenge or txid.
   - `502 error`: lightwalletd failed.
 
