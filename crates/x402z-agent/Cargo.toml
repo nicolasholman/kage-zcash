@@ -1,7 +1,30 @@
 [package]
 name = "x402z-agent"
+description = "Demo x402z agent: answers HTTP 402 with a shielded Zcash testnet payment, gated by spendguard"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
+serde.workspace = true
+serde_json.workspace = true
+spendguard = { path = "../spendguard" }
+x402z-protocol = { path = "../x402z-protocol" }
+x402z-facilitator = { path = "../x402z-facilitator" }
+# Same NU7-capable pre-release line as x402z-facilitator (see its Cargo.toml).
+zcash_client_backend = { version = "=0.25.0-pre.2", features = ["lightwalletd-tonic", "orchard", "sync"] }
+zcash_client_sqlite = { version = "=0.23.0-pre.2", features = ["orchard"] }
+zcash_keys = { version = "=0.17.0-pre.2", features = ["orchard", "sapling"] }
+zcash_primitives = "=0.31.0-pre.2"
+zcash_protocol = "=0.11.0-pre.1"
+zcash_proofs = { version = "=0.31.0-pre.2", features = ["download-params"] }
+rusqlite = "0.37"
+zip32 = "0.3"
+secrecy = "0.8"
+bip0039 = { version = "0.12", features = ["std", "all-languages"] }
+async-trait = "0.1"
+tonic = { version = "0.14", features = ["transport", "tls-ring", "tls-webpki-roots"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+rand = "0.10"
+hex = "0.4"

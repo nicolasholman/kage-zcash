@@ -13,9 +13,14 @@ edition = "2021"
 license = "MIT"
 version = "0.1.0"
 
-# Zcash crates (checked on crates.io 2026-10-20; not added yet, see README "Blockers"):
-# zcash_client_backend 0.24.0 (features incl. lightwalletd-tonic, orchard, sync)
-# zcash_client_sqlite 0.22.0, zcash_keys 0.16.1, zcash_primitives 0.30.1, zcash_protocol 0.10.6
+# Zcash crates (checked on crates.io 2026-10-20) are pinned per crate to the NU7-capable
+# pre-release line: zcash_client_backend 0.25.0-pre.2, zcash_client_sqlite 0.23.0-pre.2,
+# zcash_keys 0.17.0-pre.2, zcash_primitives 0.31.0-pre.2, zcash_protocol 0.11.0-pre.1.
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+# Halo2 (Orchard/Ironwood) and Groth16 proving is unusably slow unoptimized; optimize
+# dependencies even in dev/test builds so the agent and the real-tx tests finish in seconds.
+[profile.dev.package."*"]
+opt-level = 3
