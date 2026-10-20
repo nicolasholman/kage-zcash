@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shielded x402</title>
+<style>
+:root{
+  --bg:#0b0d10;--panel:#12161b;--panel2:#171c22;--line:#232a32;--text:#e6e9ed;--muted:#8a95a3;
+  --zec:#f4b728;--ok:#3ecf8e;--bad:#ff5d5d;--warn:#f0a83a;--info:#6aa9ff;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.wrap{max-width:1120px;margin:0 auto;padding:16px}
+header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 0 16px}
+.logo{width:28px;height:28px;border-radius:8px;background:var(--zec);color:#111;display:grid;place-items:center;font-weight:800}
+h1{font-size:18px;margin:0;font-weight:650;letter-spacing:-.01em}
+.pill{font:12px var(--mono);padding:3px 8px;border:1px solid var(--line);border-radius:99px;color:var(--muted)}
+.pill.live::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--ok);margin-right:6px;vertical-align:1px;animation:pulse 2s infinite}
+@keyframes pulse{50%{opacity:.35}}
+.spacer{flex:1}
+.banner{background:#2a1214;border:1px solid #5c2226;color:#ffb3b3;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:14px}
+.banner b{color:#fff;font-family:var(--mono)}
+.grid{display:grid;gap:16px;grid-template-columns:1.25fr 1fr}
+@media (max-width:860px){.grid{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0}
+.card h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 12px;font-weight:600}
+.hero{grid-column:1/-1;display:grid;grid-template-columns:1fr 1.2fr;gap:20px;align-items:start}
+@media (max-width:860px){.hero{grid-template-columns:1fr}}
+.hero p{color:var(--muted);margin:6px 0 14px}
+.big{font-size:24px;font-weight:700;letter-spacing:-.02em;margin:0;line-height:1.2}
+button{font:inherit;cursor:pointer;border:0;border-radius:10px;padding:12px 18px;font-weight:650;background:var(--zec);color:#14110a;transition:transform .08s,filter .15s}
+button:hover{filter:brightness(1.08)}button:active{transform:scale(.97)}
+button.ghost{background:transparent;color:var(--text);border:1px solid var(--line);padding:8px 12px;font-weight:500}
+.steps{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px}
+.step{font:12px var(--mono);padding:4px 8px;border-radius:6px;background:var(--panel2);color:var(--muted);border:1px solid var(--line)}
+.step.on{color:#14110a;background:var(--zec);border-color:var(--zec)}
+.step.done{color:var(--ok);border-color:#1f4d3a}
+.challenge{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:14px;min-height:150px}
+.status402{font:600 13px var(--mono);color:var(--zec)}
+.kv{display:grid;grid-template-columns:110px 1fr auto;gap:6px 10px;margin-top:10px;font-size:13px;align-items:center}
+.kv dt{color:var(--muted)}.kv dd{margin:0;font-family:var(--mono);word-break:break-all}
+.copy{font-size:11px;padding:3px 7px}
+.empty{color:var(--muted);font-size:14px;padding:18px 0;text-align:center}
+.feed{list-style:none;margin:0;padding:0;max-height:420px;overflow:auto}
+.feed li{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:9px 2px;border-bottom:1px solid var(--line);font-size:14px}
+.feed li.new{animation:in .5s ease-out}
+@keyframes in{from{background:#2a2410}to{background:transparent}}
+.tag{font:600 11px var(--mono);padding:2px 7px;border-radius:5px;text-transform:uppercase}
+.t-challenge{background:#2b230e;color:var(--zec)}.t-paid{background:#0f2e22;color:var(--ok)}.t-rejected{background:#33151a;color:var(--bad)}
+.t-allowed{background:#0f2e22;color:var(--ok)}.t-denied{background:#33151a;color:var(--bad)}.t-needs_approval{background:#2f2410;color:var(--warn)}
+.sub{color:var(--muted);font:12px var(--mono);word-break:break-all}
+.time{color:var(--muted);font:12px var(--mono);white-space:nowrap}
+.agent{padding:10px 0;border-bottom:1px solid var(--line)}.agent:last-child{border:0}
+.agent .row{display:flex;justify-content:space-between;gap:8px;font-size:14px}
+.bar{height:8px;border-radius:99px;background:var(--panel2);border:1px solid var(--line);overflow:hidden;margin:8px 0 4px}
+.bar i{display:block;height:100%;background:var(--ok);transition:width .4s}
+.bar i.hot{background:var(--warn)}.bar i.full{background:var(--bad)}
+.note{color:var(--muted);font-size:12px;margin-top:10px}
+footer{color:var(--muted);font-size:12px;padding:20px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">ⓩ</div>
+    <h1>Shielded x402</h1>
+    <span class="pill live" id="net">testnet</span>
+    <span class="spacer"></span>
+    <span class="pill" id="price">…</span>
+  </header>
+
+  <div id="banners"></div>
+
+  <div class="grid">
+    <section class="card hero">
+      <div>
+        <p class="big">Pay-per-request, privately.</p>
+        <p>An AI agent calls a paid API, gets <b>HTTP 402</b>, pays with a shielded Zcash testnet transaction (memo = nonce), and retries with a signed receipt. The merchant sees the payment only through its viewing key. The chain shows neither amount nor address.</p>
+        <button id="try">Request paid data →</button>
+        <div class="steps" id="steps">
+          <span class="step" data-s="0">GET /api/quote</span>
+          <span class="step" data-s="1">402 challenge</span>
+          <span class="step" data-s="2">shielded pay</span>
+          <span class="step" data-s="3">receipt</span>
+          <span class="step" data-s="4">200</span>
+        </div>
+      </div>
+      <div class="challenge" id="challenge"><div class="empty">Press the button: a live 402 challenge from this server appears here.</div></div>
+    </section>
+
+    <section class="card">
+      <h2>Live payment feed</h2>
+      <ul class="feed" id="feed"></ul>
+      <div class="empty" id="feedEmpty">No requests yet.</div>
+    </section>
+
+    <section class="card">
+      <h2>Agent spend caps <span class="sub">· UTC day</span></h2>
+      <div id="agents"><div class="empty">Waiting for agent ledger…</div></div>
+      <h2 style="margin-top:20px">Audit trail <span class="sub">· spendguard decisions</span></h2>
+      <ul class="feed" id="audit"></ul>
+      <div class="note">Every spendguard decision, including denials. A denied payment never reaches the wallet, so nothing is broadcast.</div>
+    </section>
+  </div>
+  <footer>Merchant: <span class="sub" id="ua">…</span> · Receipt key: <span class="sub" id="rk">…</span></footer>
+</div>
+<script>
+const $ = s => document.querySelector(s);
+const zat = n => (n / 1e8).toLocaleString(undefined, {maximumFractionDigits: 8}) + " TAZ";
+const ago = ts => { const d = Math.max(0, Math.floor(Date.now()/1000 - ts)); return d < 60 ? d + "s ago" : d < 3600 ? Math.floor(d/60) + "m ago" : new Date(ts*1000).toLocaleTimeString(); };
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const short = s => s && s.length > 22 ? s.slice(0, 12) + "…" + s.slice(-8) : (s || "");
+let lastId = 0, expiry = 0, timer;
+
+function banner(msgs){
+  $("#banners").innerHTML = msgs.map(m => `<div class="banner">⚠ <b>${esc(m.split(" ")[0])}</b> ${esc(m.split(" ").slice(1).join(" "))}</div>`).join("");
+}
+function steps(n){
+  document.querySelectorAll(".step").forEach(el => { const s = +el.dataset.s; el.className = "step" + (s < n ? " done" : s === n ? " on" : ""); });
+}
+
+async function status(){
+  const errs = [];
+  try {
+    const r = await fetch("/api/status"); const s = await r.json();
+    $("#price").textContent = zat(s.priceZat) + " / request";
+    $("#ua").textContent = short(s.merchantUa); $("#rk").textContent = short(s.receiptKey);
+    if (s.ledger.error) { errs.push(s.ledger.error); renderLedger(null); } else renderLedger(s.ledger.data);
+  } catch (e) { errs.push("x402z-server unreachable: " + e.message); }
+  banner(errs);
+}
+
+function renderLedger(l){
+  if (!l) { $("#agents").innerHTML = '<div class="empty">No agent ledger. Start x402z-agent with X402Z_AGENT_LEDGER set.</div>'; $("#audit").innerHTML = ""; return; }
+  const agents = l.agents || [];
+  $("#agents").innerHTML = agents.length ? agents.map(a => {
+    const pct = a.dailyCapZat ? Math.min(100, 100 * a.spentTodayZat / a.dailyCapZat) : 100;
+    const cls = pct >= 100 ? "full" : pct >= 75 ? "hot" : "";
+    return `<div class="agent"><div class="row"><b>${esc(a.agent)}</b><span class="sub">${zat(a.spentTodayZat)} / ${zat(a.dailyCapZat)}</span></div>
+      <div class="bar"><i class="${cls}" style="width:${pct}%"></i></div>
+      <div class="sub">${(a.allowedHosts||[]).map(esc).join(", ") || "no hosts allowed"}${a.approvalThresholdZat ? " · approval ≥ " + zat(a.approvalThresholdZat) : ""}</div></div>`;
+  }).join("") : '<div class="empty">Ledger has no agents.</div>';
+  const audit = (l.audit || []).slice(-50).reverse();
+  $("#audit").innerHTML = audit.map(e => `<li><span class="tag t-${esc(e.decision)}">${esc(String(e.decision).replace("_"," "))}</span>
+    <div><div>${esc(e.agent)} → ${esc(e.host)} · ${zat(e.amountZat)}</div>${e.reason ? `<div class="sub">${esc(e.reason)}</div>` : ""}</div><span class="time">${ago(e.ts)}</span></li>`).join("");
+}
+
+async function poll(){
+  try {
+    const r = await fetch("/api/events?since=" + lastId); const evs = await r.json();
+    for (const e of evs) {
+      lastId = Math.max(lastId, e.id);
+      const li = document.createElement("li"); li.className = "new";
+      li.innerHTML = `<span class="tag t-${e.kind}">${e.kind === "challenge" ? "402" : e.kind}</span>
+        <div><div>${esc(e.detail)}${e.amountZat ? " · " + zat(e.amountZat) : ""}</div><div class="sub">${esc(e.txid ? "tx " + short(e.txid) : e.memoNonce || "")}</div></div>
+        <span class="time" data-ts="${e.ts}">${ago(e.ts)}</span>`;
+      $("#feed").prepend(li);
+      if (e.kind === "paid") steps(5);
+    }
+    if (lastId) $("#feedEmpty").style.display = "none";
+    document.querySelectorAll("#feed .time").forEach(t => t.textContent = ago(+t.dataset.ts));
+  } catch (_) {}
+}
+
+function copyBtn(v){ return `<button class="ghost copy" data-v="${esc(v)}">copy</button>`; }
+document.addEventListener("click", e => { const v = e.target.dataset && e.target.dataset.v; if (v) { navigator.clipboard?.writeText(v); e.target.textContent = "copied"; setTimeout(() => e.target.textContent = "copy", 1200); } });
+
+$("#try").onclick = async () => {
+  steps(0);
+  try {
+    const r = await fetch("/api/quote"); const body = await r.json();
+    if (r.status !== 402) { $("#challenge").innerHTML = `<pre class="sub">${esc(JSON.stringify(body, null, 2))}</pre>`; steps(5); return; }
+    steps(1); expiry = body.expiresAt;
+    $("#challenge").innerHTML = `<div class="status402">HTTP 402 Payment Required · <span id="ttl"></span></div>
+      <dl class="kv">
+        <dt>scheme</dt><dd>${esc(body.scheme)} · ${esc(body.network)}</dd><span></span>
+        <dt>payTo</dt><dd>${esc(short(body.payTo))}</dd>${copyBtn(body.payTo)}
+        <dt>amount</dt><dd>${zat(body.amountZat)} <span class="sub">(${body.amountZat} zat)</span></dd>${copyBtn(String(body.amountZat / 1e8))}
+        <dt>memo</dt><dd>${esc(body.memoNonce)}</dd>${copyBtn(body.memoNonce)}
+      </dl>
+      <div class="note">Send exactly this from a shielded testnet wallet with the nonce as the memo. The facilitator spots it with the merchant viewing key and signs a receipt.</div>`;
+    clearInterval(timer);
+    timer = setInterval(() => { const t = expiry - Math.floor(Date.now()/1000); const el = $("#ttl"); if (el) el.textContent = t > 0 ? `expires in ${Math.floor(t/60)}:${String(t%60).padStart(2,"0")}` : "expired"; }, 1000);
+    setTimeout(() => steps(2), 900);
+    poll();
+  } catch (e) { banner(["x402z-server unreachable: " + e.message]); }
+};
+
+status(); poll();
+setInterval(poll, 1500); setInterval(status, 5000);
+</script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+[package]
+name = "x402z-facilitator"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "x402z-facilitator"
+path = "src/main.rs"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+x402z-protocol = { path = "../x402z-protocol" }
+# Versions checked on crates.io 2026-10-20 (see workspace Cargo.toml).
+zcash_client_backend = { version = "=0.24.0", features = ["lightwalletd-tonic", "orchard"] }
+zcash_keys = { version = "=0.16.1", features = ["orchard", "sapling"] }
+zcash_primitives = "=0.30.1"
+zcash_protocol = "=0.10.6"
+tonic = { version = "0.14", features = ["tls-ring", "tls-webpki-roots"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "sync"] }
+axum = "0.8"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+chacha20poly1305 = "0.10"
+hkdf = "0.12"
+sha2 = "0.10"
+hex = "0.4"
+base64 = "0.22"
+rand = "0.8"

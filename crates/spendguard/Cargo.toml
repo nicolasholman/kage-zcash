@@ -1,0 +1,8 @@
+[package]
+name = "spendguard"
+description = "Per-agent spend caps, host allowlist and approval threshold for x402z payments"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
