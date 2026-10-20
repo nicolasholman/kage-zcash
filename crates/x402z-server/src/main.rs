@@ -64,6 +64,8 @@ struct Config {
     receipt_key: VerifyingKey,
     facilitator_url: String,
     agent_ledger: Option<String>,
+    /// Receipts with fewer confirmations are refused (0 = accept mempool-only payments).
+    min_confirmations: u32,
 }
 
 #[derive(Default)]
@@ -105,6 +107,7 @@ enum ReceiptError {
     UnknownNonce,
     Replayed,
     Expired,
+    Unconfirmed { have: u32, need: u32 },
     WrongAddress,
     Underpaid { paid: u64, want: u64 },
 }
@@ -117,6 +120,7 @@ impl ReceiptError {
             Self::UnknownNonce => "memo nonce was never issued here".into(),
             Self::Replayed => "receipt already used".into(),
             Self::Expired => "challenge expired".into(),
+            Self::Unconfirmed { have, need } => format!("payment has {have} confirmation(s), need {need}; retry once it is mined"),
             Self::WrongAddress => "paid to a different address".into(),
             Self::Underpaid { paid, want } => format!("underpaid: {paid} zat < {want} zat"),
         }
@@ -186,7 +190,13 @@ async fn quote(State(app): State<Arc<App>>, headers: HeaderMap) -> Response {
         return payment_required(ch, None);
     };
     let result = decode_receipt(&app.cfg.receipt_key, receipt)
-        .and_then(|c| settle(&mut book, &app.cfg.merchant_ua, &c, now()).map(|_| c));
+        .and_then(|c| {
+            // Checked before settle so an unconfirmed payment doesn't burn the nonce and can retry.
+            if c.confirmations < app.cfg.min_confirmations {
+                return Err(ReceiptError::Unconfirmed { have: c.confirmations, need: app.cfg.min_confirmations });
+            }
+            settle(&mut book, &app.cfg.merchant_ua, &c, now()).map(|_| c)
+        });
     match result {
         Ok(c) => {
             let conf = if c.confirmations == 0 { "mempool".to_string() } else { format!("{} conf", c.confirmations) };
@@ -239,13 +249,30 @@ fn read_ledger(path: Option<&str>) -> serde_json::Value {
     }
 }
 
+/// TCP reachability of the facilitator, so the dashboard can say loudly when nobody can
+/// confirm payments (otherwise a payer would send TAZ and wait for a receipt that never comes).
+async fn probe_facilitator(url: &str) -> serde_json::Value {
+    let rest = url.split("://").nth(1).unwrap_or(url);
+    let authority = rest.split('/').next().unwrap_or(rest);
+    let default_port = if url.starts_with("https://") { 443 } else { 80 };
+    let addr = if authority.contains(':') { authority.to_string() } else { format!("{authority}:{default_port}") };
+    match tokio::time::timeout(std::time::Duration::from_secs(2), tokio::net::TcpStream::connect(&addr)).await {
+        Ok(Ok(_)) => serde_json::json!({ "reachable": true }),
+        Ok(Err(e)) => serde_json::json!({ "reachable": false, "error": format!("facilitator unreachable at {url}: {e}. Payments can't be confirmed and no receipts will be issued.") }),
+        Err(_) => serde_json::json!({ "reachable": false, "error": format!("facilitator at {url} timed out. Payments can't be confirmed and no receipts will be issued.") }),
+    }
+}
+
 async fn status(State(app): State<Arc<App>>) -> Json<serde_json::Value> {
+    let facilitator = probe_facilitator(&app.cfg.facilitator_url).await;
     let open = app.book.lock().unwrap().open.len();
     Json(serde_json::json!({
         "network": "testnet",
         "merchantUa": app.cfg.merchant_ua,
         "priceZat": app.cfg.price_zat,
+        "minConfirmations": app.cfg.min_confirmations,
         "facilitatorUrl": app.cfg.facilitator_url,
+        "facilitator": facilitator,
         "receiptKey": hex::encode(app.cfg.receipt_key.as_bytes()),
         "openChallenges": open,
         "ledger": read_ledger(app.cfg.agent_ledger.as_deref()),
@@ -279,7 +306,18 @@ async fn main() {
         }
     };
     let bind = optional("X402Z_BIND").unwrap_or_else(|| "127.0.0.1:4020".into());
-    let cfg = Config { merchant_ua, price_zat, receipt_key, facilitator_url, agent_ledger: optional("X402Z_AGENT_LEDGER") };
+    let min_confirmations = match optional("X402Z_MIN_CONFIRMATIONS").map(|s| s.parse::<u32>()) {
+        None => 1,
+        Some(Ok(n)) => n,
+        Some(Err(_)) => {
+            eprintln!("error: X402Z_MIN_CONFIRMATIONS must be a non-negative integer");
+            exit(2);
+        }
+    };
+    if min_confirmations == 0 {
+        eprintln!("warning: X402Z_MIN_CONFIRMATIONS=0: mempool-only (unmined) payments will unlock content");
+    }
+    let cfg = Config { merchant_ua, price_zat, receipt_key, facilitator_url, agent_ledger: optional("X402Z_AGENT_LEDGER"), min_confirmations };
     if cfg.agent_ledger.is_none() {
         eprintln!("warning: X402Z_AGENT_LEDGER not configured; dashboard will show a red banner");
     }
