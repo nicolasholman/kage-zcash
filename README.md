@@ -103,9 +103,9 @@ Testnet blocks arrive about every 75 s. By default, both the facilitator and the
   - With no seed, it exited 4.
   - With a fresh real wallet (`new-wallet`, birthday 4520790), it synced to the tip, reported `spendable 0 zat`, printed the address to fund, and exited 4.
   - With the cap or the allowlist violated, it exited 3 without touching the wallet.
-- **No payment was made**, because we have no testnet ZEC.
+- **No payment was made in this run**, because the wallet had no testnet ZEC yet. A later funded run paid end to end; see [Verified testnet run](#verified-testnet-run).
 
-**What Nick needs to provide:**
+**What a paid run needs** (all three were in place for the [Verified testnet run](#verified-testnet-run)):
 
 1. **A funded testnet wallet for the agent.** Put its 24-word BIP 39 phrase in `X402Z_AGENT_SEED` and its birthday height in `X402Z_AGENT_BIRTHDAY`. It needs at least 0.0011 TAZ spendable (price plus fee); more allows repeated runs. Alternatively, run `x402z-agent new-wallet` and send TAZ to the address it prints.
 2. **A merchant UA and UFVK.** Any testnet wallet's UFVK works, as long as the UA is derived from it. Or run `new-wallet` into a second directory; you only need its seed later, to spend the income.
@@ -153,6 +153,6 @@ The first payment downloads the Sapling proving parameters to the default Zcash 
 - **Leash port.** I couldn't read `../leash/packages/core` because the Loom sandbox blocks paths outside the project. spendguard here was written from the CLAUDE.md spec. It needs to be compared against leash once access is granted.
 - **Shielded pool.** Settled. The crates trial-decrypt Ironwood bundles with the Orchard viewing key, and a UA's Orchard receiver also receives in Ironwood. The agent sends change to Ironwood. The facilitator accepts Sapling, Orchard and Ironwood outputs.
 - **lightwalletd.** `testnet.zec.rocks:443` is reachable, but no official doc listing it was found.
-- **Faucet.** `testnet.zecfaucet.com` does **not resolve** (DNS failure, 2026-10-20). We need a working faucet or TAZ from someone.
-- **Funds.** Nothing is funded yet. The tools can now create the merchant keys, the receipt key and the agent wallet (see above), but a paid run needs TAZ. `zingo-cli` is not installed and isn't needed: the agent uses `zcash_client_sqlite` directly.
+- **Faucet.** `testnet.zecfaucet.com` does **not resolve** (DNS failure, 2026-10-20). The [Valar testnet faucet](https://faucet.testnet.valargroup.dev/) works: it gives 0.125 TAZ per IP per day, and it funded the agent wallet for the verified run.
+- **Funds.** Settled. The agent wallet was funded with 0.125 TAZ from the Valar faucet, and a paid run succeeded (see [Verified testnet run](#verified-testnet-run)). The tools create the merchant keys, the receipt key and the agent wallet themselves (see above). `zingo-cli` is not installed and isn't needed: the agent uses `zcash_client_sqlite` directly.
 - **Encrypted audit log.** Not built. `X402Z_AGENT_LEDGER` is plaintext JSON.
