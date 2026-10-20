@@ -140,6 +140,27 @@ The first payment downloads the Sapling proving parameters to the default Zcash 
   }
   ```
 
+**Check it yourself with the merchant's incoming viewing key.** ⚠️ This is a **demo-only testnet merchant wallet**. Its unified incoming viewing key is published on purpose and reveals every incoming payment (amount and memo) to this wallet. It cannot spend, and it is not a seed or spending key. Never publish a viewing key for a real wallet.
+
+```
+uivk=uivktest1ma9hgu9cmmmkv5f5npk7aktj8tradzqyxzwerez5trhku0xxgx7vsh0azzurz44pfdhmyrzxnur3n282f5t0glhje7kay4fw79njmg64g2wupcznmpfpy0gh6wngu0qw07ry404hnh6rq9vuj264gcjfxucylma4c8cuygxezqx2xwph5x66nckx4095pgvjzuq5rudsmr9dztnyv9f2w74unppttta6cu7fr3tx494zqstn2hv
+```
+
+```sh
+cargo run --release -p x402z-facilitator --example check_uivk -- "$uivk" \
+  030c3cbf78ce8460553bba4e82c0ba813f039bd3ecf4d7f2e81c59837dc28351 x402z-f19a63da20cbc0749ea800b3
+```
+
+`check_uivk` fetches the transaction from `testnet.zec.rocks` (override with `X402Z_LWD_URL`), checks the txid, and trial-decrypts every Sapling, Orchard and Ironwood output with the incoming key alone. Tested on 2026-10-20:
+
+```
+tx 030c3cbf…8351: mined at 4521112, 20 confirmation(s) (tip 4521131)
+incoming 100000 zat via Ironwood, memo text "x402z-f19a63da20cbc0749ea800b3"
+total to merchant with memo "x402z-f19a63da20cbc0749ea800b3": 100000 zat
+```
+
+With a different memo nonce it prints `0 zat` and exits 2. If no output decrypts, it exits 1.
+
 **Gotcha: Sapling params.** The first attempt failed with `sapling-spend.params failed validation` because the ~50 MB download was cut off (only 5,982,770 of 47,958,396 bytes arrived), so the hash check rejected it and no payment was sent. Fix: delete the partial `sapling-spend.params` from the Zcash params folder and download it again; the retry above then went through.
 
 ## Blockers / open checks

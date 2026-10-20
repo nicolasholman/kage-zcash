@@ -42,3 +42,5 @@ sapling = { package = "sapling-crypto", version = "0.9", features = ["test-depen
 secp256k1 = "0.33"
 zip32 = "0.3"
 rand10 = { package = "rand", version = "0.10" }
+# examples/check_uivk.rs
+zcash_note_encryption = "0.5"
