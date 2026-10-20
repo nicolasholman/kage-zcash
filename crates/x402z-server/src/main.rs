@@ -249,7 +249,22 @@ fn read_ledger(path: Option<&str>) -> serde_json::Value {
     }
 }
 
+/// TCP reachability of the facilitator, so the dashboard can say loudly when nobody can
+/// confirm payments (otherwise a payer would send TAZ and wait for a receipt that never comes).
+async fn probe_facilitator(url: &str) -> serde_json::Value {
+    let rest = url.split("://").nth(1).unwrap_or(url);
+    let authority = rest.split('/').next().unwrap_or(rest);
+    let default_port = if url.starts_with("https://") { 443 } else { 80 };
+    let addr = if authority.contains(':') { authority.to_string() } else { format!("{authority}:{default_port}") };
+    match tokio::time::timeout(std::time::Duration::from_secs(2), tokio::net::TcpStream::connect(&addr)).await {
+        Ok(Ok(_)) => serde_json::json!({ "reachable": true }),
+        Ok(Err(e)) => serde_json::json!({ "reachable": false, "error": format!("facilitator unreachable at {url}: {e}. Payments can't be confirmed and no receipts will be issued.") }),
+        Err(_) => serde_json::json!({ "reachable": false, "error": format!("facilitator at {url} timed out. Payments can't be confirmed and no receipts will be issued.") }),
+    }
+}
+
 async fn status(State(app): State<Arc<App>>) -> Json<serde_json::Value> {
+    let facilitator = probe_facilitator(&app.cfg.facilitator_url).await;
     let open = app.book.lock().unwrap().open.len();
     Json(serde_json::json!({
         "network": "testnet",
@@ -257,6 +272,7 @@ async fn status(State(app): State<Arc<App>>) -> Json<serde_json::Value> {
         "priceZat": app.cfg.price_zat,
         "minConfirmations": app.cfg.min_confirmations,
         "facilitatorUrl": app.cfg.facilitator_url,
+        "facilitator": facilitator,
         "receiptKey": hex::encode(app.cfg.receipt_key.as_bytes()),
         "openChallenges": open,
         "ledger": read_ledger(app.cfg.agent_ledger.as_deref()),

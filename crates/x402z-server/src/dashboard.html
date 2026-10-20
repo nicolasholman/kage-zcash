@@ -127,6 +127,7 @@ async function status(){
     const r = await fetch("/api/status"); const s = await r.json();
     $("#price").textContent = zat(s.priceZat) + " / request";
     $("#ua").textContent = short(s.merchantUa); $("#rk").textContent = short(s.receiptKey);
+    if (s.facilitator && !s.facilitator.reachable) errs.push(s.facilitator.error);
     if (s.ledger.error) { errs.push(s.ledger.error); renderLedger(null); } else renderLedger(s.ledger.data);
   } catch (e) { errs.push("x402z-server unreachable: " + e.message); }
   banner(errs);
