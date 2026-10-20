@@ -75,6 +75,7 @@ fn memo(text: &str) -> MemoBytes {
 enum Out<'a> {
     Ironwood(orchard::Address, u64, &'a str),
     Sapling(sapling::PaymentAddress, u64, &'a str),
+    Transparent(TransparentAddress, u64),
 }
 
 /// Build, prove, sign and serialize a tx funded by one transparent input of exactly
@@ -107,13 +108,14 @@ fn build_tx(outs: &[Out<'_>]) -> Vec<u8> {
                 Out::Sapling(to, v, m) => {
                     b.add_sapling_output::<zip317::FeeError>(None, *to, Zatoshis::from_u64(*v).unwrap(), memo(m)).unwrap()
                 }
+                Out::Transparent(to, v) => b.add_transparent_output(to, Zatoshis::from_u64(*v).unwrap()).unwrap(),
             }
         }
         b
     };
     let rule = zip317::FeeRule::standard();
     let paid: u64 = outs.iter().map(|o| match o {
-        Out::Ironwood(_, v, _) | Out::Sapling(_, v, _) => *v,
+        Out::Ironwood(_, v, _) | Out::Sapling(_, v, _) | Out::Transparent(_, v) => *v,
     }).sum();
     let fee = make(paid).get_fee(&rule).unwrap().into_u64();
     let mut signing = TransparentSigningSet::new();
@@ -260,4 +262,26 @@ fn confirmations_and_lwd_height_sentinels() {
     assert_eq!(TxLocation::from_raw_height(0), TxLocation::Mempool);
     assert_eq!(TxLocation::from_raw_height(u64::MAX), TxLocation::Orphaned);
     assert_eq!(TxLocation::from_raw_height(3_500_000), TxLocation::Mined(BlockHeight::from_u32(3_500_000)));
+}
+
+#[test]
+fn transparent_receivers_and_outputs_are_never_accepted() {
+    let ufvk = merchant(3);
+    let h = target_height().into();
+    // Merchant UA that also carries a transparent receiver: refused as payTo, even though the
+    // tx pays its Orchard receiver in full.
+    let shielded = ua_at(&ufvk, 0);
+    let taddr = TransparentAddress::PublicKeyHash([0x11; 20]);
+    let full = zcash_keys::address::UnifiedAddress::from_receivers(shielded.orchard().copied(), shielded.sapling().copied(), Some(taddr), None, None).unwrap();
+    let with_t = full.encode(&NETWORK);
+    let shielded_ok = build_tx(&[Out::Ironwood(*full.orchard().unwrap(), PRICE, NONCE)]);
+    assert_eq!(check(&shielded_ok, &ufvk, &challenge(&with_t, PRICE), Some(h), h), Err(VerifyError::BadPayTo));
+
+    // Transparent-funded tx paying the merchant's transparent receiver: never credited.
+    let pay_to = ua_at(&ufvk, 0).encode(&NETWORK);
+    let t_only = build_tx(&[Out::Transparent(taddr, PRICE)]);
+    assert_eq!(check(&t_only, &ufvk, &challenge(&pay_to, PRICE), Some(h), h), Err(VerifyError::NoMatchingOutput));
+    // Transparent value does not top up a short shielded payment.
+    let mixed = build_tx(&[Out::Transparent(taddr, PRICE), Out::Ironwood(*ua_at(&ufvk, 0).orchard().unwrap(), PRICE - 1, NONCE)]);
+    assert_eq!(check(&mixed, &ufvk, &challenge(&pay_to, PRICE), Some(h), h), Err(VerifyError::Underpaid { paid: PRICE - 1, want: PRICE }));
 }

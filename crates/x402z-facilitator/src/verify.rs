@@ -31,7 +31,7 @@ pub struct Payment {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VerifyError {
-    /// `payTo` is not a testnet unified address with a shielded receiver.
+    /// `payTo` is not a shielded-only testnet unified address (no shielded receiver, or it has a transparent one).
     BadPayTo,
     /// Bytes from lightwalletd did not parse as a transaction for this branch.
     Unparseable(String),
@@ -47,7 +47,7 @@ pub enum VerifyError {
 impl std::fmt::Display for VerifyError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            VerifyError::BadPayTo => write!(f, "payTo is not a testnet unified address with a shielded receiver"),
+            VerifyError::BadPayTo => write!(f, "payTo is not a shielded-only testnet unified address (needs a Sapling or Orchard receiver and no transparent receiver)"),
             VerifyError::Unparseable(e) => write!(f, "transaction did not parse: {e}"),
             VerifyError::TxidMismatch { asked, got } => write!(f, "lightwalletd returned tx {got} for {asked}"),
             VerifyError::NoMatchingOutput => {
@@ -98,7 +98,10 @@ pub fn verify_payment<P: Parameters>(
     let Some(Address::Unified(ua)) = Address::decode(params, &challenge.pay_to) else {
         return Err(VerifyError::BadPayTo);
     };
-    if ua.sapling().is_none() && ua.orchard().is_none() {
+    // Shielded-only: a payTo with a transparent receiver is refused outright, so a payer can
+    // never be steered to (or credited for) a transparent output. Transparent outputs in the
+    // tx are never counted either: only Sapling/Orchard/Ironwood notes are credited below.
+    if ua.sapling().is_none() && ua.orchard().is_none() || ua.transparent().is_some() {
         return Err(VerifyError::BadPayTo);
     }
 
