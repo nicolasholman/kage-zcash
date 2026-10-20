@@ -123,6 +123,25 @@ X402Z_AGENT_DAILY_CAP_ZAT=1 target/debug/x402z-agent   # cap demo: exit 3, nothi
 ```
 The first payment downloads the Sapling proving parameters to the default Zcash params folder (about 50 MB, once).
 
+## Verified testnet run
+
+**Paid end to end on 2026-10-20** (11:14 IST) against `https://testnet.zec.rocks:443`, with nothing mocked:
+
+- **Payment txid:** [`030c3cbf78ce8460553bba4e82c0ba813f039bd3ecf4d7f2e81c59837dc28351`](https://testnet.zecblock.com/tx/030c3cbf78ce8460553bba4e82c0ba813f039bd3ecf4d7f2e81c59837dc28351) (testnet explorer; mined in block 4521112).
+- **Price:** 100,000 zat (0.001 TAZ), plus a 10,000 zat network fee. The agent's spendable balance went from 12,500,000 to 12,390,000 zat.
+- **Facilitator:** `CONFIRMED 100000 zat via [Ironwood], 2 conf (tip 4521113); receipt issued`.
+- **Server:** `GET /api/quote` answered `200 OK` with the paid content and this settlement block:
+  ```json
+  "settlement": {
+    "amountZat": 100000,
+    "confirmations": 2,
+    "memoNonce": "x402z-f19a63da20cbc0749ea800b3",
+    "txid": "030c3cbf78ce8460553bba4e82c0ba813f039bd3ecf4d7f2e81c59837dc28351"
+  }
+  ```
+
+**Gotcha: Sapling params.** The first attempt failed with `sapling-spend.params failed validation` because the ~50 MB download was cut off (only 5,982,770 of 47,958,396 bytes arrived), so the hash check rejected it and no payment was sent. Fix: delete the partial `sapling-spend.params` from the Zcash params folder and download it again; the retry above then went through.
+
 ## Blockers / open checks
 
 - **NU7 is live on testnet.** It activated at height 4465026, with branch id `0x77190AD9`.
