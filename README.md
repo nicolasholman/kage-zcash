@@ -1,4 +1,4 @@
-# Shielded x402: private machine payments for AI agents
+# Kage — shielded x402: private machine payments for AI agents
 
 HTTP 402 payments for AI agents, settled as **Zcash shielded** testnet transactions. The merchant's facilitator verifies a payment with a viewing key alone (it holds no spend key). Before the agent builds any transaction, **spendguard** checks it against a daily cap, a host allowlist and an approval threshold.
 

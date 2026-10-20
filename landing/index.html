@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kage — shielded x402 payments for AI agents</title>
+    <meta name="description" content="Kage lets AI agents pay for APIs over HTTP 402 with Zcash shielded transactions. A spend guard checks every payment first; the merchant verifies with a viewing key alone." />
+    <meta name="theme-color" content="#0c0c0d" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%230c0c0d'/%3E%3Cpath d='M9 22l7-12 7 12' fill='none' stroke='%23f4b728' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <style>
+      :root { --font: 'Geist', system-ui, sans-serif; --mono: 'Geist Mono', ui-monospace, monospace;
+        --deep: #0c0c0d; --deep-text: #0c0c0d; --accent: #f4b728; --accent-ink: #1a1405; --tint: #fdf3d3; --tint-2: #f1f1ee;
+        --paper: #ffffff; --ink: #0c0c0d; --muted: #66665f; --line: rgba(12, 12, 13, .08); --line-strong: rgba(12, 12, 13, .22); color-scheme: light; }
+      /* landing-kit base: Polaris-grade structure. Each page sets the theme variables and its own font. */
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 17px/1.55 var(--font);letter-spacing:-.01em;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+img{max-width:100%;display:block}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:6px}
+code,.mono{font-family:var(--mono);font-size:.86em;letter-spacing:0;overflow-wrap:anywhere}
+.wrap{max-width:1360px;margin:0 auto;padding:0 40px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* type */
+.h-hero{font-weight:500;font-size:clamp(46px,6.3vw,96px);line-height:.95;letter-spacing:-.05em;margin:0}
+.h-sec{font-weight:500;font-size:clamp(36px,4.6vw,68px);line-height:1;letter-spacing:-.045em;margin:0}
+.h-card{font-weight:500;font-size:clamp(26px,2.4vw,36px);line-height:1.05;letter-spacing:-.035em;margin:0}
+.lead{font-size:clamp(18px,1.5vw,21px);line-height:1.4;letter-spacing:-.02em}
+.muted{color:var(--muted)}
+.strong{color:var(--ink)}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;gap:10px;height:52px;padding:0 24px;border-radius:999px;font:500 17px/1 var(--font);letter-spacing:-.02em;text-decoration:none;border:0;cursor:pointer;white-space:nowrap;transition:transform .25s cubic-bezier(.2,.7,.2,1),background .2s,box-shadow .2s}
+.btn:hover{transform:translateY(-2px)}
+.btn svg{width:18px;height:18px}
+.btn-accent{background:var(--accent);color:var(--accent-ink)}
+.btn-white{background:#fff;color:var(--deep)}
+.btn-dark{background:var(--deep);color:#fff}
+.btn-outline{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 1px var(--line-strong)}
+.btn-ghost-light{background:transparent;color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.35)}
+.btn-sm{height:44px;padding:0 18px;font-size:16px}
+
+/* nav: links left, logo centre, actions right */
+.nav{position:absolute;inset:0 0 auto 0;z-index:30}
+.nav .wrap{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;height:100px}
+.nav ul{display:flex;gap:28px;list-style:none;margin:0;padding:0}
+.nav ul a{text-decoration:none;font-size:17px;letter-spacing:-.02em;opacity:.92}
+.nav ul a:hover{opacity:1}
+.nav .act{display:flex;justify-content:flex-end;align-items:center;gap:18px}
+.nav .act>a:not(.btn){text-decoration:none;font-size:17px}
+.logo{display:inline-flex;align-items:center;gap:10px;text-decoration:none;font-weight:600;font-size:24px;letter-spacing:-.04em}
+.logo svg{width:30px;height:30px}
+.nav.on-dark{color:#fff}
+.nav.on-light{color:var(--ink)}
+
+/* hero shells */
+.hero{position:relative;isolation:isolate;overflow:hidden}
+.hero-bleed{min-height:max(720px,100svh);padding-top:140px;background:var(--deep);color:#fff;display:flex;align-items:flex-end}
+.hero-bleed .wrap{width:100%;padding-bottom:56px;display:grid;grid-template-columns:1.25fr 1fr;align-items:end;gap:40px}
+.hero-bleed .h-hero{max-width:11ch}
+.hero-bleed .lead{max-width:34ch;margin:26px 0 34px;color:rgba(255,255,255,.86)}
+.hero-centre{background:var(--deep);color:#fff;padding:168px 0 0;text-align:center}
+.hero-centre .h-hero{max-width:14ch;margin:0 auto}
+.hero-centre .lead{max-width:44ch;margin:26px auto 36px;color:rgba(255,255,255,.82)}
+.hero-centre .cta{justify-content:center}
+.hero-split{background:var(--deep);color:#fff;padding:150px 0 90px}
+.hero-split .wrap{display:grid;grid-template-columns:1.1fr .9fr;gap:60px;align-items:center}
+.hero-split .lead{max-width:38ch;margin:26px 0 34px;color:rgba(255,255,255,.84)}
+.hero-light{background:var(--paper);color:var(--ink);padding:160px 0 40px}
+.hero-light .h-hero{max-width:13ch;color:var(--deep-text)}
+.hero-light .lead{max-width:44ch;margin:26px 0 34px;color:var(--muted)}
+.cta{display:flex;flex-wrap:wrap;gap:12px}
+.glow{position:absolute;z-index:-1;border-radius:50%;filter:blur(10px);pointer-events:none}
+
+/* floating white widget (hero) */
+.widget{justify-self:end;width:min(100%,360px);background:#fff;color:var(--deep-text);border-radius:28px;padding:24px;box-shadow:0 40px 80px -30px rgba(0,0,0,.55)}
+.widget .w-top{display:flex;align-items:center;gap:10px;justify-content:space-between}
+.widget .w-title{font-weight:500;font-size:26px;letter-spacing:-.04em}
+.tag{display:inline-flex;align-items:center;height:28px;padding:0 11px;border-radius:999px;font-size:13px;font-weight:500;letter-spacing:-.01em;white-space:nowrap}
+.tag-deep{background:var(--deep);color:var(--accent)}
+.tag-tint{background:var(--tint);color:var(--deep-text)}
+.tag-accent{background:var(--accent);color:var(--accent-ink)}
+.tag-no{background:#fde2e1;color:#b42318}
+.tag-ok{background:#dcf5e7;color:#14714b}
+.widget .w-note{font-size:14px;color:#6b7280;margin-top:14px}
+
+/* built-on strip */
+.built{padding:100px 0 40px;text-align:center}
+.built .pill{display:inline-block;padding:10px 26px;border-radius:999px;background:var(--tint);color:var(--deep-text);font-size:20px;letter-spacing:-.02em}
+.marquee{overflow:hidden;margin-top:44px;-webkit-mask:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent);mask:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent)}
+.marquee .track{display:flex;gap:64px;width:max-content;animation:mq 34s linear infinite}
+.marquee span{display:inline-flex;align-items:center;gap:12px;font-weight:500;font-size:32px;letter-spacing:-.04em;color:var(--deep-text);white-space:nowrap}
+.marquee span i{width:26px;height:26px;border-radius:8px;background:var(--deep-text);opacity:.85;display:inline-block}
+@keyframes mq{to{transform:translateX(-50%)}}
+
+/* sections */
+section{padding:110px 0}
+.sec-head{display:flex;justify-content:space-between;align-items:flex-end;gap:30px;margin-bottom:56px}
+.sec-head .h-sec{color:var(--deep-text);max-width:16ch}
+.sec-head p{max-width:46ch;margin:18px 0 0}
+.intro{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:end}
+.intro .h-sec{color:var(--deep-text)}
+.intro .copy p{margin:0 0 18px;color:var(--muted)}
+.intro .copy p b{color:var(--deep-text);font-weight:500}
+
+/* bento cards */
+.bento{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.card{position:relative;border-radius:28px;padding:32px;min-height:420px;gap:28px;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between}
+.c-tint{background:var(--tint);color:var(--deep-text)}
+.c-tint-2{background:var(--tint-2);color:var(--deep-text)}
+.c-deep{background:var(--deep);color:#fff}
+.c-deep .h-card{color:var(--accent)}
+.c-accent{background:var(--accent);color:var(--accent-ink)}
+.card p{margin:12px 0 0;font-size:16px;line-height:1.45}
+.c-deep p{color:rgba(255,255,255,.72)}
+.ui{background:#fff;color:var(--deep-text);border-radius:22px;padding:22px;box-shadow:0 24px 50px -28px rgba(0,0,0,.35)}
+.ui .big{font-weight:500;font-size:44px;letter-spacing:-.05em;line-height:1}
+.ui .big small{font-size:16px;letter-spacing:-.01em;color:#6b7280;margin-left:8px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chips span{height:40px;display:inline-flex;align-items:center;padding:0 16px;border-radius:999px;background:var(--tint);color:var(--deep-text);font-size:16px;letter-spacing:-.02em}
+.chips span.on{background:var(--deep);color:#fff}
+.bar{display:flex;height:12px;border-radius:4px;overflow:hidden;gap:3px;margin-top:22px}
+.bar i{display:block}
+
+/* dark proof / FAQ section */
+.dark{background:var(--deep);color:#fff}
+.dark .h-sec{color:var(--accent)}
+.dark .muted{color:rgba(255,255,255,.62)}
+.faq{display:grid;grid-template-columns:1fr 1fr;gap:60px}
+.faq details{border-top:1px solid rgba(255,255,255,.14);padding:26px 0}
+.faq details:last-child{border-bottom:1px solid rgba(255,255,255,.14)}
+.faq summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;gap:20px;font-weight:500;font-size:clamp(22px,2vw,30px);letter-spacing:-.035em;color:var(--accent)}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:'+';font-weight:300;font-size:32px;line-height:1}
+.faq details[open] summary::after{content:'–'}
+.faq details p{margin:16px 0 0;color:rgba(255,255,255,.72);font-size:18px;max-width:52ch}
+
+/* evidence list */
+.ev{border-radius:28px;overflow:hidden;background:#fff;box-shadow:inset 0 0 0 1px var(--line)}
+.ev .row{display:grid;grid-template-columns:1fr auto 130px;gap:18px;align-items:center;padding:18px 26px;border-top:1px solid var(--line);font-size:16px}
+.ev .row:first-child{border-top:0}
+.ev .row a{font-family:var(--mono);font-size:14px;text-align:right;color:var(--deep-text)}
+.dark .ev{background:rgba(255,255,255,.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,.1)}
+.dark .ev .row{border-color:rgba(255,255,255,.08)}
+.dark .ev .row a{color:var(--accent)}
+
+/* stat row */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+.stat{border-radius:24px;padding:28px;background:var(--tint)}
+.stat b{display:block;font-weight:500;font-size:clamp(40px,4vw,60px);letter-spacing:-.05em;line-height:1;color:var(--deep-text)}
+.stat span{display:block;margin-top:12px;color:var(--muted);font-size:16px}
+
+/* centred CTA */
+.talk{padding:130px 0 120px;text-align:center;background:linear-gradient(180deg,var(--paper) 0%,var(--tint) 100%)}
+.talk .h-sec{color:var(--deep-text);margin:0 auto}
+.talk p{max-width:46ch;margin:22px auto 34px;color:var(--muted)}
+.talk pre{display:inline-block;text-align:left;margin:0 0 30px;padding:18px 24px;border-radius:18px;background:var(--deep);color:var(--accent);font:400 15px/1.7 var(--mono);max-width:100%;overflow-x:auto}
+
+/* footer */
+.foot{background:var(--tint);padding:0 40px 40px}
+.foot .box{max-width:1360px;margin:0 auto;background:var(--deep);color:#fff;border-radius:40px;padding:56px 48px 40px;display:grid;grid-template-columns:1.2fr 1fr;gap:40px}
+.foot p{color:rgba(255,255,255,.62);max-width:44ch;margin:22px 0 0}
+.foot nav{display:flex;flex-wrap:wrap;gap:12px 36px;align-content:start}
+.foot nav a{text-decoration:none;font-size:18px;letter-spacing:-.02em}
+.foot .legal{grid-column:1/-1;display:flex;justify-content:space-between;gap:20px;padding-top:40px;color:rgba(255,255,255,.55);font-size:14px}
+
+/* reveal: transform only, so content is never hidden */
+.rv{animation:rv 1s cubic-bezier(.2,.7,.2,1) both}
+.rv.d1{animation-delay:.08s}.rv.d2{animation-delay:.16s}.rv.d3{animation-delay:.26s}.rv.d4{animation-delay:.36s}
+@keyframes rv{from{transform:translateY(22px)}to{transform:none}}
+
+@media (max-width:1024px){
+  .wrap{padding:0 24px}
+  .nav ul{display:none}
+  .nav .wrap{grid-template-columns:auto 1fr;height:84px}
+  .nav .logo{order:-1}
+  .hero-bleed .wrap,.hero-split .wrap,.intro,.faq{grid-template-columns:1fr}
+  .widget{justify-self:start}
+  .bento{grid-template-columns:1fr 1fr}
+  .bento .card:first-child{grid-column:span 2;min-height:0}
+  .stats{grid-template-columns:1fr 1fr}
+  .foot .box{grid-template-columns:1fr}
+  .sec-head{flex-direction:column;align-items:flex-start}
+}
+@media (max-width:640px){
+  body{font-size:16px}
+  .wrap{padding:0 16px}
+  section{padding:76px 0}
+  .nav .act>a:not(.btn){display:none}
+  .hero-bleed{min-height:auto;padding-top:120px}
+  .hero-bleed .wrap{padding-bottom:36px}
+  .hero-centre{padding-top:130px}
+  .hero-split{padding:124px 0 64px}
+  .hero-light{padding-top:120px}
+  .bento{grid-template-columns:1fr}
+  .bento .card:first-child{grid-column:auto}
+  .card{min-height:0;padding:24px;gap:28px}
+  .stats{grid-template-columns:1fr 1fr;gap:12px}
+  .stat{padding:20px}
+  .ev .row{grid-template-columns:1fr;gap:6px;padding:16px 18px}
+  .ev .row a{text-align:left}
+  .marquee span{font-size:24px}
+  .talk{padding:90px 0}
+  .foot{padding:0 12px 12px}
+  .foot .box{padding:36px 22px 26px;border-radius:28px}
+  .foot .legal{flex-direction:column}
+  .btn{height:48px;padding:0 20px;font-size:16px}
+}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.rv,.marquee .track{animation:none}.btn{transition:none}}
+
+      .hero-bleed { background: radial-gradient(55% 60% at 78% 30%, rgba(244, 183, 40, .22), transparent 70%), radial-gradient(40% 40% at 15% 90%, rgba(244, 183, 40, .08), transparent 70%), #0c0c0d; }
+      .big402 { position: absolute; z-index: -1; right: -2%; top: 8%; font-weight: 600; font-size: min(42vw, 600px); line-height: .8; letter-spacing: -.08em; color: transparent; -webkit-text-stroke: 1.5px rgba(244, 183, 40, .22); user-select: none; }
+      .flow { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 8px; }
+      .flow li { display: grid; grid-template-columns: 28px 1fr auto; gap: 12px; align-items: center; padding: 12px 14px; border-radius: 16px; background: #f6f6f3; font-size: 15px; letter-spacing: -.02em; opacity: .35; transition: opacity .5s, background .5s; }
+      .flow li.on { opacity: 1; }
+      .flow li.done { background: var(--tint); }
+      .flow .n { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: #fff; font: 500 12px var(--mono); }
+      .flow li.done .n { background: var(--deep); color: var(--accent); }
+      .flow code { font-size: 12px; color: #6b6b64; }
+      .code { margin-top: 18px; padding: 14px; border-radius: 16px; background: var(--deep); color: var(--accent); font: 400 12.5px/1.6 var(--mono); overflow-x: auto; white-space: pre; }
+      .guard { display: grid; gap: 10px; }
+      .guard div { display: flex; justify-content: space-between; align-items: center; background: #fff; border-radius: 16px; padding: 14px 16px; }
+      .guard b { font-weight: 500; letter-spacing: -.02em; }
+      .exits .row { grid-template-columns: 70px 1fr auto; }
+      .exits .x { font: 500 22px var(--mono); color: var(--accent); }
+      @media (max-width: 1024px) { .big402 { font-size: 70vw; top: 6%; right: -10%; } }
+      @media (max-width: 640px) { .exits .row { grid-template-columns: 1fr; } }
+      @media (prefers-reduced-motion: reduce) { .flow li { transition: none; opacity: 1; } }
+    </style>
+  </head>
+  <body>
+    <nav class="nav on-dark" aria-label="Main">
+      <div class="wrap">
+        <ul><li><a href="#how">How it works</a></li><li><a href="#guard">Spend guard</a></li><li><a href="#live">Live run</a></li></ul>
+        <a class="logo" href="#top"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#f4b728" /><path d="M9 22l7-12 7 12" fill="none" stroke="#0c0c0d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" /></svg>Kage</a>
+        <div class="act"><a href="#faq">FAQ</a><a class="btn btn-white btn-sm" href="https://github.com/nickthelegend/zec-shielded-x402">Get the code</a></div>
+      </div>
+    </nav>
+
+    <header class="hero hero-bleed" id="top">
+      <div class="big402" aria-hidden="true">402</div>
+      <div class="wrap">
+        <div>
+          <h1 class="h-hero rv">Agents pay in the shadows.</h1>
+          <p class="lead rv d1">HTTP 402 payments for AI agents, settled as Zcash shielded transactions. A spend guard checks every payment before it is built, and the merchant verifies it with a viewing key alone.</p>
+          <div class="cta rv d2"><a class="btn btn-accent" href="#live">See the live payment <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg></a></div>
+        </div>
+        <div class="widget rv d3" aria-label="One paid API call, step by step">
+          <div class="w-top"><span class="w-title">GET /api/quote</span><span class="tag tag-deep" id="st">402</span></div>
+          <ol class="flow" id="flow">
+            <li><span class="n">1</span><span>402 with a memo nonce</span><code>payTo · amount</code></li>
+            <li><span class="n">2</span><span>spendguard approves</span><code>cap · host</code></li>
+            <li><span class="n">3</span><span>shielded transaction</span><code>030c3cbf…</code></li>
+            <li><span class="n">4</span><span>facilitator receipt</span><code>ed25519</code></li>
+          </ol>
+          <p class="w-note">Replayed from the live testnet run, block 4,521,112.</p>
+        </div>
+      </div>
+    </header>
+
+    <div class="built">
+      <span class="pill">Built on Zcash, for the agent economy</span>
+      <div class="marquee" aria-hidden="true"><div class="track">
+        <span><i></i>Zcash</span><span><i></i>x402</span><span><i></i>Orchard</span><span><i></i>Sapling</span><span><i></i>Halo2</span><span><i></i>lightwalletd</span><span><i></i>ed25519</span><span><i></i>Rust</span>
+        <span><i></i>Zcash</span><span><i></i>x402</span><span><i></i>Orchard</span><span><i></i>Sapling</span><span><i></i>Halo2</span><span><i></i>lightwalletd</span><span><i></i>ed25519</span><span><i></i>Rust</span>
+      </div></div>
+    </div>
+
+    <main>
+      <section>
+        <div class="wrap intro">
+          <div>
+            <h2 class="h-sec">x402 for agents, without a public trail</h2>
+            <div class="cta" style="margin-top: 34px"><a class="btn btn-dark" href="https://github.com/nickthelegend/zec-shielded-x402">Run it locally <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg></a><a class="btn btn-outline" href="https://github.com/nickthelegend/zec-shielded-x402/blob/main/docs/spec-shielded-x402-agents.md">Read the spec</a></div>
+          </div>
+          <div class="copy lead">
+            <p><b>Every payment is shielded.</b> Amount, sender and the API it paid for stay off the public chain.</p>
+            <p><b>The merchant holds no spend key.</b> Its facilitator finds the payment with a viewing key and signs a receipt.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="how" style="padding-top: 0">
+        <div class="wrap">
+          <div class="sec-head"><h2 class="h-sec">One request, four steps</h2><a class="btn btn-outline btn-sm" href="https://github.com/nickthelegend/zec-shielded-x402#readme">Learn more <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg></a></div>
+          <div class="bento">
+            <div class="card c-tint">
+              <div class="ui"><div class="code" style="margin: 0">agent → GET /api/quote → 402
+  → spendguard.check()
+  → shielded tx (memo = nonce)
+  → facilitator scans with UFVK
+  → receipt → retry → 200</div></div>
+              <div><h3 class="h-card">The x402 flow, shielded</h3><p>The challenge names the price and a single-use memo nonce. The payment carries the nonce in its encrypted memo.</p></div>
+            </div>
+            <div class="card c-tint-2">
+              <div><h3 class="h-card">Viewing key only</h3><p>The facilitator trial-decrypts the transaction with the merchant's viewing key, checks recipient, amount and memo, then signs an ed25519 receipt.</p></div>
+              <div class="chips"><span class="on">200 confirmed</span><span>202 pending</span><span>422 rejected</span></div>
+            </div>
+            <div class="card c-deep" id="guard">
+              <div><h3 class="h-card">A guard before any spend</h3><p>spendguard refuses before a transaction exists: daily cap, host allowlist and an approval threshold.</p></div>
+              <div class="guard"><div><b>Daily cap</b><span class="tag tag-accent">enforced</span></div><div><b>Host allowlist</b><span class="tag tag-accent">enforced</span></div><div><b>Approval threshold</b><span class="tag tag-accent">enforced</span></div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section style="padding-top: 0">
+        <div class="wrap stats">
+          <div class="stat"><b>34</b><span>tests, five on real shielded transactions</span></div>
+          <div class="stat"><b>0</b><span>spend keys on the merchant side</span></div>
+          <div class="stat"><b>30</b><span>402s per minute per IP, then 429</span></div>
+          <div class="stat"><b>1</b><span>confirmation by default</span></div>
+        </div>
+      </section>
+
+      <section class="dark" id="live">
+        <div class="wrap">
+          <div class="sec-head"><div><h2 class="h-sec">Paid live on Zcash testnet</h2><p class="muted lead">An agent paid the paywalled quote endpoint with a real shielded transaction, the facilitator verified it with the merchant's viewing key, and the retry returned 200.</p></div><a class="btn btn-accent btn-sm" href="https://testnet.zecblock.com/tx/030c3cbf78ce8460553bba4e82c0ba813f039bd3ecf4d7f2e81c59837dc28351">View the transaction</a></div>
+          <div class="ev exits" role="table" aria-label="Agent exit codes">
+            <div class="row" role="row"><span class="x">0</span><span>Paid: the transaction <code>030c3cbf…</code>, mined in block 4,521,112</span><span class="tag tag-ok">paid</span></div>
+            <div class="row" role="row"><span class="x">3</span><span>spendguard refused: cap below the price, or host not allowed. No transaction built.</span><span class="tag tag-no">refused</span></div>
+            <div class="row" role="row"><span class="x">4</span><span>No funded wallet, or too little testnet balance. It says how much is missing.</span><span class="tag tag-no">setup</span></div>
+            <div class="row" role="row"><span class="x">5</span><span>The facilitator rejected the transaction.</span><span class="tag tag-no">rejected</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="dark" id="faq" style="padding-top: 0">
+        <div class="wrap faq">
+          <div><h2 class="h-sec">Frequently asked questions</h2><p class="muted lead" style="margin-top: 18px">Straight answers about privacy, keys and limits.</p></div>
+          <div>
+            <details open><summary>What does the chain see?</summary><p>A shielded transaction. The amount, the memo with the nonce and the parties are encrypted; only the merchant's viewing key can read its side.</p></details>
+            <details><summary>Can the merchant spend my money?</summary><p>No. The facilitator holds the merchant's viewing key only. It can see incoming payments, never move funds.</p></details>
+            <details><summary>What stops an agent overspending?</summary><p>spendguard runs before a transaction is built: a daily cap, a host allowlist and an approval threshold. A refusal exits with code 3 and nothing is broadcast.</p></details>
+            <details><summary>Is it live?</summary><p>On Zcash testnet, with the paid transaction linked above. Every decision is written to the agent's ledger and shown on the dashboard. Not audited.</p></details>
+          </div>
+        </div>
+      </section>
+
+      <section class="talk">
+        <div class="wrap">
+          <h2 class="h-sec">Give your agent a shielded wallet</h2>
+          <p class="lead">Rust workspace, 34 tests. Nothing is mocked: without a key, a wallet or funds it stops with an error and a non-zero exit code.</p>
+          <pre>cargo test --workspace
+cargo run -p x402z-server   # dashboard on :4020</pre>
+          <div class="cta" style="justify-content: center"><a class="btn btn-dark" href="https://github.com/nickthelegend/zec-shielded-x402">Get the code <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg></a></div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <div class="box">
+        <div><a class="logo" href="#top" style="color: #fff"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#f4b728" /><path d="M9 22l7-12 7 12" fill="none" stroke="#0c0c0d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" /></svg>Kage</a><p>影, "shadow". Shielded x402 payments for AI agents on Zcash.</p></div>
+        <nav aria-label="Footer"><a href="#how">How it works</a><a href="#guard">Spend guard</a><a href="#live">Live run</a><a href="#faq">FAQ</a><a href="https://github.com/nickthelegend/zec-shielded-x402">GitHub</a></nav>
+        <div class="legal"><span>MIT · Copyright (c) 2026 Nivesh Gajengi</span><span>Zcash testnet · not audited</span></div>
+      </div>
+    </footer>
+    <script>
+      const steps = [...document.querySelectorAll('#flow li')], st = document.getElementById('st');
+      const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      steps.forEach((li, i) => {
+        const go = () => { li.classList.add('on', 'done'); if (i === steps.length - 1) st.textContent = '200'; };
+        reduce ? go() : setTimeout(go, 700 + i * 700);
+      });
+    </script>
+  </body>
+</html>
