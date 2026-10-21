@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Kage — shielded x402 payments for AI agents</title>
-    <meta name="description" content="Kage lets AI agents pay for APIs over HTTP 402 with Zcash shielded transactions. A spend guard checks every payment first; the merchant verifies with a viewing key alone." />
+    <meta name="description" content="Kage lets AI agents pay for APIs over HTTP 402 with Zcash shielded transactions. A spend guard checks every payment first; the merchant verifies with an incoming viewing key alone." />
     <meta name="theme-color" content="#0c0c0d" />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%230c0c0d'/%3E%3Cpath d='M9 22l7-12 7 12' fill='none' stroke='%23f4b728' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -246,7 +246,7 @@ section{padding:110px 0}
       <div class="wrap">
         <div>
           <h1 class="h-hero rv">Agents pay in the shadows.</h1>
-          <p class="lead rv d1">HTTP 402 payments for AI agents, settled as Zcash shielded transactions. A spend guard checks every payment before it is built, and the merchant verifies it with a viewing key alone.</p>
+          <p class="lead rv d1">HTTP 402 payments for AI agents, settled as Zcash shielded transactions. A spend guard checks every payment before it is built, and the merchant verifies it with an incoming viewing key alone. Speaks x402 v1; any Zcash wallet can pay the QR.</p>
           <div class="cta rv d2"><a class="btn btn-accent" href="#live">See the live payment <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg></a></div>
         </div>
         <div class="widget rv d3" aria-label="One paid API call, step by step">
@@ -255,7 +255,7 @@ section{padding:110px 0}
             <li><span class="n">1</span><span>402 with a memo nonce</span><code>payTo · amount</code></li>
             <li><span class="n">2</span><span>spendguard approves</span><code>cap · host</code></li>
             <li><span class="n">3</span><span>shielded transaction</span><code>030c3cbf…</code></li>
-            <li><span class="n">4</span><span>facilitator receipt</span><code>ed25519</code></li>
+            <li><span class="n">4</span><span>X-PAYMENT settles</span><code>ed25519</code></li>
           </ol>
           <p class="w-note">Replayed from the live testnet run, block 4,521,112.</p>
         </div>
@@ -279,7 +279,7 @@ section{padding:110px 0}
           </div>
           <div class="copy lead">
             <p><b>Every payment is shielded.</b> Amount, sender and the API it paid for stay off the public chain.</p>
-            <p><b>The merchant holds no spend key.</b> Its facilitator finds the payment with a viewing key and signs a receipt.</p>
+            <p><b>The merchant holds no spend key.</b> Its facilitator finds the payment with an incoming viewing key, which can't see the merchant's own spends or change, and signs a receipt.</p>
           </div>
         </div>
       </section>
@@ -292,12 +292,12 @@ section{padding:110px 0}
               <div class="ui"><div class="code" style="margin: 0">agent → GET /api/quote → 402
   → spendguard.check()
   → shielded tx (memo = nonce)
-  → facilitator scans with UFVK
-  → receipt → retry → 200</div></div>
+  → retry with X-PAYMENT {txid, nonce}
+  → facilitator decrypts with UIVK → 200</div></div>
               <div><h3 class="h-card">The x402 flow, shielded</h3><p>The challenge names the price and a single-use memo nonce. The payment carries the nonce in its encrypted memo.</p></div>
             </div>
             <div class="card c-tint-2">
-              <div><h3 class="h-card">Viewing key only</h3><p>The facilitator trial-decrypts the transaction with the merchant's viewing key, checks recipient, amount and memo, then signs an ed25519 receipt.</p></div>
+              <div><h3 class="h-card">Incoming viewing key only</h3><p>The facilitator trial-decrypts the transaction with the merchant's incoming viewing key, checks recipient, amount, memo and the mined block's time, then signs an ed25519 receipt.</p></div>
               <div class="chips"><span class="on">200 confirmed</span><span>202 pending</span><span>422 rejected</span></div>
             </div>
             <div class="card c-deep" id="guard">
@@ -310,7 +310,7 @@ section{padding:110px 0}
 
       <section style="padding-top: 0">
         <div class="wrap stats">
-          <div class="stat"><b>34</b><span>tests, five on real shielded transactions</span></div>
+          <div class="stat"><b>66</b><span>tests; six build in-process transactions with real keys, note encryption and Halo2 proofs (not broadcast)</span></div>
           <div class="stat"><b>0</b><span>spend keys on the merchant side</span></div>
           <div class="stat"><b>30</b><span>402s per minute per IP, then 429</span></div>
           <div class="stat"><b>1</b><span>confirmation by default</span></div>
@@ -319,12 +319,12 @@ section{padding:110px 0}
 
       <section class="dark" id="live">
         <div class="wrap">
-          <div class="sec-head"><div><h2 class="h-sec">Paid live on Zcash testnet</h2><p class="muted lead">An agent paid the paywalled quote endpoint with a real shielded transaction, the facilitator verified it with the merchant's viewing key, and the retry returned 200.</p></div><a class="btn btn-accent btn-sm" href="https://testnet.zecblock.com/tx/030c3cbf78ce8460553bba4e82c0ba813f039bd3ecf4d7f2e81c59837dc28351">View the transaction</a></div>
+          <div class="sec-head"><div><h2 class="h-sec">Paid live on Zcash testnet</h2><p class="muted lead">An agent paid the paywalled quote endpoint with a real shielded transaction, the facilitator verified it with the merchant's viewing key, and the retry returned 200. On Oct 21 two more payments went through the current x402 v1 path: one from a third-party wallet via the ZIP 321 QR (tx <code>ccb4214c…</code>, block 4,524,586), one with <code>X-PAYMENT</code> (tx <code>25a8b324…</code>, block 4,524,602).</p></div><a class="btn btn-accent btn-sm" href="https://testnet.zecblock.com/tx/030c3cbf78ce8460553bba4e82c0ba813f039bd3ecf4d7f2e81c59837dc28351">View the transaction</a></div>
           <div class="ev exits" role="table" aria-label="Agent exit codes">
             <div class="row" role="row"><span class="x">0</span><span>Paid: the transaction <code>030c3cbf…</code>, mined in block 4,521,112</span><span class="tag tag-ok">paid</span></div>
             <div class="row" role="row"><span class="x">3</span><span>spendguard refused: cap below the price, or host not allowed. No transaction built.</span><span class="tag tag-no">refused</span></div>
             <div class="row" role="row"><span class="x">4</span><span>No funded wallet, or too little testnet balance. It says how much is missing.</span><span class="tag tag-no">setup</span></div>
-            <div class="row" role="row"><span class="x">5</span><span>The facilitator rejected the transaction.</span><span class="tag tag-no">rejected</span></div>
+            <div class="row" role="row"><span class="x">5</span><span>The server or facilitator rejected the payment.</span><span class="tag tag-no">rejected</span></div>
           </div>
         </div>
       </section>
@@ -334,7 +334,8 @@ section{padding:110px 0}
           <div><h2 class="h-sec">Frequently asked questions</h2><p class="muted lead" style="margin-top: 18px">Straight answers about privacy, keys and limits.</p></div>
           <div>
             <details open><summary>What does the chain see?</summary><p>A shielded transaction. The amount, the memo with the nonce and the parties are encrypted; only the merchant's viewing key can read its side.</p></details>
-            <details><summary>Can the merchant spend my money?</summary><p>No. The facilitator holds the merchant's viewing key only. It can see incoming payments, never move funds.</p></details>
+            <details><summary>What still leaks?</summary><p>The merchant sees the client's IP (plain HTTP), the lightwalletd operator sees which txid is looked up and when, and the agent's local ledger is plaintext JSON. Timing between the 402 and the next block can also link them.</p></details>
+            <details><summary>Can the merchant spend my money?</summary><p>No. The facilitator holds the merchant's incoming viewing key only. It can see incoming payments, never move funds, and never see the merchant's own spends.</p></details>
             <details><summary>What stops an agent overspending?</summary><p>spendguard runs before a transaction is built: a daily cap, a host allowlist and an approval threshold. A refusal exits with code 3 and nothing is broadcast.</p></details>
             <details><summary>Is it live?</summary><p>On Zcash testnet, with the paid transaction linked above. Every decision is written to the agent's ledger and shown on the dashboard. Not audited.</p></details>
           </div>
@@ -344,8 +345,8 @@ section{padding:110px 0}
       <section class="talk">
         <div class="wrap">
           <h2 class="h-sec">Give your agent a shielded wallet</h2>
-          <p class="lead">Rust workspace, 34 tests. Nothing is mocked: without a key, a wallet or funds it stops with an error and a non-zero exit code.</p>
-          <pre>cargo test --workspace
+          <p class="lead">Rust workspace, 66 tests, plus an MCP server for LLM agents. Nothing is mocked: without a key, a wallet or funds it stops with an error and a non-zero exit code.</p>
+          <pre>cargo test -p x402z-server -p x402z-protocol
 cargo run -p x402z-server   # dashboard on :4020</pre>
           <div class="cta" style="justify-content: center"><a class="btn btn-dark" href="https://github.com/nickthelegend/zec-shielded-x402">Get the code <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg></a></div>
         </div>
