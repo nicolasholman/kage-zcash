@@ -26,7 +26,11 @@ use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
-use x402z_protocol::{paid_in_time, Network, PaymentRequired, ReceiptClaims, DEFAULT_EXPIRY_GRACE_SECS, RECEIPT_HEADER, SCHEME};
+use x402z_protocol::{
+    decode_header, encode_header, paid_in_time, reason, FacilitatorRequest, Network, PaymentPayload, PaymentRequired,
+    PaymentRequiredResponse, PaymentRequirements, ReceiptClaims, SettleResponse, SettlementResponse, VerifyStatus,
+    DEFAULT_EXPIRY_GRACE_SECS, PAYMENT_HEADER, PAYMENT_RESPONSE_HEADER, RECEIPT_HEADER, SCHEME, SETTLE_PATH, X402_VERSION,
+};
 
 use store::Store;
 
@@ -151,6 +155,8 @@ impl ChallengeLimiter {
 struct App {
     cfg: Config,
     store: Store,
+    /// Client for the facilitator's `/settle`.
+    http: reqwest::Client,
     book: Mutex<Book>,
     limiter: Mutex<ChallengeLimiter>,
 }
@@ -260,73 +266,229 @@ fn storage_error(e: String) -> Response {
     (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({ "error": e }))).into_response()
 }
 
-fn payment_required(ch: PaymentRequired, error: Option<String>) -> Response {
-    let mut resp = (StatusCode::PAYMENT_REQUIRED, Json(ch)).into_response();
-    if let Some(e) = error.and_then(|e| HeaderValue::from_str(&e).ok()) {
-        resp.headers_mut().insert("x-payment-error", e);
+const DESCRIPTION: &str = "Kage demo quote: paid content unlocked by a shielded Zcash testnet payment";
+const MIME: &str = "application/json";
+const QUOTE_PATH: &str = "/api/quote";
+
+/// Absolute URL of the paid resource, for `PaymentRequirements.resource`.
+fn resource_url(headers: &HeaderMap) -> String {
+    match headers.get("host").and_then(|h| h.to_str().ok()) {
+        Some(host) => format!("http://{host}{QUOTE_PATH}"),
+        None => QUOTE_PATH.to_string(),
+    }
+}
+
+/// The x402 `accepts` entry for a challenge.
+fn requirements(ch: &PaymentRequired, resource: &str) -> PaymentRequirements {
+    PaymentRequirements::from_challenge(ch, resource, DESCRIPTION, MIME, CHALLENGE_TTL_SECS)
+}
+
+fn with_header(mut resp: Response, name: &'static str, value: &str) -> Response {
+    if let Ok(v) = HeaderValue::from_str(value) {
+        resp.headers_mut().insert(name, v);
     }
     resp
 }
 
-async fn quote(State(app): State<Arc<App>>, ConnectInfo(peer): ConnectInfo<SocketAddr>, headers: HeaderMap) -> Response {
-    // Rate-limits every path that mints a new challenge (first request and re-issue after a rejected receipt).
-    let limit = |book: &mut Book| -> Result<(), Response> {
-        app.limiter.lock().unwrap().try_acquire(peer.ip(), Instant::now()).map_err(|wait| {
-            book.push("rejected", None, None, None, format!("rate limited {} (retry in {}s)", peer.ip(), wait.as_secs().max(1)));
-            too_many_challenges(wait)
-        })
+/// HTTP 402 with the x402 v1 body `{x402Version, accepts, error}`. A failed payment attempt also
+/// gets `X-PAYMENT-RESPONSE` (base64 SettlementResponse) and the human-readable `x-payment-error`.
+fn payment_required(ch: &PaymentRequired, resource: &str, error: Option<String>, settlement: Option<SettlementResponse>) -> Response {
+    let body = PaymentRequiredResponse {
+        x402_version: X402_VERSION,
+        accepts: vec![requirements(ch, resource)],
+        error: error.clone().unwrap_or_else(|| format!("{PAYMENT_HEADER} header is required")),
     };
+    let mut resp = (StatusCode::PAYMENT_REQUIRED, Json(body)).into_response();
+    if let Some(e) = error {
+        resp = with_header(resp, "x-payment-error", &e);
+    }
+    if let Some(s) = settlement {
+        resp = with_header(resp, PAYMENT_RESPONSE_HEADER, &encode_header(&s));
+    }
+    resp
+}
+
+/// 200 with the paid content and `X-PAYMENT-RESPONSE: base64({success: true, transaction, ...})`.
+fn paid_response(c: &ReceiptClaims) -> Response {
+    let resp = Json(serde_json::json!({
+        "product": "Kage demo quote",
+        "servedAt": now(),
+        "settlement": {
+            "memoNonce": c.memo_nonce,
+            "amountZat": c.amount_zat,
+            "txid": c.txid,
+            "confirmations": c.confirmations,
+            "minedAt": c.mined_at,
+        },
+        "quote": "Paid content unlocked by a shielded Zcash testnet payment. The merchant saw it only through its incoming viewing key; the chain shows neither amount nor address.",
+    }))
+    .into_response();
+    with_header(resp, PAYMENT_RESPONSE_HEADER, &encode_header(&SettlementResponse::ok(&c.txid)))
+}
+
+/// Mint a new challenge (rate limited per client IP) and answer 402 with it.
+fn mint(app: &App, peer: SocketAddr, resource: &str, detail: &str, error: Option<String>, settlement: Option<SettlementResponse>) -> Response {
     let mut book = app.book.lock().unwrap();
-    let Some(receipt) = headers.get(RECEIPT_HEADER).and_then(|v| v.to_str().ok()) else {
-        if let Err(resp) = limit(&mut book) {
-            return resp;
+    if let Err(wait) = app.limiter.lock().unwrap().try_acquire(peer.ip(), Instant::now()) {
+        book.push("rejected", None, None, None, format!("rate limited {} (retry in {}s)", peer.ip(), wait.as_secs().max(1)));
+        let mut resp = too_many_challenges(wait);
+        if let Some(e) = &error {
+            resp = with_header(resp, "x-payment-error", e);
         }
-        let ch = match issue_challenge(&app) {
-            Ok(ch) => ch,
-            Err(e) => return storage_error(e),
-        };
-        book.push("challenge", Some(&ch.memo_nonce), Some(ch.amount_zat), None, "402 issued".into());
-        return payment_required(ch, None);
+        if let Some(s) = &settlement {
+            resp = with_header(resp, PAYMENT_RESPONSE_HEADER, &encode_header(s));
+        }
+        return resp;
+    }
+    let ch = match issue_challenge(app) {
+        Ok(ch) => ch,
+        Err(e) => return storage_error(e),
     };
-    let result = decode_receipt(&app.cfg.receipt_key, receipt)
-        .and_then(|c| {
-            // Checked before settle so an unconfirmed payment doesn't burn the nonce and can retry.
-            if c.confirmations < app.cfg.min_confirmations {
-                return Err(ReceiptError::Unconfirmed { have: c.confirmations, need: app.cfg.min_confirmations });
-            }
-            settle(&app.store, &app.cfg.merchant_ua, &c, now(), app.cfg.expiry_grace_secs).map(|_| c)
-        });
+    book.push("challenge", Some(&ch.memo_nonce), Some(ch.amount_zat), None, detail.into());
+    payment_required(&ch, resource, error, settlement)
+}
+
+/// Result of redeeming a (memoNonce, txid) pair through the facilitator.
+#[derive(Debug)]
+enum Redeem {
+    Paid(ReceiptClaims),
+    /// Found but not confirmed enough yet, or not visible to lightwalletd yet: retry the same txid.
+    Pending { challenge: PaymentRequired, message: String },
+    /// Definitively not a payment for this challenge (or the nonce is spent / unknown).
+    Refused { reason: String, message: String },
+    /// Facilitator or storage trouble; nothing was burned.
+    Unavailable(String),
+}
+
+fn refused(reason: &str, message: impl Into<String>) -> Redeem {
+    Redeem::Refused { reason: reason.into(), message: message.into() }
+}
+
+/// Ask the facilitator to settle `txid` against the stored challenge `nonce`, check its signed
+/// receipt with the facilitator's public key, and burn the nonce.
+async fn redeem(app: &App, nonce: &str, txid: &str, resource: &str) -> Redeem {
+    let row = match app.store.get(nonce) {
+        Err(e) => return Redeem::Unavailable(e),
+        Ok(None) => return refused(reason::UNKNOWN_CHALLENGE, ReceiptError::UnknownNonce.reason()),
+        Ok(Some(r)) => r,
+    };
+    if row.spent_txid.is_some() {
+        return refused(reason::NONCE_USED, ReceiptError::Replayed.reason());
+    }
+    let url = format!("{}{SETTLE_PATH}", app.cfg.facilitator_url.trim_end_matches('/'));
+    let body = FacilitatorRequest {
+        x402_version: X402_VERSION,
+        payment_payload: PaymentPayload::zcash(txid, nonce),
+        payment_requirements: requirements(&row.challenge, resource),
+    };
+    let resp = match app.http.post(&url).json(&body).send().await {
+        Ok(r) => r,
+        Err(e) => return Redeem::Unavailable(format!("facilitator unreachable at {url}: {e}")),
+    };
+    let code = resp.status();
+    let s: SettleResponse = match resp.json().await {
+        Ok(s) => s,
+        Err(e) => return Redeem::Unavailable(format!("facilitator answered {code} with an unreadable body: {e}")),
+    };
+    let msg = s.error.clone().unwrap_or_default();
+    match s.status {
+        VerifyStatus::Pending | VerifyStatus::NotFound => {
+            return Redeem::Pending { challenge: row.challenge, message: if msg.is_empty() { "payment not confirmed yet".into() } else { msg } }
+        }
+        VerifyStatus::Rejected => {
+            let why = s.settlement.error_reason.unwrap_or_else(|| reason::INVALID_PAYMENT.into());
+            return Redeem::Refused { reason: why, message: msg };
+        }
+        VerifyStatus::Error => return Redeem::Unavailable(format!("facilitator: {msg}")),
+        VerifyStatus::Confirmed => {}
+    }
+    let Some(receipt) = s.receipt else {
+        return Redeem::Unavailable("facilitator confirmed without a receipt".into());
+    };
+    let c = match decode_receipt(&app.cfg.receipt_key, &receipt) {
+        Ok(c) => c,
+        Err(e) => return refused(reason::INVALID_PAYMENT, e.reason()),
+    };
+    if c.memo_nonce != nonce || !c.txid.eq_ignore_ascii_case(txid.trim()) {
+        return refused(reason::INVALID_PAYMENT, "receipt does not match the payment that was presented");
+    }
+    if c.confirmations < app.cfg.min_confirmations {
+        let e = ReceiptError::Unconfirmed { have: c.confirmations, need: app.cfg.min_confirmations };
+        return Redeem::Pending { challenge: row.challenge, message: e.reason() };
+    }
+    match settle(&app.store, &app.cfg.merchant_ua, &c, now(), app.cfg.expiry_grace_secs) {
+        Ok(()) => Redeem::Paid(c),
+        Err(ReceiptError::Storage(e)) => Redeem::Unavailable(e),
+        Err(e @ ReceiptError::Replayed) => refused(reason::NONCE_USED, e.reason()),
+        Err(e @ ReceiptError::Expired { .. }) => refused(reason::EXPIRED, e.reason()),
+        Err(e) => refused(reason::INVALID_PAYMENT, e.reason()),
+    }
+}
+
+fn record_paid(app: &App, c: &ReceiptClaims, via: &str) {
+    let conf = if c.confirmations == 0 { "mempool".to_string() } else { format!("{} conf", c.confirmations) };
+    app.book.lock().unwrap().push("paid", Some(&c.memo_nonce), Some(c.amount_zat), Some(&c.txid), format!("unlocked via {via} ({conf})"));
+}
+
+/// `X-PAYMENT` (x402 v1): base64 `{x402Version, scheme, network, payload: {txid, memoNonce}}`.
+async fn x_payment(app: &App, peer: SocketAddr, resource: &str, header: &str) -> Response {
+    let payload = decode_header::<PaymentPayload>(header).map_err(|e| (e.reason(), format!("{PAYMENT_HEADER} {e}"))).and_then(|p| {
+        p.zcash_payload().map_err(|e| (e.reason(), format!("{PAYMENT_HEADER} {e}")))
+    });
+    let p = match payload {
+        Ok(p) => p,
+        Err((why, msg)) => {
+            app.book.lock().unwrap().push("rejected", None, None, None, msg.clone());
+            return mint(app, peer, resource, "402 re-issued after a malformed X-PAYMENT", Some(msg), Some(SettlementResponse::failed(why)));
+        }
+    };
+    match redeem(app, &p.memo_nonce, &p.txid, resource).await {
+        Redeem::Paid(c) => {
+            record_paid(app, &c, PAYMENT_HEADER);
+            paid_response(&c)
+        }
+        Redeem::Pending { challenge, message } => {
+            app.book.lock().unwrap().push("pending", Some(&challenge.memo_nonce), Some(challenge.amount_zat), Some(&p.txid), message.clone());
+            // Same challenge again: the payer retries the same X-PAYMENT once the tx confirms.
+            payment_required(&challenge, resource, Some(message), Some(SettlementResponse::failed(reason::PENDING)))
+        }
+        Redeem::Refused { reason: why, message } => {
+            app.book.lock().unwrap().push("rejected", Some(&p.memo_nonce), None, Some(&p.txid), message.clone());
+            mint(app, peer, resource, "402 re-issued after rejection", Some(message), Some(SettlementResponse::failed(&why)))
+        }
+        Redeem::Unavailable(message) => {
+            app.book.lock().unwrap().push("rejected", Some(&p.memo_nonce), None, Some(&p.txid), message.clone());
+            let resp = (StatusCode::BAD_GATEWAY, Json(serde_json::json!({ "error": message }))).into_response();
+            with_header(resp, PAYMENT_RESPONSE_HEADER, &encode_header(&SettlementResponse::failed(reason::FACILITATOR_ERROR)))
+        }
+    }
+}
+
+async fn quote(State(app): State<Arc<App>>, ConnectInfo(peer): ConnectInfo<SocketAddr>, headers: HeaderMap) -> Response {
+    let resource = resource_url(&headers);
+    if let Some(h) = headers.get(PAYMENT_HEADER) {
+        let h = h.to_str().unwrap_or_default().to_string();
+        return x_payment(&app, peer, &resource, &h).await;
+    }
+    // Back-compat: a facilitator receipt presented directly (`X-PAYMENT-RECEIPT`).
+    let Some(receipt) = headers.get(RECEIPT_HEADER).and_then(|v| v.to_str().ok()) else {
+        return mint(&app, peer, &resource, "402 issued", None, None);
+    };
+    let result = decode_receipt(&app.cfg.receipt_key, receipt).and_then(|c| {
+        // Checked before settle so an unconfirmed payment doesn't burn the nonce and can retry.
+        if c.confirmations < app.cfg.min_confirmations {
+            return Err(ReceiptError::Unconfirmed { have: c.confirmations, need: app.cfg.min_confirmations });
+        }
+        settle(&app.store, &app.cfg.merchant_ua, &c, now(), app.cfg.expiry_grace_secs).map(|_| c)
+    });
     match result {
         Ok(c) => {
-            let conf = if c.confirmations == 0 { "mempool".to_string() } else { format!("{} conf", c.confirmations) };
-            book.push("paid", Some(&c.memo_nonce), Some(c.amount_zat), Some(&c.txid), format!("unlocked ({conf})"));
-            Json(serde_json::json!({
-                "product": "x402z demo quote",
-                "servedAt": now(),
-                "settlement": {
-                    "memoNonce": c.memo_nonce,
-                    "amountZat": c.amount_zat,
-                    "txid": c.txid,
-                    "confirmations": c.confirmations,
-                },
-                "quote": "Paid content unlocked by a shielded Zcash testnet payment. The merchant saw it only through its viewing key; the chain shows neither amount nor address.",
-            }))
-            .into_response()
+            record_paid(&app, &c, RECEIPT_HEADER);
+            paid_response(&c)
         }
         Err(e) => {
-            book.push("rejected", None, None, None, e.reason());
-            if let Err(mut resp) = limit(&mut book) {
-                if let Ok(v) = HeaderValue::from_str(&e.reason()) {
-                    resp.headers_mut().insert("x-payment-error", v);
-                }
-                return resp;
-            }
-            let ch = match issue_challenge(&app) {
-                Ok(ch) => ch,
-                Err(e) => return storage_error(e),
-            };
-            book.push("challenge", Some(&ch.memo_nonce), Some(ch.amount_zat), None, "402 re-issued after rejection".into());
-            payment_required(ch, Some(e.reason()))
+            app.book.lock().unwrap().push("rejected", None, None, None, e.reason());
+            mint(&app, peer, &resource, "402 re-issued after rejection", Some(e.reason()), None)
         }
     }
 }
@@ -396,7 +558,7 @@ fn parse_key(hex_key: &str) -> Result<VerifyingKey, String> {
 fn router(app: Arc<App>) -> Router {
     Router::new()
         .route("/", get(|| async { Html(DASHBOARD) }))
-        .route("/api/quote", get(quote))
+        .route(QUOTE_PATH, get(quote))
         .route("/api/events", get(events))
         .route("/api/status", get(status))
         .with_state(app)
@@ -472,7 +634,11 @@ async fn main() {
     if rate == 0 {
         eprintln!("warning: X402Z_CHALLENGE_RATE_PER_MIN=0: 402 challenges are not rate limited");
     }
-    let app = Arc::new(App { cfg, store, book: Mutex::new(Book::default()), limiter: Mutex::new(ChallengeLimiter::new(rate)) });
+    let http = reqwest::Client::builder().timeout(Duration::from_secs(90)).build().unwrap_or_else(|e| {
+        eprintln!("error: cannot build HTTP client: {e}");
+        exit(1);
+    });
+    let app = Arc::new(App { cfg, store, http, book: Mutex::new(Book::default()), limiter: Mutex::new(ChallengeLimiter::new(rate)) });
     let router = router(app).into_make_service_with_connect_info::<SocketAddr>();
     let listener = tokio::net::TcpListener::bind(&bind).await.unwrap_or_else(|e| {
         eprintln!("error: cannot bind {bind}: {e}");
@@ -692,7 +858,8 @@ mod tests {
             redeem_window_secs: DEFAULT_REDEEM_WINDOW_SECS,
         };
         let store = Store::open(db).unwrap();
-        Arc::new(App { cfg, store, book: Mutex::new(Book::default()), limiter: Mutex::new(ChallengeLimiter::new(rate)) })
+        let http = reqwest::Client::new();
+        Arc::new(App { cfg, store, http, book: Mutex::new(Book::default()), limiter: Mutex::new(ChallengeLimiter::new(rate)) })
     }
 
     fn test_app(rate: u32) -> Arc<App> {
@@ -706,11 +873,18 @@ mod tests {
     }
 
     async fn get_quote(app: Arc<App>, from: [u8; 4], receipt: Option<&str>) -> Response {
+        match receipt {
+            Some(r) => get_quote_with(app, from, &[(RECEIPT_HEADER, r)]).await,
+            None => get_quote_with(app, from, &[]).await,
+        }
+    }
+
+    async fn get_quote_with(app: Arc<App>, from: [u8; 4], headers: &[(&str, &str)]) -> Response {
         use axum::{body::Body, extract::connect_info::MockConnectInfo, http::Request};
         use tower::ServiceExt;
-        let mut req = Request::get("/api/quote");
-        if let Some(r) = receipt {
-            req = req.header(RECEIPT_HEADER, r);
+        let mut req = Request::get("/api/quote").header("host", "kage.test");
+        for (k, v) in headers {
+            req = req.header(*k, *v);
         }
         router(app)
             .layer(MockConnectInfo(SocketAddr::from((from, 40000))))
@@ -774,5 +948,196 @@ mod tests {
         let r = get_quote(app.clone(), [10, 0, 0, 1], Some(&receipt)).await;
         assert_eq!(r.status(), StatusCode::PAYMENT_REQUIRED);
         assert_eq!(r.headers().get("x-payment-error").unwrap(), "receipt already used");
+    }
+
+    // -- x402 X-PAYMENT ------------------------------------------------------------------------
+    //
+    // The server's only external dependency here is our own facilitator's `/settle`. These tests
+    // run a small in-process HTTP stand-in for it on 127.0.0.1 that answers in the facilitator's
+    // wire format and signs receipts with the test key; the facilitator's real chain checks are
+    // tested in x402z-facilitator (real transactions) and live against testnet.
+
+    const TX_OK: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const TX_PENDING: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    const TX_UNDERPAID: &str = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+    const TX_FOREIGN_KEY: &str = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
+
+    async fn stand_in_settle(Json(req): Json<FacilitatorRequest>) -> Response {
+        let pay = req.payment_payload.zcash_payload().unwrap();
+        let ch = req.payment_requirements.to_challenge().unwrap();
+        let claims = ReceiptClaims {
+            memo_nonce: pay.memo_nonce.clone(),
+            amount_zat: ch.amount_zat,
+            pay_to: ch.pay_to.clone(),
+            txid: pay.txid.clone(),
+            confirmations: 2,
+            issued_at: now(),
+            mined_at: Some(now() - 30),
+        };
+        let confirmed = |sk: &SigningKey| SettleResponse {
+            settlement: SettlementResponse::ok(&pay.txid),
+            status: VerifyStatus::Confirmed,
+            receipt: Some(encode(sk, &claims)),
+            claims: Some(claims.clone()),
+            confirmations: Some(2),
+            min_confirmations: Some(1),
+            error: None,
+        };
+        let failed = |status, why: &str, msg: &str| SettleResponse {
+            settlement: SettlementResponse::failed(why),
+            status,
+            receipt: None,
+            claims: None,
+            confirmations: None,
+            min_confirmations: None,
+            error: Some(msg.into()),
+        };
+        let r = match pay.txid.as_str() {
+            TX_OK => confirmed(&key()),
+            TX_FOREIGN_KEY => confirmed(&SigningKey::from_bytes(&[9u8; 32])),
+            TX_PENDING => failed(VerifyStatus::Pending, reason::PENDING, "payment found (100000 zat) with 0 confirmation(s); need 1"),
+            TX_UNDERPAID => failed(VerifyStatus::Rejected, reason::INVALID_PAYMENT, "underpaid: 99999 zat < 100000 zat"),
+            _ => failed(VerifyStatus::NotFound, reason::NOT_FOUND, "lightwalletd does not know tx"),
+        };
+        Json(r).into_response()
+    }
+
+    async fn app_with_stand_in() -> Arc<App> {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            axum::serve(listener, Router::new().route(SETTLE_PATH, axum::routing::post(stand_in_settle))).await.unwrap();
+        });
+        let app = test_app(100);
+        // test_app's facilitator URL points nowhere; swap in the stand-in.
+        let mut cfg_app = Arc::try_unwrap(app).ok().unwrap();
+        cfg_app.cfg.facilitator_url = format!("http://{addr}");
+        Arc::new(cfg_app)
+    }
+
+    async fn body_json(r: Response) -> serde_json::Value {
+        let bytes = axum::body::to_bytes(r.into_body(), 1 << 20).await.unwrap();
+        serde_json::from_slice(&bytes).unwrap()
+    }
+
+    fn x_payment_header(txid: &str, nonce: &str) -> String {
+        encode_header(&PaymentPayload::zcash(txid, nonce))
+    }
+
+    fn settlement_of(r: &Response) -> SettlementResponse {
+        decode_header(r.headers().get(PAYMENT_RESPONSE_HEADER).unwrap().to_str().unwrap()).unwrap()
+    }
+
+    #[tokio::test]
+    async fn the_402_body_is_x402_v1_payment_required_response() {
+        let app = test_app(5);
+        let r = get_quote(app.clone(), [10, 0, 0, 1], None).await;
+        assert_eq!(r.status(), StatusCode::PAYMENT_REQUIRED);
+        let v = body_json(r).await;
+        assert_eq!(v["x402Version"], 1);
+        assert_eq!(v["error"], "X-PAYMENT header is required");
+        let a = &v["accepts"][0];
+        assert_eq!(a["scheme"], "zcash-shielded");
+        assert_eq!(a["network"], "zcash-testnet");
+        assert_eq!(a["maxAmountRequired"], "100000");
+        assert_eq!(a["resource"], "http://kage.test/api/quote");
+        assert_eq!(a["payTo"], UA);
+        assert_eq!(a["asset"], "ZEC");
+        assert_eq!(a["mimeType"], "application/json");
+        assert_eq!(a["maxTimeoutSeconds"], CHALLENGE_TTL_SECS);
+        assert!(a["description"].as_str().unwrap().contains("shielded"));
+        let parsed: PaymentRequiredResponse = serde_json::from_value(v.clone()).unwrap();
+        let ch = parsed.zcash_option().unwrap().to_challenge().unwrap();
+        assert_eq!(open_nonces(&app), vec![ch.memo_nonce]);
+    }
+
+    #[tokio::test]
+    async fn x_payment_settles_once_and_returns_x_payment_response() {
+        let app = app_with_stand_in().await;
+        let nonce = {
+            let v = body_json(get_quote(app.clone(), [10, 0, 0, 1], None).await).await;
+            v["accepts"][0]["extra"]["memoNonce"].as_str().unwrap().to_string()
+        };
+        let h = x_payment_header(TX_OK, &nonce);
+        let r = get_quote_with(app.clone(), [10, 0, 0, 1], &[(PAYMENT_HEADER, &h)]).await;
+        assert_eq!(r.status(), StatusCode::OK);
+        let s = settlement_of(&r);
+        assert_eq!(s, SettlementResponse::ok(TX_OK));
+        let v = body_json(r).await;
+        assert_eq!(v["settlement"]["txid"], TX_OK);
+        assert_eq!(v["settlement"]["memoNonce"], nonce);
+        assert_eq!(app.store.get(&nonce).unwrap().unwrap().spent_txid.as_deref(), Some(TX_OK));
+
+        // replaying the same X-PAYMENT: refused with nonce_already_used and a fresh challenge
+        let r = get_quote_with(app.clone(), [10, 0, 0, 1], &[(PAYMENT_HEADER, &h)]).await;
+        assert_eq!(r.status(), StatusCode::PAYMENT_REQUIRED);
+        assert_eq!(settlement_of(&r).error_reason.as_deref(), Some(reason::NONCE_USED));
+        let v = body_json(r).await;
+        assert_ne!(v["accepts"][0]["extra"]["memoNonce"], nonce);
+        assert_eq!(v["error"], "receipt already used");
+    }
+
+    #[tokio::test]
+    async fn pending_payment_keeps_the_same_challenge_and_burns_nothing() {
+        let app = app_with_stand_in().await;
+        let v = body_json(get_quote(app.clone(), [10, 0, 0, 1], None).await).await;
+        let nonce = v["accepts"][0]["extra"]["memoNonce"].as_str().unwrap().to_string();
+        let r = get_quote_with(app.clone(), [10, 0, 0, 1], &[(PAYMENT_HEADER, &x_payment_header(TX_PENDING, &nonce))]).await;
+        assert_eq!(r.status(), StatusCode::PAYMENT_REQUIRED);
+        assert_eq!(settlement_of(&r).error_reason.as_deref(), Some(reason::PENDING));
+        let v = body_json(r).await;
+        assert_eq!(v["accepts"][0]["extra"]["memoNonce"], nonce, "same challenge, so the payer retries the same tx");
+        assert!(v["error"].as_str().unwrap().contains("need 1"));
+        assert_eq!(open_nonces(&app), vec![nonce.clone()]);
+        // once it confirms, the same nonce redeems
+        let r = get_quote_with(app.clone(), [10, 0, 0, 1], &[(PAYMENT_HEADER, &x_payment_header(TX_OK, &nonce))]).await;
+        assert_eq!(r.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn rejected_forged_unknown_and_malformed_x_payments() {
+        let app = app_with_stand_in().await;
+        let v = body_json(get_quote(app.clone(), [10, 0, 0, 1], None).await).await;
+        let nonce = v["accepts"][0]["extra"]["memoNonce"].as_str().unwrap().to_string();
+
+        // facilitator says underpaid
+        let r = get_quote_with(app.clone(), [10, 0, 0, 1], &[(PAYMENT_HEADER, &x_payment_header(TX_UNDERPAID, &nonce))]).await;
+        assert_eq!(r.status(), StatusCode::PAYMENT_REQUIRED);
+        assert_eq!(settlement_of(&r).error_reason.as_deref(), Some(reason::INVALID_PAYMENT));
+        assert!(body_json(r).await["error"].as_str().unwrap().contains("underpaid"));
+
+        // a "confirmed" answer signed by a key the server doesn't trust
+        let r = get_quote_with(app.clone(), [10, 0, 0, 1], &[(PAYMENT_HEADER, &x_payment_header(TX_FOREIGN_KEY, &nonce))]).await;
+        assert_eq!(r.status(), StatusCode::PAYMENT_REQUIRED);
+        assert_eq!(body_json(r).await["error"], "receipt signature invalid");
+
+        // a nonce this server never issued
+        let r = get_quote_with(app.clone(), [10, 0, 0, 1], &[(PAYMENT_HEADER, &x_payment_header(TX_OK, "x402z-never-issued"))]).await;
+        assert_eq!(settlement_of(&r).error_reason.as_deref(), Some(reason::UNKNOWN_CHALLENGE));
+
+        // not base64 / wrong network
+        let r = get_quote_with(app.clone(), [10, 0, 0, 1], &[(PAYMENT_HEADER, "%%%")]).await;
+        assert_eq!(settlement_of(&r).error_reason.as_deref(), Some(reason::INVALID_PAYLOAD));
+        let mut p = PaymentPayload::zcash(TX_OK, &nonce);
+        p.network = "base-sepolia".into();
+        let r = get_quote_with(app.clone(), [10, 0, 0, 1], &[(PAYMENT_HEADER, &encode_header(&p))]).await;
+        assert_eq!(settlement_of(&r).error_reason.as_deref(), Some(reason::INVALID_NETWORK));
+
+        // none of that burned the real nonce
+        assert!(app.store.get(&nonce).unwrap().unwrap().spent_txid.is_none());
+        let r = get_quote_with(app.clone(), [10, 0, 0, 1], &[(PAYMENT_HEADER, &x_payment_header(TX_OK, &nonce))]).await;
+        assert_eq!(r.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn facilitator_down_is_a_502_and_burns_nothing() {
+        let app = test_app(5); // facilitator URL points at a closed port
+        let v = body_json(get_quote(app.clone(), [10, 0, 0, 1], None).await).await;
+        let nonce = v["accepts"][0]["extra"]["memoNonce"].as_str().unwrap().to_string();
+        let r = get_quote_with(app.clone(), [10, 0, 0, 1], &[(PAYMENT_HEADER, &x_payment_header(TX_OK, &nonce))]).await;
+        assert_eq!(r.status(), StatusCode::BAD_GATEWAY);
+        assert_eq!(settlement_of(&r).error_reason.as_deref(), Some(reason::FACILITATOR_ERROR));
+        assert!(body_json(r).await["error"].as_str().unwrap().contains("facilitator unreachable"));
+        assert_eq!(open_nonces(&app), vec![nonce]);
     }
 }

@@ -472,8 +472,12 @@ document.addEventListener("click", e => { const v = e.target.dataset && e.target
 $("#try").onclick = async () => {
   steps(0);
   try {
-    const r = await fetch("/api/quote"); const body = await r.json();
-    if (r.status !== 402) { $("#challenge").innerHTML = `<pre class="sub">${esc(JSON.stringify(body, null, 2))}</pre>`; steps(5); return; }
+    const r = await fetch("/api/quote"); const res = await r.json();
+    if (r.status !== 402) { $("#challenge").innerHTML = `<pre class="sub">${esc(JSON.stringify(res, null, 2))}</pre>`; steps(5); return; }
+    // x402 v1 body: {x402Version, accepts: [PaymentRequirements], error}
+    const a = (res.accepts || []).find(x => x.scheme === "zcash-shielded") || {};
+    const x = a.extra || {};
+    const body = {scheme: a.scheme, network: a.network, payTo: a.payTo, amountZat: Number(a.maxAmountRequired), memoNonce: x.memoNonce, expiresAt: x.expiresAt};
     steps(1); expiry = body.expiresAt;
     $("#challenge").innerHTML = `<div class="status402"><span>HTTP 402 Payment Required</span><span id="ttl"></span></div>
       <dl class="kv">

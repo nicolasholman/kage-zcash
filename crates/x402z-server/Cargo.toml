@@ -15,6 +15,7 @@ base64 = "0.22"
 hex = "0.4"
 rand = "0.8"
 rusqlite = { version = "0.37", features = ["bundled"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
