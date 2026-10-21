@@ -2,9 +2,14 @@
 //! `GET /api/quote` returns a 402 challenge until it gets a valid facilitator-signed
 //! `X-PAYMENT-RECEIPT`. `GET /` serves the dashboard; `/api/events` and `/api/status` feed it.
 //! Nothing here touches the chain: payment proof is the facilitator's ed25519 receipt.
+//! Issued challenges and redeemed nonces live in SQLite (`X402Z_SERVER_DB`), so a restart
+//! neither loses an open challenge nor un-burns a redeemed one.
+mod store;
+
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     net::{IpAddr, SocketAddr},
+    path::PathBuf,
     process::exit,
     sync::{Arc, Mutex},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -21,13 +26,18 @@ use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
-use x402z_protocol::{Network, PaymentRequired, ReceiptClaims, RECEIPT_HEADER, SCHEME};
+use x402z_protocol::{paid_in_time, Network, PaymentRequired, ReceiptClaims, DEFAULT_EXPIRY_GRACE_SECS, RECEIPT_HEADER, SCHEME};
+
+use store::Store;
 
 const DASHBOARD: &str = include_str!("dashboard.html");
 /// ~12 testnet blocks at 75 s: room for 1 confirmation plus a slow wallet.
 const CHALLENGE_TTL_SECS: u64 = 15 * 60;
 const DEFAULT_PRICE_ZAT: u64 = 100_000; // 0.001 TAZ
 const MAX_EVENTS: usize = 200;
+/// How long after expiry (+ grace) an unredeemed challenge is kept: a payer who paid in time
+/// can still redeem its receipt this long after (`X402Z_REDEEM_WINDOW_SECS`).
+const DEFAULT_REDEEM_WINDOW_SECS: u64 = 24 * 60 * 60;
 /// Default per-IP budget of 402 challenges per minute (`X402Z_CHALLENGE_RATE_PER_MIN`, 0 = off).
 const DEFAULT_CHALLENGE_RATE_PER_MIN: u32 = 30;
 /// Forget idle buckets once the table grows past this many client IPs.
@@ -71,12 +81,14 @@ struct Config {
     agent_ledger: Option<String>,
     /// Receipts with fewer confirmations are refused (0 = accept mempool-only payments).
     min_confirmations: u32,
+    /// A payment mined up to this long after `expiresAt` still counts.
+    expiry_grace_secs: u64,
+    redeem_window_secs: u64,
 }
 
+/// Live event feed for the dashboard (in memory; the durable state is in [`Store`]).
 #[derive(Default)]
 struct Book {
-    open: HashMap<String, PaymentRequired>,
-    spent_nonces: HashSet<String>,
     events: Vec<Event>,
     next_id: u64,
 }
@@ -138,6 +150,7 @@ impl ChallengeLimiter {
 
 struct App {
     cfg: Config,
+    store: Store,
     book: Mutex<Book>,
     limiter: Mutex<ChallengeLimiter>,
 }
@@ -162,10 +175,11 @@ enum ReceiptError {
     BadSignature,
     UnknownNonce,
     Replayed,
-    Expired,
+    Expired { expires_at: u64, paid_at: u64 },
     Unconfirmed { have: u32, need: u32 },
     WrongAddress,
     Underpaid { paid: u64, want: u64 },
+    Storage(String),
 }
 
 impl ReceiptError {
@@ -175,10 +189,13 @@ impl ReceiptError {
             Self::BadSignature => "receipt signature invalid".into(),
             Self::UnknownNonce => "memo nonce was never issued here".into(),
             Self::Replayed => "receipt already used".into(),
-            Self::Expired => "challenge expired".into(),
+            Self::Expired { expires_at, paid_at } => {
+                format!("payment landed at {paid_at}, after the challenge expired at {expires_at} (plus grace)")
+            }
             Self::Unconfirmed { have, need } => format!("payment has {have} confirmation(s), need {need}; retry once it is mined"),
             Self::WrongAddress => "paid to a different address".into(),
             Self::Underpaid { paid, want } => format!("underpaid: {paid} zat < {want} zat"),
+            Self::Storage(e) => e.clone(),
         }
     }
 }
@@ -193,14 +210,21 @@ fn decode_receipt(key: &VerifyingKey, header: &str) -> Result<ReceiptClaims, Rec
     serde_json::from_slice(&claims_raw).map_err(|_| ReceiptError::Malformed)
 }
 
-/// Match a signed receipt to an open challenge and burn its nonce.
-fn settle(book: &mut Book, merchant_ua: &str, c: &ReceiptClaims, now_unix: u64) -> Result<(), ReceiptError> {
-    if book.spent_nonces.contains(&c.memo_nonce) {
+/// Match a signed receipt to an issued challenge and burn its nonce.
+///
+/// Expiry is judged by when the payment was mined (`minedAt` in the signed receipt), not by
+/// when the receipt is redeemed: a payment mined by `expiresAt + grace` unlocks the content
+/// even if the payer redeems later (within the redeem window). A mempool-only receipt has no
+/// `minedAt`, so it must be redeemed in time.
+fn settle(store: &Store, merchant_ua: &str, c: &ReceiptClaims, now_unix: u64, grace_secs: u64) -> Result<(), ReceiptError> {
+    let row = store.get(&c.memo_nonce).map_err(ReceiptError::Storage)?.ok_or(ReceiptError::UnknownNonce)?;
+    if row.spent_txid.is_some() {
         return Err(ReceiptError::Replayed);
     }
-    let ch = book.open.get(&c.memo_nonce).ok_or(ReceiptError::UnknownNonce)?;
-    if ch.expires_at <= now_unix {
-        return Err(ReceiptError::Expired);
+    let ch = &row.challenge;
+    let paid_at = c.mined_at.unwrap_or(now_unix);
+    if !paid_in_time(ch.expires_at, paid_at, grace_secs) {
+        return Err(ReceiptError::Expired { expires_at: ch.expires_at, paid_at });
     }
     if c.pay_to != merchant_ua || ch.pay_to != merchant_ua {
         return Err(ReceiptError::WrongAddress);
@@ -208,14 +232,16 @@ fn settle(book: &mut Book, merchant_ua: &str, c: &ReceiptClaims, now_unix: u64) 
     if c.amount_zat < ch.amount_zat {
         return Err(ReceiptError::Underpaid { paid: c.amount_zat, want: ch.amount_zat });
     }
-    book.open.remove(&c.memo_nonce);
-    book.spent_nonces.insert(c.memo_nonce.clone());
+    if !store.mark_spent(&c.memo_nonce, &c.txid, now_unix).map_err(ReceiptError::Storage)? {
+        return Err(ReceiptError::Replayed);
+    }
     Ok(())
 }
 
-fn issue_challenge(app: &App, book: &mut Book) -> PaymentRequired {
+fn issue_challenge(app: &App) -> Result<PaymentRequired, String> {
     let now_unix = now();
-    book.open.retain(|_, ch| ch.expires_at > now_unix);
+    let keep_after = app.cfg.expiry_grace_secs.saturating_add(app.cfg.redeem_window_secs);
+    app.store.prune_unspent_expired_before(now_unix.saturating_sub(keep_after))?;
     let mut raw = [0u8; 12];
     rand::thread_rng().fill_bytes(&mut raw);
     let ch = PaymentRequired {
@@ -226,8 +252,12 @@ fn issue_challenge(app: &App, book: &mut Book) -> PaymentRequired {
         memo_nonce: format!("x402z-{}", hex::encode(raw)),
         expires_at: now_unix + CHALLENGE_TTL_SECS,
     };
-    book.open.insert(ch.memo_nonce.clone(), ch.clone());
-    ch
+    app.store.insert(&ch)?;
+    Ok(ch)
+}
+
+fn storage_error(e: String) -> Response {
+    (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({ "error": e }))).into_response()
 }
 
 fn payment_required(ch: PaymentRequired, error: Option<String>) -> Response {
@@ -251,7 +281,10 @@ async fn quote(State(app): State<Arc<App>>, ConnectInfo(peer): ConnectInfo<Socke
         if let Err(resp) = limit(&mut book) {
             return resp;
         }
-        let ch = issue_challenge(&app, &mut book);
+        let ch = match issue_challenge(&app) {
+            Ok(ch) => ch,
+            Err(e) => return storage_error(e),
+        };
         book.push("challenge", Some(&ch.memo_nonce), Some(ch.amount_zat), None, "402 issued".into());
         return payment_required(ch, None);
     };
@@ -261,7 +294,7 @@ async fn quote(State(app): State<Arc<App>>, ConnectInfo(peer): ConnectInfo<Socke
             if c.confirmations < app.cfg.min_confirmations {
                 return Err(ReceiptError::Unconfirmed { have: c.confirmations, need: app.cfg.min_confirmations });
             }
-            settle(&mut book, &app.cfg.merchant_ua, &c, now()).map(|_| c)
+            settle(&app.store, &app.cfg.merchant_ua, &c, now(), app.cfg.expiry_grace_secs).map(|_| c)
         });
     match result {
         Ok(c) => {
@@ -288,7 +321,10 @@ async fn quote(State(app): State<Arc<App>>, ConnectInfo(peer): ConnectInfo<Socke
                 }
                 return resp;
             }
-            let ch = issue_challenge(&app, &mut book);
+            let ch = match issue_challenge(&app) {
+                Ok(ch) => ch,
+                Err(e) => return storage_error(e),
+            };
             book.push("challenge", Some(&ch.memo_nonce), Some(ch.amount_zat), None, "402 re-issued after rejection".into());
             payment_required(ch, Some(e.reason()))
         }
@@ -337,7 +373,7 @@ async fn probe_facilitator(url: &str) -> serde_json::Value {
 
 async fn status(State(app): State<Arc<App>>) -> Json<serde_json::Value> {
     let facilitator = probe_facilitator(&app.cfg.facilitator_url).await;
-    let open = app.book.lock().unwrap().open.len();
+    let open = app.store.count_open(now()).map(serde_json::Value::from).unwrap_or_else(|e| serde_json::Value::String(e));
     Json(serde_json::json!({
         "network": "testnet",
         "merchantUa": app.cfg.merchant_ua,
@@ -398,7 +434,30 @@ async fn main() {
     if min_confirmations == 0 {
         eprintln!("warning: X402Z_MIN_CONFIRMATIONS=0: mempool-only (unmined) payments will unlock content");
     }
-    let cfg = Config { merchant_ua, price_zat, receipt_key, facilitator_url, agent_ledger: optional("X402Z_AGENT_LEDGER"), min_confirmations };
+    let nonneg = |var: &str, default: u64| match optional(var).map(|s| s.parse::<u64>()) {
+        None => default,
+        Some(Ok(n)) => n,
+        Some(Err(_)) => {
+            eprintln!("error: {var} must be a non-negative integer (seconds)");
+            exit(2);
+        }
+    };
+    let cfg = Config {
+        merchant_ua,
+        price_zat,
+        receipt_key,
+        facilitator_url,
+        agent_ledger: optional("X402Z_AGENT_LEDGER"),
+        min_confirmations,
+        expiry_grace_secs: nonneg("X402Z_EXPIRY_GRACE_SECS", DEFAULT_EXPIRY_GRACE_SECS),
+        redeem_window_secs: nonneg("X402Z_REDEEM_WINDOW_SECS", DEFAULT_REDEEM_WINDOW_SECS),
+    };
+    let db_path = PathBuf::from(optional("X402Z_SERVER_DB").unwrap_or_else(|| "x402z-server.sqlite".into()));
+    let store = Store::open(&db_path).unwrap_or_else(|e| {
+        eprintln!("error: {e}");
+        exit(2);
+    });
+    eprintln!("challenge book: {} (X402Z_SERVER_DB)", db_path.display());
     if cfg.agent_ledger.is_none() {
         eprintln!("warning: X402Z_AGENT_LEDGER not configured; dashboard will show a red banner");
     }
@@ -413,7 +472,7 @@ async fn main() {
     if rate == 0 {
         eprintln!("warning: X402Z_CHALLENGE_RATE_PER_MIN=0: 402 challenges are not rate limited");
     }
-    let app = Arc::new(App { cfg, book: Mutex::new(Book::default()), limiter: Mutex::new(ChallengeLimiter::new(rate)) });
+    let app = Arc::new(App { cfg, store, book: Mutex::new(Book::default()), limiter: Mutex::new(ChallengeLimiter::new(rate)) });
     let router = router(app).into_make_service_with_connect_info::<SocketAddr>();
     let listener = tokio::net::TcpListener::bind(&bind).await.unwrap_or_else(|e| {
         eprintln!("error: cannot bind {bind}: {e}");
@@ -438,7 +497,15 @@ mod tests {
     }
 
     fn claims(nonce: &str, amount: u64) -> ReceiptClaims {
-        ReceiptClaims { memo_nonce: nonce.into(), amount_zat: amount, pay_to: UA.into(), txid: "ab".repeat(32), confirmations: 1, issued_at: 1 }
+        ReceiptClaims {
+            memo_nonce: nonce.into(),
+            amount_zat: amount,
+            pay_to: UA.into(),
+            txid: "ab".repeat(32),
+            confirmations: 1,
+            issued_at: 1,
+            mined_at: None,
+        }
     }
 
     fn encode(sk: &SigningKey, c: &ReceiptClaims) -> String {
@@ -446,22 +513,37 @@ mod tests {
         format!("{}.{}", URL_SAFE_NO_PAD.encode(&raw), URL_SAFE_NO_PAD.encode(sk.sign(&raw).to_bytes()))
     }
 
-    fn book_with(nonce: &str, amount: u64, expires_at: u64) -> Book {
-        let mut b = Book::default();
-        b.open.insert(nonce.into(), PaymentRequired {
+    const GRACE: u64 = 100;
+
+    fn mem_store() -> Store {
+        Store::open(std::path::Path::new(":memory:")).unwrap()
+    }
+
+    fn store_with(nonce: &str, amount: u64, expires_at: u64) -> Store {
+        let s = mem_store();
+        s.insert(&PaymentRequired {
             scheme: SCHEME.into(), network: Network::Testnet, pay_to: UA.into(),
             amount_zat: amount, memo_nonce: nonce.into(), expires_at,
-        });
-        b
+        })
+        .unwrap();
+        s
+    }
+
+    fn tmp_db(name: &str) -> PathBuf {
+        let p = std::env::temp_dir().join(format!("x402z-server-{}-{name}.sqlite", std::process::id()));
+        for ext in ["", "-wal", "-shm"] {
+            let _ = std::fs::remove_file(format!("{}{ext}", p.display()));
+        }
+        p
     }
 
     #[test]
     fn valid_receipt_settles_once() {
         let sk = key();
         let c = decode_receipt(&sk.verifying_key(), &encode(&sk, &claims("n1", 100))).unwrap();
-        let mut b = book_with("n1", 100, 50);
-        assert_eq!(settle(&mut b, UA, &c, 10), Ok(()));
-        assert_eq!(settle(&mut b, UA, &c, 10), Err(ReceiptError::Replayed));
+        let s = store_with("n1", 100, 50);
+        assert_eq!(settle(&s, UA, &c, 10, GRACE), Ok(()));
+        assert_eq!(settle(&s, UA, &c, 10, GRACE), Err(ReceiptError::Replayed));
     }
 
     #[test]
@@ -482,13 +564,74 @@ mod tests {
 
     #[test]
     fn wrong_amount_expired_and_unknown_are_rejected() {
-        let mut b = book_with("n1", 100, 50);
-        assert_eq!(settle(&mut b, UA, &claims("n1", 99), 10), Err(ReceiptError::Underpaid { paid: 99, want: 100 }));
-        assert_eq!(settle(&mut b, UA, &claims("n1", 100), 50), Err(ReceiptError::Expired));
-        assert_eq!(settle(&mut b, UA, &claims("nope", 100), 10), Err(ReceiptError::UnknownNonce));
+        let s = store_with("n1", 100, 50);
+        assert_eq!(settle(&s, UA, &claims("n1", 99), 10, GRACE), Err(ReceiptError::Underpaid { paid: 99, want: 100 }));
+        // mempool-only receipt (no minedAt) redeemed after expiry + grace
+        assert_eq!(settle(&s, UA, &claims("n1", 100), 151, GRACE), Err(ReceiptError::Expired { expires_at: 50, paid_at: 151 }));
+        assert_eq!(settle(&s, UA, &claims("nope", 100), 10, GRACE), Err(ReceiptError::UnknownNonce));
         let mut wrong = claims("n1", 100);
         wrong.pay_to = "utest1someoneelse000000000000000".into();
-        assert_eq!(settle(&mut b, UA, &wrong, 10), Err(ReceiptError::WrongAddress));
+        assert_eq!(settle(&s, UA, &wrong, 10, GRACE), Err(ReceiptError::WrongAddress));
+        // none of the rejections burned the nonce
+        assert_eq!(settle(&s, UA, &claims("n1", 100), 10, GRACE), Ok(()));
+    }
+
+    #[test]
+    fn paid_before_expiry_redeemed_after_is_accepted_by_mined_time() {
+        // Challenge expired at t=50. The payment was mined at t=45 (before expiry); the payer
+        // only redeems at t=10_000, long after. Mined time decides, so it unlocks.
+        let s = store_with("n1", 100, 50);
+        let mut c = claims("n1", 100);
+        c.mined_at = Some(45);
+        assert_eq!(settle(&s, UA, &c, 10_000, GRACE), Ok(()));
+
+        // Mined inside the grace window (slow block): still accepted.
+        let s = store_with("n2", 100, 50);
+        let mut c = claims("n2", 100);
+        c.mined_at = Some(50 + GRACE);
+        assert_eq!(settle(&s, UA, &c, 10_000, GRACE), Ok(()));
+
+        // Mined after expiry + grace: refused, and the reason says when it landed.
+        let s = store_with("n3", 100, 50);
+        let mut c = claims("n3", 100);
+        c.mined_at = Some(51 + GRACE);
+        assert_eq!(settle(&s, UA, &c, 60, GRACE), Err(ReceiptError::Expired { expires_at: 50, paid_at: 51 + GRACE }));
+    }
+
+    #[test]
+    fn redeemed_nonce_stays_burned_across_restart() {
+        let path = tmp_db("burn");
+        {
+            let s = Store::open(&path).unwrap();
+            s.insert(&PaymentRequired {
+                scheme: SCHEME.into(), network: Network::Testnet, pay_to: UA.into(),
+                amount_zat: 100, memo_nonce: "n1".into(), expires_at: 50,
+            })
+            .unwrap();
+            assert_eq!(settle(&s, UA, &claims("n1", 100), 10, GRACE), Ok(()));
+        }
+        let s = Store::open(&path).unwrap();
+        assert_eq!(settle(&s, UA, &claims("n1", 100), 10, GRACE), Err(ReceiptError::Replayed));
+        assert_eq!(s.get("n1").unwrap().unwrap().spent_txid.as_deref(), Some("ab".repeat(32).as_str()));
+    }
+
+    #[test]
+    fn prune_keeps_spent_rows_and_live_challenges() {
+        let s = mem_store();
+        for (n, exp) in [("old", 10u64), ("live", 1_000), ("spent", 10)] {
+            s.insert(&PaymentRequired {
+                scheme: SCHEME.into(), network: Network::Testnet, pay_to: UA.into(),
+                amount_zat: 1, memo_nonce: n.into(), expires_at: exp,
+            })
+            .unwrap();
+        }
+        assert!(s.mark_spent("spent", "tx", 5).unwrap());
+        assert!(!s.mark_spent("spent", "tx2", 6).unwrap());
+        assert_eq!(s.prune_unspent_expired_before(500).unwrap(), 1);
+        assert!(s.get("old").unwrap().is_none());
+        assert!(s.get("live").unwrap().is_some());
+        assert!(s.get("spent").unwrap().is_some());
+        assert_eq!(s.count_open(500).unwrap(), 1);
     }
 
     fn ip(last: u8) -> IpAddr {
@@ -537,7 +680,7 @@ mod tests {
         assert!(l.buckets.is_empty());
     }
 
-    fn test_app(rate: u32) -> Arc<App> {
+    fn test_app_at(rate: u32, db: &std::path::Path) -> Arc<App> {
         let cfg = Config {
             merchant_ua: UA.into(),
             price_zat: 100_000,
@@ -545,8 +688,21 @@ mod tests {
             facilitator_url: "http://127.0.0.1:9".into(),
             agent_ledger: None,
             min_confirmations: 1,
+            expiry_grace_secs: GRACE,
+            redeem_window_secs: DEFAULT_REDEEM_WINDOW_SECS,
         };
-        Arc::new(App { cfg, book: Mutex::new(Book::default()), limiter: Mutex::new(ChallengeLimiter::new(rate)) })
+        let store = Store::open(db).unwrap();
+        Arc::new(App { cfg, store, book: Mutex::new(Book::default()), limiter: Mutex::new(ChallengeLimiter::new(rate)) })
+    }
+
+    fn test_app(rate: u32) -> Arc<App> {
+        test_app_at(rate, std::path::Path::new(":memory:"))
+    }
+
+    fn open_nonces(app: &App) -> Vec<String> {
+        let conn = app.store.conn_for_tests();
+        let mut q = conn.prepare("SELECT nonce FROM challenges WHERE spent_txid IS NULL").unwrap();
+        q.query_map([], |r| r.get(0)).unwrap().map(Result::unwrap).collect()
     }
 
     async fn get_quote(app: Arc<App>, from: [u8; 4], receipt: Option<&str>) -> Response {
@@ -573,7 +729,7 @@ mod tests {
         let retry: u64 = r.headers().get("retry-after").unwrap().to_str().unwrap().parse().unwrap();
         assert!((1..=30).contains(&retry), "retry-after {retry}");
         // the refused request minted no challenge
-        assert_eq!(app.book.lock().unwrap().open.len(), 2);
+        assert_eq!(app.store.count_open(now()).unwrap(), 2);
         // a different client still gets a challenge
         assert_eq!(get_quote(app.clone(), [10, 0, 0, 2], None).await.status(), StatusCode::PAYMENT_REQUIRED);
     }
@@ -586,7 +742,7 @@ mod tests {
         let r = get_quote(app.clone(), [10, 0, 0, 1], Some(&forged)).await;
         assert_eq!(r.status(), StatusCode::TOO_MANY_REQUESTS);
         assert_eq!(r.headers().get("x-payment-error").unwrap(), "receipt signature invalid");
-        assert_eq!(app.book.lock().unwrap().open.len(), 1);
+        assert_eq!(app.store.count_open(now()).unwrap(), 1);
     }
 
     #[tokio::test]
@@ -594,9 +750,29 @@ mod tests {
         let app = test_app(1);
         let r = get_quote(app.clone(), [10, 0, 0, 1], None).await;
         assert_eq!(r.status(), StatusCode::PAYMENT_REQUIRED);
-        let nonce = app.book.lock().unwrap().open.keys().next().unwrap().clone();
+        let nonce = open_nonces(&app).remove(0);
         let receipt = encode(&key(), &claims(&nonce, 100_000));
         // budget is spent, but redeeming a receipt mints no challenge
         assert_eq!(get_quote(app.clone(), [10, 0, 0, 1], Some(&receipt)).await.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn restart_between_challenge_and_redeem_keeps_the_challenge() {
+        let path = tmp_db("restart");
+        let app = test_app_at(5, &path);
+        assert_eq!(get_quote(app.clone(), [10, 0, 0, 1], None).await.status(), StatusCode::PAYMENT_REQUIRED);
+        let nonce = open_nonces(&app).remove(0);
+        drop(app); // server stops after issuing the 402
+
+        let app = test_app_at(5, &path); // ...and comes back on the same database
+        let receipt = encode(&key(), &claims(&nonce, 100_000));
+        assert_eq!(get_quote(app.clone(), [10, 0, 0, 1], Some(&receipt)).await.status(), StatusCode::OK);
+        drop(app);
+
+        // and after another restart the same receipt is a replay
+        let app = test_app_at(5, &path);
+        let r = get_quote(app.clone(), [10, 0, 0, 1], Some(&receipt)).await;
+        assert_eq!(r.status(), StatusCode::PAYMENT_REQUIRED);
+        assert_eq!(r.headers().get("x-payment-error").unwrap(), "receipt already used");
     }
 }
