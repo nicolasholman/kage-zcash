@@ -66,6 +66,7 @@
       .btn-line:hover { border-color: var(--ink); }
       .install { margin-top: 28px; display: flex; align-items: center; gap: 10px; border: 1px solid var(--line); background: var(--rail); border-radius: 8px; padding: 10px 12px; font: 13px/1.4 var(--mono); max-width: 470px; min-width: 0; }
       .install span { color: var(--faint); user-select: none; }
+      .install-note { margin: 8px 0 0; max-width: 470px; font-size: 13px; line-height: 1.5; color: var(--muted); }
       .install code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
       .install code::-webkit-scrollbar { display: none; }
       .copy { font: 500 12px/1 var(--font); border: 1px solid var(--line-2); background: var(--paper); border-radius: 6px; padding: 6px 9px; cursor: pointer; color: var(--muted); flex: none; }
@@ -254,6 +255,7 @@
             <span aria-hidden="true">$</span><code id="clone">git clone https://github.com/nickthelegend/zec-shielded-x402 &amp;&amp; cd zec-shielded-x402 &amp;&amp; cargo test -p x402z-server</code>
             <button class="copy" type="button" data-copy="#clone">Copy</button>
           </div>
+          <p class="install-note">26 server tests, including the Kage Tab attacks. A first build took about 2 minutes on a laptop at 2 build jobs, with no Zcash crates involved. The agent and MCP crates compile librustzcash, which took about 4 more minutes.</p>
           <div class="facts">
             <div><b>8</b><span>paid testnet txs, verifiable with a published UIVK</span></div>
             <div><b>80</b><span>tests, 3 against live testnet</span></div>
