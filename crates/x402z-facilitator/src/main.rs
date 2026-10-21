@@ -12,8 +12,13 @@
 //! not lost because its block came late or the payer asked for the receipt later.
 //! Nonce -> txid bindings persist in SQLite (`X402Z_FACILITATOR_DB`).
 //!
-//! `GET /health`  live lightwalletd round-trip; 200 with the chain tip, 503 if it fails.
-//! `POST /verify` `{challenge, txid}` -> `VerifyResponse` (see x402z_protocol).
+//! `GET /health`     live lightwalletd round-trip; 200 with the chain tip, 503 if it fails.
+//! `GET /supported`  x402: `{kinds: [{x402Version: 1, scheme: "zcash-shielded", network: "zcash-testnet"}]}`.
+//! `POST /verify`    x402 `{x402Version, paymentPayload, paymentRequirements}` -> read-only
+//!                   `{isValid, invalidReason, payer}`; legacy `{challenge, txid}` -> `VerifyResponse`
+//!                   with a receipt.
+//! `POST /settle`    x402: same body; binds the nonce, returns `{success, transaction, network,
+//!                   payer, errorReason?}` plus `receipt`/`claims` for the resource server.
 //!
 //! `x402z-facilitator keygen` prints a fresh receipt key pair for `.env`.
 //! `x402z-facilitator derive-uivk` prints the UIVK for the UFVK in `X402Z_MERCHANT_UFVK`.
@@ -41,8 +46,10 @@ use x402z_facilitator::{
     NETWORK,
 };
 use x402z_protocol::{
-    paid_in_time, ReceiptClaims, VerifyRequest, VerifyResponse, VerifyStatus, DEFAULT_EXPIRY_GRACE_SECS, HEALTH_PATH,
-    VERIFY_PATH,
+    paid_in_time, reason, FacilitatorRequest, PaymentRequired, ReceiptClaims, SettleResponse, SettlementResponse,
+    SupportedKind, SupportedResponse, VerifyRequest, VerifyResponse, VerifyStatus, X402VerifyResponse,
+    DEFAULT_EXPIRY_GRACE_SECS, HEALTH_PATH, NETWORK_TESTNET, SCHEME, SETTLE_PATH, SUPPORTED_PATH, VERIFY_PATH,
+    X402_VERSION,
 };
 
 fn require(var: &str) -> String {
@@ -76,13 +83,12 @@ struct App {
     issued: IssuedStore,
 }
 
-fn reply(code: StatusCode, r: VerifyResponse) -> Response {
-    (code, Json(r)).into_response()
-}
+type Outcome = (StatusCode, Option<&'static str>, VerifyResponse);
 
-fn fail(code: StatusCode, status: VerifyStatus, error: String) -> Response {
-    reply(
+fn fail(code: StatusCode, status: VerifyStatus, why: &'static str, error: String) -> Outcome {
+    (
         code,
+        Some(why),
         VerifyResponse {
             status,
             receipt: None,
@@ -95,34 +101,33 @@ fn fail(code: StatusCode, status: VerifyStatus, error: String) -> Response {
     )
 }
 
-async fn verify_handler(State(app): State<Arc<App>>, body: Bytes) -> Response {
-    let req: VerifyRequest = match serde_json::from_slice(&body) {
-        Ok(r) => r,
-        Err(e) => return fail(StatusCode::BAD_REQUEST, VerifyStatus::Rejected, format!("bad request body: {e}")),
-    };
-    let ch = &req.challenge;
+/// Does `txid_in` pay `ch`? With `issue_receipt`, a confirmed payment binds the nonce to the
+/// txid and gets a signed receipt (`/settle`, legacy `/verify`); without, it is a read-only
+/// check (x402 `/verify`).
+async fn process(app: &App, ch: &PaymentRequired, txid_in: &str, issue_receipt: bool) -> Outcome {
     // Expiry is checked against the mined block's time below, not against "now".
     if let Err(e) = ch.validate_shape() {
-        return fail(StatusCode::BAD_REQUEST, VerifyStatus::Rejected, format!("invalid challenge: {e:?}"));
+        return fail(StatusCode::BAD_REQUEST, VerifyStatus::Rejected, reason::INVALID_PAYLOAD, format!("invalid challenge: {e:?}"));
     }
     if let Some(ua) = &app.merchant_ua {
         if &ch.pay_to != ua {
-            return fail(StatusCode::UNPROCESSABLE_ENTITY, VerifyStatus::Rejected, "payTo is not this merchant's address".into());
+            return fail(StatusCode::UNPROCESSABLE_ENTITY, VerifyStatus::Rejected, reason::INVALID_PAYMENT, "payTo is not this merchant's address".into());
         }
     }
-    let Some(txid) = lwd::parse_txid(&req.txid) else {
-        return fail(StatusCode::BAD_REQUEST, VerifyStatus::Rejected, "txid must be 64 hex chars".into());
+    let Some(txid) = lwd::parse_txid(txid_in) else {
+        return fail(StatusCode::BAD_REQUEST, VerifyStatus::Rejected, reason::INVALID_PAYLOAD, "txid must be 64 hex chars".into());
     };
     let txid_hex = txid.to_string();
     let prev = match app.issued.txid_for(&ch.memo_nonce) {
         Ok(p) => p,
-        Err(e) => return fail(StatusCode::SERVICE_UNAVAILABLE, VerifyStatus::Error, e),
+        Err(e) => return fail(StatusCode::SERVICE_UNAVAILABLE, VerifyStatus::Error, reason::FACILITATOR_ERROR, e),
     };
     if let Some(prev) = prev {
         if prev != txid_hex {
             return fail(
                 StatusCode::UNPROCESSABLE_ENTITY,
                 VerifyStatus::Rejected,
+                reason::NONCE_USED,
                 format!("memo nonce already receipted for tx {prev}"),
             );
         }
@@ -131,7 +136,7 @@ async fn verify_handler(State(app): State<Arc<App>>, body: Bytes) -> Response {
     let mut client = app.lwd.clone();
     let tip = match lwd::chain_tip(&mut client).await {
         Ok(t) => t,
-        Err(e) => return fail(StatusCode::BAD_GATEWAY, VerifyStatus::Error, format!("{e} ({})", app.lwd_url)),
+        Err(e) => return fail(StatusCode::BAD_GATEWAY, VerifyStatus::Error, reason::FACILITATOR_ERROR, format!("{e} ({})", app.lwd_url)),
     };
     let (data, location) = match lwd::get_transaction(&mut client, &txid).await {
         Ok(FetchedTx::Found { data, location }) => (data, location),
@@ -139,16 +144,17 @@ async fn verify_handler(State(app): State<Arc<App>>, body: Bytes) -> Response {
             return fail(
                 StatusCode::NOT_FOUND,
                 VerifyStatus::NotFound,
+                reason::NOT_FOUND,
                 format!("lightwalletd does not know tx {txid_hex} yet (tip {tip})"),
             )
         }
-        Err(e) => return fail(StatusCode::BAD_GATEWAY, VerifyStatus::Error, format!("{e} ({})", app.lwd_url)),
+        Err(e) => return fail(StatusCode::BAD_GATEWAY, VerifyStatus::Error, reason::FACILITATOR_ERROR, format!("{e} ({})", app.lwd_url)),
     };
     let mined = match location {
         TxLocation::Mined(h) => Some(h),
         TxLocation::Mempool => None,
         TxLocation::Orphaned => {
-            return fail(StatusCode::ACCEPTED, VerifyStatus::Pending, format!("tx {txid_hex} is only mined on a fork; wait"))
+            return fail(StatusCode::ACCEPTED, VerifyStatus::Pending, reason::PENDING, format!("tx {txid_hex} is only mined on a fork; wait"))
         }
     };
 
@@ -162,14 +168,16 @@ async fn verify_handler(State(app): State<Arc<App>>, body: Bytes) -> Response {
         Ok(p) => p,
         Err(e) => {
             eprintln!("verify {} tx {txid_hex}: rejected: {e}", ch.memo_nonce);
-            return fail(StatusCode::UNPROCESSABLE_ENTITY, VerifyStatus::Rejected, e.to_string());
+            return fail(StatusCode::UNPROCESSABLE_ENTITY, VerifyStatus::Rejected, reason::INVALID_PAYMENT, e.to_string());
         }
     };
     let tip_u64 = u64::from(u32::from(tip));
     let mined_at = match mined {
         Some(h) => match lwd::block_time(&mut client, h).await {
             Ok(t) => Some(t),
-            Err(e) => return fail(StatusCode::BAD_GATEWAY, VerifyStatus::Error, format!("block {h} time: {e} ({})", app.lwd_url)),
+            Err(e) => {
+                return fail(StatusCode::BAD_GATEWAY, VerifyStatus::Error, reason::FACILITATOR_ERROR, format!("block {h} time: {e} ({})", app.lwd_url))
+            }
         },
         None => None,
     };
@@ -180,6 +188,7 @@ async fn verify_handler(State(app): State<Arc<App>>, body: Bytes) -> Response {
         return fail(
             StatusCode::UNPROCESSABLE_ENTITY,
             VerifyStatus::Rejected,
+            reason::EXPIRED,
             format!(
                 "payment {when} at {paid_at}, after the challenge expired at {} plus {} s grace",
                 ch.expires_at, app.expiry_grace_secs
@@ -191,8 +200,9 @@ async fn verify_handler(State(app): State<Arc<App>>, body: Bytes) -> Response {
             "verify {} tx {txid_hex}: pending ({} of {} confirmations, tip {tip})",
             ch.memo_nonce, payment.confirmations, app.min_confirmations
         );
-        return reply(
+        return (
             StatusCode::ACCEPTED,
+            Some(reason::PENDING),
             VerifyResponse {
                 status: VerifyStatus::Pending,
                 receipt: None,
@@ -217,24 +227,42 @@ async fn verify_handler(State(app): State<Arc<App>>, body: Bytes) -> Response {
         issued_at: now(),
         mined_at,
     };
+    if !issue_receipt {
+        eprintln!("verify {} tx {txid_hex}: valid ({} zat, {} conf); read-only check, no receipt", ch.memo_nonce, payment.amount_zat, payment.confirmations);
+        return (
+            StatusCode::OK,
+            None,
+            VerifyResponse {
+                status: VerifyStatus::Confirmed,
+                receipt: None,
+                claims: Some(claims),
+                confirmations: Some(payment.confirmations),
+                min_confirmations: Some(app.min_confirmations),
+                chain_tip: Some(tip_u64),
+                error: None,
+            },
+        );
+    }
     match app.issued.bind(&ch.memo_nonce, &txid_hex, now()) {
         Ok(bound) if bound == txid_hex => {}
         Ok(bound) => {
             return fail(
                 StatusCode::UNPROCESSABLE_ENTITY,
                 VerifyStatus::Rejected,
+                reason::NONCE_USED,
                 format!("memo nonce already receipted for tx {bound}"),
             )
         }
-        Err(e) => return fail(StatusCode::SERVICE_UNAVAILABLE, VerifyStatus::Error, e),
+        Err(e) => return fail(StatusCode::SERVICE_UNAVAILABLE, VerifyStatus::Error, reason::FACILITATOR_ERROR, e),
     }
     let signed = receipt::sign(&app.signing_key, &claims);
     eprintln!(
         "verify {} tx {txid_hex}: CONFIRMED {} zat via {:?}, {} conf (tip {tip}); receipt issued",
         ch.memo_nonce, payment.amount_zat, payment.pools, payment.confirmations
     );
-    reply(
+    (
         StatusCode::OK,
+        None,
         VerifyResponse {
             status: VerifyStatus::Confirmed,
             receipt: Some(signed),
@@ -245,6 +273,86 @@ async fn verify_handler(State(app): State<Arc<App>>, body: Bytes) -> Response {
             error: None,
         },
     )
+}
+
+/// x402 request body -> (challenge, txid). The payload's memoNonce must name the same
+/// challenge as the requirements.
+fn x402_request(body: &[u8]) -> Result<(PaymentRequired, String), (&'static str, String)> {
+    let req: FacilitatorRequest =
+        serde_json::from_slice(body).map_err(|e| (reason::INVALID_PAYLOAD, format!("bad request body: {e}")))?;
+    if req.x402_version != X402_VERSION {
+        return Err((reason::INVALID_X402_VERSION, format!("x402Version {} not supported", req.x402_version)));
+    }
+    let pay = req.payment_payload.zcash_payload().map_err(|e| (e.reason(), format!("paymentPayload: {e}")))?;
+    let ch = req.payment_requirements.to_challenge().map_err(|e| (e.reason(), format!("paymentRequirements: {e}")))?;
+    if pay.memo_nonce != ch.memo_nonce {
+        return Err((reason::INVALID_PAYLOAD, "paymentPayload.memoNonce does not match paymentRequirements.extra.memoNonce".into()));
+    }
+    Ok((ch, pay.txid))
+}
+
+fn is_x402_body(body: &[u8]) -> bool {
+    serde_json::from_slice::<serde_json::Value>(body).map(|v| v.get("paymentPayload").is_some()).unwrap_or(false)
+}
+
+/// `POST /verify`. x402 body (`{x402Version, paymentPayload, paymentRequirements}`) -> read-only
+/// `{isValid, invalidReason, payer}`. Legacy body (`{challenge, txid}`) -> `VerifyResponse` with a
+/// receipt, as before.
+async fn verify_handler(State(app): State<Arc<App>>, body: Bytes) -> Response {
+    if is_x402_body(&body) {
+        let (code, why, r) = match x402_request(&body) {
+            Ok((ch, txid)) => process(&app, &ch, &txid, false).await,
+            Err((why, e)) => fail(StatusCode::BAD_REQUEST, VerifyStatus::Rejected, why, e),
+        };
+        let valid = r.status == VerifyStatus::Confirmed;
+        let out = X402VerifyResponse {
+            is_valid: valid,
+            invalid_reason: if valid { None } else { why.map(str::to_string) },
+            payer: String::new(),
+            status: r.status,
+            error: r.error,
+        };
+        return (code, Json(out)).into_response();
+    }
+    let req: VerifyRequest = match serde_json::from_slice(&body) {
+        Ok(r) => r,
+        Err(e) => {
+            let (code, _, r) = fail(StatusCode::BAD_REQUEST, VerifyStatus::Rejected, reason::INVALID_PAYLOAD, format!("bad request body: {e}"));
+            return (code, Json(r)).into_response();
+        }
+    };
+    let (code, _, r) = process(&app, &req.challenge, &req.txid, true).await;
+    (code, Json(r)).into_response()
+}
+
+/// `POST /settle` (x402): binds the nonce to the txid and returns the settlement plus a signed
+/// receipt for the resource server.
+async fn settle_handler(State(app): State<Arc<App>>, body: Bytes) -> Response {
+    let (code, why, r) = match x402_request(&body) {
+        Ok((ch, txid)) => process(&app, &ch, &txid, true).await,
+        Err((why, e)) => fail(StatusCode::BAD_REQUEST, VerifyStatus::Rejected, why, e),
+    };
+    let settlement = match (&r.status, &r.claims) {
+        (VerifyStatus::Confirmed, Some(c)) => SettlementResponse::ok(&c.txid),
+        _ => SettlementResponse::failed(why.unwrap_or(reason::FACILITATOR_ERROR)),
+    };
+    let out = SettleResponse {
+        settlement,
+        status: r.status,
+        receipt: r.receipt,
+        claims: r.claims,
+        confirmations: r.confirmations,
+        min_confirmations: r.min_confirmations,
+        error: r.error,
+    };
+    (code, Json(out)).into_response()
+}
+
+/// `GET /supported` (x402).
+async fn supported() -> Json<SupportedResponse> {
+    Json(SupportedResponse {
+        kinds: vec![SupportedKind { x402_version: X402_VERSION, scheme: SCHEME.into(), network: NETWORK_TESTNET.into() }],
+    })
 }
 
 async fn health(State(app): State<Arc<App>>) -> Response {
@@ -399,6 +507,8 @@ async fn main() {
     let router = Router::new()
         .route(HEALTH_PATH, get(health))
         .route(VERIFY_PATH, post(verify_handler))
+        .route(SETTLE_PATH, post(settle_handler))
+        .route(SUPPORTED_PATH, get(supported))
         .with_state(app);
     let listener = tokio::net::TcpListener::bind(&bind).await.unwrap_or_else(|e| {
         eprintln!("error: cannot bind {bind}: {e}");
@@ -408,5 +518,59 @@ async fn main() {
     if let Err(e) = axum::serve(listener, router).await {
         eprintln!("error: facilitator stopped: {e}");
         exit(1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use x402z_protocol::{Network, PaymentPayload, PaymentRequirements};
+
+    fn ch() -> PaymentRequired {
+        PaymentRequired {
+            scheme: SCHEME.into(),
+            network: Network::Testnet,
+            pay_to: "utest1sampleaddressforschemaonly000000".into(),
+            amount_zat: 100_000,
+            memo_nonce: "x402z-abc".into(),
+            expires_at: 2_000_000_000,
+        }
+    }
+
+    fn body(payload: PaymentPayload, reqs: PaymentRequirements) -> Vec<u8> {
+        serde_json::to_vec(&FacilitatorRequest { x402_version: 1, payment_payload: payload, payment_requirements: reqs }).unwrap()
+    }
+
+    #[test]
+    fn x402_request_extracts_challenge_and_txid() {
+        let reqs = PaymentRequirements::from_challenge(&ch(), "http://h/r", "d", "application/json", 900);
+        let b = body(PaymentPayload::zcash(&"ab".repeat(32), "x402z-abc"), reqs.clone());
+        assert!(is_x402_body(&b));
+        let (c, txid) = x402_request(&b).unwrap();
+        assert_eq!((c, txid), (ch(), "ab".repeat(32)));
+
+        // nonce in the payload must match the requirements
+        let b = body(PaymentPayload::zcash(&"ab".repeat(32), "x402z-other"), reqs.clone());
+        assert_eq!(x402_request(&b).unwrap_err().0, reason::INVALID_PAYLOAD);
+        // wrong network
+        let mut p = PaymentPayload::zcash("ab", "x402z-abc");
+        p.network = "base-sepolia".into();
+        assert_eq!(x402_request(&body(p, reqs.clone())).unwrap_err().0, reason::INVALID_NETWORK);
+        // wrong version
+        let mut raw: serde_json::Value = serde_json::from_slice(&body(PaymentPayload::zcash("ab", "x402z-abc"), reqs)).unwrap();
+        raw["x402Version"] = 2.into();
+        assert_eq!(x402_request(&serde_json::to_vec(&raw).unwrap()).unwrap_err().0, reason::INVALID_X402_VERSION);
+        // legacy body is not mistaken for x402
+        let legacy = serde_json::to_vec(&VerifyRequest { challenge: ch(), txid: "ab".repeat(32) }).unwrap();
+        assert!(!is_x402_body(&legacy));
+    }
+
+    #[tokio::test]
+    async fn supported_lists_zcash_shielded_testnet() {
+        let Json(s) = supported().await;
+        assert_eq!(
+            serde_json::to_value(s).unwrap(),
+            serde_json::json!({"kinds": [{"x402Version": 1, "scheme": "zcash-shielded", "network": "zcash-testnet"}]})
+        );
     }
 }
