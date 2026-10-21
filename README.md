@@ -24,7 +24,7 @@ agent -> GET /api/quote
 | `crates/spendguard`: cap, allowlist, approval threshold | **Done.** 11 unit tests |
 | `crates/x402z-protocol`: x402 v1 types (`PaymentRequiredResponse`, `PaymentRequirements`, `X-PAYMENT`, `X-PAYMENT-RESPONSE`, `/settle`, `/supported`), challenge validation, ZIP 321 URIs | **Done.** 13 tests, including the x402 spec's own 402 and payload examples, and ZIP 321's memo example |
 | `crates/x402z-server`: paywalled `/api/quote`, `X-PAYMENT` settlement via the facilitator, `POST /api/redeem` (paste a txid), QR, dashboard, SQLite challenge book, per-IP rate limit | **Done.** 21 tests |
-| `crates/x402z-facilitator`: lightwalletd gRPC, UIVK trial decryption (Sapling, Orchard, Ironwood), mined-block-time expiry, SQLite nonce bindings, `/verify` `/settle` `/supported` | **Done.** 10 tests. 6 of them build transactions in-process with real keys, real note encryption and real Halo2 proofs; these are **not broadcast**. Live paths checked against testnet.zec.rocks |
+| `crates/x402z-facilitator`: lightwalletd gRPC, UIVK trial decryption (Sapling, Orchard, Ironwood), mined-block-time expiry, SQLite nonce bindings, `/verify` `/settle` `/supported` | **Done.** 13 tests. 6 of them build transactions in-process with real keys, real note encryption and real Halo2 proofs; these are **not broadcast**. 3 verify the four real Kage payments live against testnet.zec.rocks with only the published UIVK |
 | `crates/x402z-agent`: 402 → spendguard → `zcash_client_sqlite` wallet → pay → `X-PAYMENT` retry, file-locked ledger | **Done.** 8 tests. Paid live on testnet (Oct 20) |
 | `crates/x402z-mcp`: MCP server over stdio, with tools `paid_fetch`, `spend_status`, `ledger_tail` | **Done.** 3 stdio tests. Live LLM run via opencode ([transcript](docs/mcp-live-run.txt)) |
 | Encrypted audit log (only the owner's viewing key can read it) | Not started. The ledger is plain JSON |
@@ -47,9 +47,9 @@ Shielding hides the amount, the memo and both parties from the chain. It doesn't
    cargo test -p spendguard -p x402z-protocol -p x402z-server   # 11 + 13 + 21
    cargo test -p x402z-agent                                      # 8
    cargo test -p x402z-mcp                                        # 3 (drives the binary over stdio)
-   cargo test -p x402z-facilitator                                # 10; the 6 real-transaction tests prove Halo2 bundles, ~40 s
+   cargo test -p x402z-facilitator                                # 13: 6 prove Halo2 bundles (~40 s), 3 hit testnet live
    ```
-   That makes 66 tests in all.
+   That makes 69 tests in all (facilitator 13 includes 3 live testnet tests that need network).
 2. Run `cargo run -p x402z-facilitator` with no `.env`. It prints `error: X402Z_MERCHANT_UIVK not configured` and exits with code 2.
    - If `ZCASH_LWD_URL` is unset, it says so and uses `https://testnet.zec.rocks:443`.
    - If lightwalletd is unreachable, it prints `error: cannot connect to lightwalletd: …` and exits with code 1.
