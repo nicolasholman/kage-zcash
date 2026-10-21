@@ -757,16 +757,18 @@ async fn events(State(app): State<Arc<App>>, Query(q): Query<Since>) -> Json<Vec
     Json(book.events.iter().filter(|e| e.id > since).cloned().collect())
 }
 
-/// The agent ledger is written by `x402z-agent` (spendguard state + audit trail).
-/// Missing or unreadable => the dashboard shows a red banner naming the problem.
+/// The agent ledger is the *payer's* file, written by `x402z-agent` (spendguard state + audit
+/// trail). A merchant has no business reading it, so the dashboard shows it only when
+/// `X402Z_DEMO_AGENT_LEDGER` names it (payer and merchant on one machine, for a demo). Unset =>
+/// `hidden`; set but unreadable => a red banner naming the problem.
 fn read_ledger(path: Option<&str>) -> serde_json::Value {
     let Some(path) = path else {
-        return serde_json::json!({ "error": "X402Z_AGENT_LEDGER not configured" });
+        return serde_json::json!({ "hidden": "merchant view: the payer's spendguard ledger is not shown (set X402Z_DEMO_AGENT_LEDGER for a one-machine demo)" });
     };
     match std::fs::read(path) {
-        Err(e) => serde_json::json!({ "error": format!("X402Z_AGENT_LEDGER unreadable ({path}): {e}") }),
+        Err(e) => serde_json::json!({ "error": format!("X402Z_DEMO_AGENT_LEDGER unreadable ({path}): {e}") }),
         Ok(raw) => match serde_json::from_slice::<serde_json::Value>(&raw) {
-            Err(e) => serde_json::json!({ "error": format!("X402Z_AGENT_LEDGER is not valid JSON ({path}): {e}") }),
+            Err(e) => serde_json::json!({ "error": format!("X402Z_DEMO_AGENT_LEDGER is not valid JSON ({path}): {e}") }),
             Ok(v) => serde_json::json!({ "data": v }),
         },
     }
@@ -865,7 +867,7 @@ async fn main() {
         price_zat,
         receipt_key,
         facilitator_url,
-        agent_ledger: optional("X402Z_AGENT_LEDGER"),
+        agent_ledger: optional("X402Z_DEMO_AGENT_LEDGER"),
         min_confirmations,
         expiry_grace_secs: nonneg("X402Z_EXPIRY_GRACE_SECS", DEFAULT_EXPIRY_GRACE_SECS),
         redeem_window_secs: nonneg("X402Z_REDEEM_WINDOW_SECS", DEFAULT_REDEEM_WINDOW_SECS),
@@ -878,8 +880,9 @@ async fn main() {
         exit(2);
     });
     eprintln!("challenge book: {} (X402Z_SERVER_DB)", db_path.display());
-    if cfg.agent_ledger.is_none() {
-        eprintln!("warning: X402Z_AGENT_LEDGER not configured; dashboard will show a red banner");
+    match &cfg.agent_ledger {
+        None => eprintln!("dashboard: merchant view, the agent's spendguard ledger is not shown (X402Z_DEMO_AGENT_LEDGER unset)"),
+        Some(p) => eprintln!("warning: dashboard shows the agent's spendguard ledger {p} (X402Z_DEMO_AGENT_LEDGER): one-machine demo only, a real merchant never sees it"),
     }
     let rate = match optional("X402Z_CHALLENGE_RATE_PER_MIN").map(|s| s.parse::<u32>()) {
         None => DEFAULT_CHALLENGE_RATE_PER_MIN,

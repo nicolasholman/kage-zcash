@@ -65,7 +65,7 @@ Shielding hides the amount, the memo and both parties from the chain. It doesn't
    | Server/facilitator refuses the payment | `server refused payment tx … (402 Payment Required, invalid_payment): …` | 5 |
    | Paid | the paid JSON on stdout, `X-PAYMENT-RESPONSE: success=true …` on stderr | 0 |
 
-   Every decision is appended to `X402Z_AGENT_LEDGER`, and the dashboard shows it. Two agent runs at once take turns on `<ledger>.lock`, so they can't both pass the cap.
+   Every decision is appended to `X402Z_AGENT_LEDGER` (the dashboard shows it only in a one-machine demo, see below). Two agent runs at once take turns on `<ledger>.lock`, so they can't both pass the cap.
 6. Send more than `X402Z_CHALLENGE_RATE_PER_MIN` requests (default 30) to `/api/quote` from one IP. You get `429 Too Many Requests` with a `Retry-After` header. A request that redeems a valid receipt is never rate limited.
 
 ## x402 wire format
@@ -194,7 +194,7 @@ Fill in `X402Z_MERCHANT_UA`, `X402Z_RECEIPT_PUBKEY` and `X402Z_FACILITATOR_URL`,
 - Press **Request paid data →** and within a second you get a live x402 challenge: QR, ZIP 321 URI, payTo, amount, memo nonce and a 15-minute countdown. The event also lands in the **Live payment feed**.
 - Pay it from any wallet and paste the txid. Or let an agent send `X-PAYMENT`. While the payment confirms, the feed shows `confirming`; once it settles, it shows `paid` with the txid.
 - A bad, replayed, underpaid or late payment shows up as `refused` and comes back with a fresh 402 and an `x-payment-error` header.
-- **The spendguard panel is a local demo:** the payer's ledger and the merchant's dashboard sit on one machine. It reads `X402Z_AGENT_LEDGER`, a JSON file `{agents:[{agent,dailyCapZat,spentTodayZat,approvalThresholdZat,allowedHosts}], audit:[{ts,agent,host,amountZat,decision,reason,memoNonce,txid}]}`. In a real deployment the merchant never sees the agent's ledger. If the file is unset or unreadable, the page shows a red banner naming the variable.
+- **The spendguard panel is off by default.** The agent's ledger is payer-side data, so the merchant server reads it only when `X402Z_DEMO_AGENT_LEDGER` names it. That is for a one-machine demo where the payer and the merchant share a disk; a real merchant never sets it. Unset, the panel says the payer's ledger is not shown. When set, it reads the agent's `X402Z_AGENT_LEDGER` file: `{agents:[{agent,dailyCapZat,spentTodayZat,approvalThresholdZat,allowedHosts}], audit:[{ts,agent,host,amountZat,decision,reason,memoNonce,txid}]}`. A set but unreadable file gets a red banner naming the variable.
 - Abuse limit: each client IP gets a token bucket of `X402Z_CHALLENGE_RATE_PER_MIN` challenges and redeem attempts (default 30; `0` turns it off).
 - The layout collapses to one column on narrow screens and works at 375 px (`X402Z_BIND=0.0.0.0:4020`).
 

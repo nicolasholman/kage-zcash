@@ -42,7 +42,7 @@ Anyone can check all eight with the published demo merchant UIVK. See the README
   - lightwalletd sees which txids are looked up;
   - the agent ledger is plaintext JSON;
   - 402 → block timing can link a request to its payment.
-- The dashboard's spendguard panel is a local demo (payer and merchant on one machine).
+- The merchant dashboard doesn't show the payer's spendguard ledger unless `X402Z_DEMO_AGENT_LEDGER` is set, which is for a one-machine demo only.
 - A live paying run from the *agent's own wallet* on the newest code is not in this round. The new code paths were proven live with a separate demo wallet (txids above).
 - Not audited.
 

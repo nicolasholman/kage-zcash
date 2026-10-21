@@ -336,7 +336,7 @@ section{scroll-margin-top:20px;min-width:0}
       <div class="sechead"><h2 id="sgh">Spendguard</h2><span class="chip">caps reset 00:00 UTC</span></div>
       <div class="guard">
         <div>
-          <p class="demo-note"><b>Local demo.</b> Payer and merchant run on one machine, so this panel can read the agent's own ledger file. A real merchant never sees it.</p>
+          <p class="demo-note"><b>Local demo only.</b> This panel reads the agent's own ledger file, and only when <code>X402Z_DEMO_AGENT_LEDGER</code> is set (payer and merchant on one machine). By default it stays empty: a real merchant never sees it.</p>
           <span class="path">checked before the wallet, first denial wins</span>
           <ol class="rules"><li>host allowlist</li><li>amount &gt; 0</li><li>daily cap</li><li>approval threshold</li></ol>
           <div id="agents"><div class="agent"><span class="sk" style="width:40%"></span><span class="sk" style="width:100%;height:6px;margin:12px 0"></span><span class="sk" style="width:60%"></span><span class="sr">Waiting for agent ledger…</span></div></div>
@@ -392,15 +392,15 @@ async function status(){
     const up = !(s.facilitator && !s.facilitator.reachable);
     $("#facState").textContent = up ? "reachable" : "unreachable"; $("#facState").className = "dot " + (up ? "ok" : "bad");
     if (!up) errs.push(s.facilitator.error);
-    if (s.ledger.error) { errs.push(s.ledger.error); renderLedger(null); } else renderLedger(s.ledger.data);
+    if (s.ledger.error) { errs.push(s.ledger.error); renderLedger(null); } else if (s.ledger.hidden) renderLedger(null, true); else renderLedger(s.ledger.data);
   } catch (e) { errs.push("x402z-server unreachable: " + e.message); $("#facState").textContent = "unknown"; $("#facState").className = "dot bad"; }
   banner(errs);
 }
 
-function renderTotals(agents){
+function renderTotals(agents, hidden){
   if (!agents) {
     $("#spent").innerHTML = '<span class="fade">—</span>';
-    $("#capChip").className = "chip"; $("#capChip").innerHTML = "<b>Setup required</b>&nbsp;· no agent ledger";
+    $("#capChip").className = "chip"; $("#capChip").innerHTML = hidden ? "<b>Merchant view</b>&nbsp;· payer ledger not shown" : "<b>Setup required</b>&nbsp;· agent ledger unreadable";
     $("#capBar").style.width = "0%"; $("#capNote").textContent = "Daily cap from spendguard policy"; $("#capPct").textContent = "";
     return;
   }
@@ -414,10 +414,12 @@ function renderTotals(agents){
   $("#capPct").textContent = cap ? Math.round(pct) + "% used" : "";
 }
 
-function renderLedger(l){
+function renderLedger(l, hidden){
   if (!l) {
-    renderTotals(null);
-    $("#agents").innerHTML = '<div class="empty setup"><span class="ei">Setup required</span><b>No agent ledger</b><span>Start x402z-agent with <code>X402Z_AGENT_LEDGER</code> set.</span></div>';
+    renderTotals(null, hidden);
+    $("#agents").innerHTML = hidden
+      ? '<div class="empty"><span class="ei">hidden</span><b>Payer ledger not shown</b><span>Spendguard runs on the agent, and a merchant never sees its spending. For a one-machine demo, set <code>X402Z_DEMO_AGENT_LEDGER</code> to the agent\'s ledger file.</span></div>'
+      : '<div class="empty setup"><span class="ei">Setup required</span><b>Agent ledger unreadable</b><span>Check <code>X402Z_DEMO_AGENT_LEDGER</code>; the banner above names the problem.</span></div>';
     $("#audit").innerHTML = ""; $("#decCounts").innerHTML = ""; return;
   }
   const agents = l.agents || [];
