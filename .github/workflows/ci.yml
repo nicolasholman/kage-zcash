@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_BUILD_JOBS: 2
+
+jobs:
+  fast:
+    name: Fast tests (spendguard, protocol, server, agent, mcp, facilitator unit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the pinned toolchain (rust-toolchain.toml)
+        run: rustup toolchain install 1.89.0 --profile minimal
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test -p spendguard -p x402z-protocol -p x402z-server
+      - run: cargo test -p x402z-agent
+      - run: cargo test -p x402z-mcp
+      - run: cargo test -p x402z-facilitator --lib --bins --test zip321_uri
+
+  real-transactions:
+    name: Facilitator on in-process transactions (Halo2 proving, slow)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install 1.89.0 --profile minimal
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test -p x402z-facilitator --test verify_real_tx
+
+  live-testnet:
+    name: Facilitator against Zcash testnet (testnet.zec.rocks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install 1.89.0 --profile minimal
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test -p x402z-facilitator --test live_testnet
