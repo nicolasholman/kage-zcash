@@ -167,11 +167,15 @@ pub fn challenge_from_402(body: &str, now_unix: u64) -> Result<PaymentRequired, 
     Ok(ch)
 }
 
-fn settlement_header(resp: &reqwest::Response) -> Option<SettlementResponse> {
+pub(crate) fn http_client() -> Result<reqwest::Client, PayError> {
+    reqwest::Client::builder().timeout(Duration::from_secs(120)).build().map_err(|e| PayError::Runtime(e.to_string()))
+}
+
+pub(crate) fn settlement_header(resp: &reqwest::Response) -> Option<SettlementResponse> {
     resp.headers().get(PAYMENT_RESPONSE_HEADER).and_then(|v| v.to_str().ok()).and_then(|v| decode_header(v).ok())
 }
 
-async fn connect_lwd(url: &str) -> Result<(lwd::Client, BlockHeight), PayError> {
+pub(crate) async fn connect_lwd(url: &str) -> Result<(lwd::Client, BlockHeight), PayError> {
     let mut client = lwd::connect(url).await.map_err(|e| PayError::Runtime(e.to_string()))?;
     let info = lwd::info(&mut client).await.map_err(|e| PayError::Runtime(format!("{e} ({url})")))?;
     if info.chain_name != "test" {
@@ -210,15 +214,158 @@ pub async fn open_wallet(
     Ok((db, id))
 }
 
+/// A payment spendguard has allowed, holding the ledger lock until the outcome is recorded (so
+/// concurrent runs can't both pass the cap).
+pub struct Gate {
+    _lock: crate::ledger::LedgerLock,
+    pub ledger: LedgerFile,
+    pub audit: AuditEntry,
+    pub spent_before: u64,
+    agent: String,
+    policy: Policy,
+}
+
+impl Gate {
+    /// Record that the allowed payment was not made (`why`), then release the lock.
+    pub fn record_failure(mut self, why: &str) {
+        let mut a = self.audit.clone();
+        a.reason = Some(format!("allowed, but not paid: {why}"));
+        self.ledger.upsert_agent(&self.agent, &self.policy, self.spent_before);
+        self.ledger.append(a);
+        let _ = self.ledger.save();
+    }
+
+    /// Record a broadcast payment (counts against today's cap), then release the lock.
+    pub fn record_paid(mut self, txid: &str, reason: Option<&str>) -> Result<(), PayError> {
+        self.audit.txid = Some(txid.to_string());
+        match reason {
+            Some(r) => self.audit.reason = Some(r.to_string()),
+            None => {
+                self.audit.reason.get_or_insert_with(|| "paid".into());
+            }
+        }
+        let total = self.spent_before.saturating_add(self.audit.amount_zat);
+        self.ledger.upsert_agent(&self.agent, &self.policy, total);
+        self.ledger.append(self.audit.clone());
+        self.ledger.save().map_err(PayError::Runtime)
+    }
+}
+
+/// Spendguard, before any wallet work: allowlist, cap and approval threshold for paying
+/// `amount_zat` to `host` (challenge `memo_nonce`). A refusal is written to the ledger and
+/// returned as [`PayError::Refused`]; an allowance returns the [`Gate`] still holding the lock.
+/// `approve(host, amount_zat, threshold_zat)` is asked only at or above the threshold.
+pub fn spendguard_gate(
+    cfg: &AgentConfig,
+    host: &str,
+    amount_zat: u64,
+    memo_nonce: &str,
+    approve: &dyn Fn(&str, u64, u64) -> bool,
+) -> Result<Gate, PayError> {
+    let ledger_path = cfg
+        .ledger_path
+        .as_ref()
+        .ok_or_else(|| PayError::Config("X402Z_AGENT_LEDGER not configured: spendguard needs it to enforce the daily cap. Not paying.".into()))?;
+    let lock = LedgerFile::lock(ledger_path).map_err(PayError::Config)?;
+    let mut ledger = LedgerFile::load(ledger_path).map_err(PayError::Config)?;
+    let agent = cfg.agent.as_str();
+    let policy = &cfg.policy;
+    let t = now();
+    let guard = ledger.guard(agent, policy, t);
+    let req = SpendRequest { agent, host, amount_zat, now_unix: t };
+    let mut audit = AuditEntry {
+        ts: t,
+        agent: agent.to_string(),
+        host: host.to_string(),
+        amount_zat,
+        decision: "allowed".into(),
+        reason: None,
+        memo_nonce: Some(memo_nonce.to_string()),
+        txid: None,
+    };
+    let spent_before = guard.spent_today(agent, t);
+    let refusal = match guard.check(&req) {
+        Decision::Allow => None,
+        Decision::Deny(d) => Some(d.to_string()),
+        Decision::NeedsApproval { threshold_zat } => {
+            if approve(host, amount_zat, threshold_zat) {
+                audit.reason = Some(format!("approved by operator (>= {threshold_zat} zat)"));
+                None
+            } else {
+                audit.decision = "needs_approval".into();
+                Some(format!("approval required (>= {threshold_zat} zat) and not given"))
+            }
+        }
+    };
+    if let Some(reason) = refusal {
+        if audit.decision == "allowed" {
+            audit.decision = "denied".into();
+        }
+        audit.reason = Some(format!("{reason}; nothing broadcast"));
+        ledger.upsert_agent(agent, policy, spent_before);
+        ledger.append(audit);
+        ledger.save().map_err(PayError::Runtime)?;
+        return Err(PayError::Refused(format!(
+            "spendguard refused the payment: {reason}. No transaction was built or broadcast."
+        )));
+    }
+    eprintln!("spendguard: allowed {amount_zat} zat ({} of {} zat already spent today)", spent_before, policy.daily_cap_zat);
+    Ok(Gate { _lock: lock, ledger, audit, spent_before, agent: agent.to_string(), policy: policy.clone() })
+}
+
+/// Pay `amount_zat` to `pay_to` with text memo `memo` from the agent's own wallet
+/// (`X402Z_AGENT_SEED`), under an allowed [`Gate`], and record the outcome in the ledger.
+/// Returns the txid.
+pub async fn pay_from_agent_wallet(cfg: &AgentConfig, gate: Gate, pay_to: &str, amount_zat: u64, memo: &str) -> Result<String, PayError> {
+    let Some(seed) = cfg.seed.as_ref() else {
+        gate.record_failure("X402Z_AGENT_SEED not configured");
+        return Err(PayError::Wallet(format!(
+            "X402Z_AGENT_SEED not configured: no funded testnet wallet to pay from. Set X402Z_AGENT_SEED (24-word \
+             BIP 39 phrase of a wallet holding at least {} zat of testnet ZEC) and X402Z_AGENT_BIRTHDAY, or run \
+             `x402z-agent new-wallet` and fund the printed address. Not paying.",
+            amount_zat + wallet::MIN_FEE_ZAT
+        )));
+    };
+    let (mut client, tip) = match connect_lwd(&cfg.lwd_url).await {
+        Ok(c) => c,
+        Err(e) => {
+            gate.record_failure(e.message());
+            return Err(e);
+        }
+    };
+    let (mut db, id) = open_wallet(cfg, &mut client, tip).await?;
+    let usk = wallet::spending_key(&db, id, seed).map_err(PayError::Config)?;
+    eprintln!("syncing wallet in {}...", cfg.wallet_dir.display());
+    wallet::sync(&mut db, &mut client).await.map_err(PayError::Runtime)?;
+    let bal = wallet::balance(&db, id).map_err(PayError::Runtime)?;
+    let need = amount_zat + wallet::MIN_FEE_ZAT;
+    if bal.spendable_zat < need {
+        let ua = wallet::ufvk(&db, id).and_then(|u| wallet::address(&u)).unwrap_or_default();
+        gate.record_failure(&format!("insufficient balance ({} zat spendable)", bal.spendable_zat));
+        return Err(PayError::Wallet(format!(
+            "insufficient testnet balance: spendable {} zat (total {}, pending {}), need at least {} zat ({} + fee). \
+             Send TAZ to {ua} and wait for 1 confirmation. Not paying.",
+            bal.spendable_zat, bal.total_zat, bal.pending_zat, need, amount_zat
+        )));
+    }
+    let txid = match wallet::pay(&mut db, &mut client, id, usk, pay_to, amount_zat, memo).await {
+        Ok(t) => t.to_string(),
+        Err(e) => {
+            gate.record_failure(&e);
+            return Err(PayError::Runtime(e));
+        }
+    };
+    gate.record_paid(&txid, None)?;
+    eprintln!("paid: tx {txid} ({amount_zat} zat, memo {memo})");
+    Ok(txid)
+}
+
 /// Fetch `url`, paying its x402 402 with a shielded testnet payment if spendguard allows it.
 /// `approve(host, amount_zat, threshold_zat)` is asked only for payments at or above the
 /// approval threshold.
 pub async fn paid_fetch(cfg: &AgentConfig, url: &str, approve: &dyn Fn(&str, u64, u64) -> bool) -> Result<Fetched, PayError> {
     let host = host_of(url)?;
-    let http = reqwest::Client::builder()
-        .timeout(Duration::from_secs(120))
-        .build()
-        .map_err(|e| PayError::Runtime(e.to_string()))?;
+    let http = http_client()?;
 
     // 1. Ask for the resource.
     let resp = http.get(url).send().await.map_err(|e| PayError::Runtime(format!("GET {url} failed: {e}")))?;
@@ -241,110 +388,9 @@ pub async fn paid_fetch(cfg: &AgentConfig, url: &str, approve: &dyn Fn(&str, u64
         ch.expires_at.saturating_sub(now())
     );
 
-    // 2. spendguard, before any wallet work, under the ledger lock (held until the broadcast
-    //    is recorded so concurrent runs can't both pass the cap).
-    let ledger_path = cfg
-        .ledger_path
-        .as_ref()
-        .ok_or_else(|| PayError::Config("X402Z_AGENT_LEDGER not configured: spendguard needs it to enforce the daily cap. Not paying.".into()))?;
-    let ledger_lock = LedgerFile::lock(ledger_path).map_err(PayError::Config)?;
-    let mut ledger = LedgerFile::load(ledger_path).map_err(PayError::Config)?;
-    let agent = cfg.agent.as_str();
-    let policy = &cfg.policy;
-    let t = now();
-    let guard = ledger.guard(agent, policy, t);
-    let req = SpendRequest { agent, host: &host, amount_zat: ch.amount_zat, now_unix: t };
-    let mut audit = AuditEntry {
-        ts: t,
-        agent: agent.to_string(),
-        host: host.clone(),
-        amount_zat: ch.amount_zat,
-        decision: "allowed".into(),
-        reason: None,
-        memo_nonce: Some(ch.memo_nonce.clone()),
-        txid: None,
-    };
-    let spent_before = guard.spent_today(agent, t);
-    let refusal = match guard.check(&req) {
-        Decision::Allow => None,
-        Decision::Deny(d) => Some(d.to_string()),
-        Decision::NeedsApproval { threshold_zat } => {
-            if approve(&host, ch.amount_zat, threshold_zat) {
-                audit.reason = Some(format!("approved by operator (>= {threshold_zat} zat)"));
-                None
-            } else {
-                audit.decision = "needs_approval".into();
-                Some(format!("approval required (>= {threshold_zat} zat) and not given"))
-            }
-        }
-    };
-    if let Some(reason) = refusal {
-        if audit.decision == "allowed" {
-            audit.decision = "denied".into();
-        }
-        audit.reason = Some(format!("{reason}; nothing broadcast"));
-        ledger.upsert_agent(agent, policy, spent_before);
-        ledger.append(audit);
-        ledger.save().map_err(PayError::Runtime)?;
-        return Err(PayError::Refused(format!(
-            "spendguard refused the payment: {reason}. No transaction was built or broadcast."
-        )));
-    }
-    eprintln!("spendguard: allowed ({} of {} zat already spent today)", spent_before, policy.daily_cap_zat);
-
-    // 3. Pay from the wallet. Every failure from here is recorded with the allowed decision.
-    let record_failure = |ledger: &mut LedgerFile, why: &str| {
-        let mut a = audit.clone();
-        a.reason = Some(format!("allowed, but not paid: {why}"));
-        ledger.upsert_agent(agent, policy, spent_before);
-        ledger.append(a);
-        let _ = ledger.save();
-    };
-    let Some(seed) = cfg.seed.as_ref() else {
-        record_failure(&mut ledger, "X402Z_AGENT_SEED not configured");
-        return Err(PayError::Wallet(format!(
-            "X402Z_AGENT_SEED not configured: no funded testnet wallet to pay from. Set X402Z_AGENT_SEED (24-word \
-             BIP 39 phrase of a wallet holding at least {} zat of testnet ZEC) and X402Z_AGENT_BIRTHDAY, or run \
-             `x402z-agent new-wallet` and fund the printed address. Not paying.",
-            ch.amount_zat + wallet::MIN_FEE_ZAT
-        )));
-    };
-    let (mut client, tip) = match connect_lwd(&cfg.lwd_url).await {
-        Ok(c) => c,
-        Err(e) => {
-            record_failure(&mut ledger, e.message());
-            return Err(e);
-        }
-    };
-    let (mut db, id) = open_wallet(cfg, &mut client, tip).await?;
-    let usk = wallet::spending_key(&db, id, seed).map_err(PayError::Config)?;
-    eprintln!("syncing wallet in {}...", cfg.wallet_dir.display());
-    wallet::sync(&mut db, &mut client).await.map_err(PayError::Runtime)?;
-    let bal = wallet::balance(&db, id).map_err(PayError::Runtime)?;
-    let need = ch.amount_zat + wallet::MIN_FEE_ZAT;
-    if bal.spendable_zat < need {
-        let ua = wallet::ufvk(&db, id).and_then(|u| wallet::address(&u)).unwrap_or_default();
-        record_failure(&mut ledger, &format!("insufficient balance ({} zat spendable)", bal.spendable_zat));
-        return Err(PayError::Wallet(format!(
-            "insufficient testnet balance: spendable {} zat (total {}, pending {}), need at least {} zat ({} + fee). \
-             Send TAZ to {ua} and wait for 1 confirmation. Not paying.",
-            bal.spendable_zat, bal.total_zat, bal.pending_zat, need, ch.amount_zat
-        )));
-    }
-    let txid = match wallet::pay(&mut db, &mut client, id, usk, &ch.pay_to, ch.amount_zat, &ch.memo_nonce).await {
-        Ok(t) => t.to_string(),
-        Err(e) => {
-            record_failure(&mut ledger, &e);
-            return Err(PayError::Runtime(e));
-        }
-    };
-    audit.txid = Some(txid.clone());
-    audit.reason.get_or_insert_with(|| "paid".into());
-    ledger.upsert_agent(agent, policy, spent_before.saturating_add(ch.amount_zat));
-    ledger.append(audit);
-    ledger.save().map_err(PayError::Runtime)?;
-    drop(ledger_lock);
-    eprintln!("paid: tx {txid} ({} zat, memo {})", ch.amount_zat, ch.memo_nonce);
+    // 2. spendguard, before any wallet work. 3. Pay from the wallet.
+    let gate = spendguard_gate(cfg, &host, ch.amount_zat, &ch.memo_nonce, approve)?;
+    let txid = pay_from_agent_wallet(cfg, gate, &ch.pay_to, ch.amount_zat, &ch.memo_nonce).await?;
 
     // 4. Retry with X-PAYMENT until the server settles it (it asks the facilitator, which waits
     //    for the confirmation policy).
