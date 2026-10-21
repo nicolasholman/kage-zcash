@@ -1,0 +1,12 @@
+
+> build · minimax/minimax-m3.1-flash:free
+
+I'll run these three calls in sequence.
+⚙ kage_spend_status Unknown
+✗ kage_paid_fetch {"url":"http://127.0.0.1:4020/api/quote"} failed
+Error: {
+  "error": "spendguard_refused",
+  "message": "spendguard refused the payment: daily cap exceeded: spent 0 + requested 100000 > cap 50000 zat. No transaction was built or broadcast."
+}
+⚙ kage_ledger_tail {"n":3}
+spend_status showed a clean slate (0 spent of a 50,000 zat daily cap, 127.0.0.1 allowlisted), but paid_fetch to `http://127.0.0.1:4020/api/quote` was refused by spendguard because the server's 100,000 zat offer exceeds the 50,000 zat daily cap. Nothing was paid — no transaction was built or broadcast, and the ledger's only entry is the `denied` decision for that attempt.

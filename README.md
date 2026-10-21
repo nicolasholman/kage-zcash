@@ -1,12 +1,20 @@
 # Kage — shielded x402: private machine payments for AI agents
 
-HTTP 402 payments for AI agents, settled as **Zcash shielded** testnet transactions. The merchant's facilitator verifies a payment with an incoming viewing key alone: it holds no spend key, and it cannot see the merchant's own spends or change. Before the agent builds any transaction, **spendguard** checks it against a daily cap, a host allowlist and an approval threshold.
+HTTP 402 payments for AI agents, settled as **Zcash shielded** testnet transactions, in the **x402 v1 wire format**.
+- **Merchant side.** The facilitator verifies a payment with the merchant's **incoming viewing key** alone. It holds no spend key, and it can't see the merchant's own spends or change.
+- **Agent side.** Before the agent builds any transaction, **spendguard** checks it against a daily cap, a host allowlist and an approval threshold.
+- **Any wallet can pay.** Each 402 carries a ZIP 321 URI and a QR code.
+- **LLM agents** call the same flow through an MCP server.
 
 ```
-agent -> GET /api/quote -> 402 {scheme, network, payTo, amountZat, memoNonce, expiresAt}
-      -> spendguard.check() -> shielded tx (memo = nonce)
-      -> facilitator trial-decrypts with the merchant UIVK via lightwalletd -> ed25519 receipt
-      -> agent retries with X-PAYMENT-RECEIPT -> 200
+agent -> GET /api/quote
+      <- 402 {x402Version: 1, accepts: [{scheme: "zcash-shielded", network: "zcash-testnet",
+              maxAmountRequired, payTo, asset: "ZEC", extra: {memoNonce, expiresAt, paymentUri}}]}
+      -> spendguard.check() -> shielded tx from the agent's own wallet (memo = nonce)
+      -> GET /api/quote  X-PAYMENT: base64 {x402Version, scheme, network, payload: {txid, memoNonce}}
+         server -> facilitator POST /settle -> lightwalletd -> trial-decrypt with the merchant UIVK
+                -> ed25519 receipt (minedAt) -> server checks signature, burns the nonce (SQLite)
+      <- 200 + X-PAYMENT-RESPONSE: base64 {success, transaction, network, payer: ""}
 ```
 
 ## Status (honest)
@@ -14,23 +22,39 @@ agent -> GET /api/quote -> 402 {scheme, network, payTo, amountZat, memoNonce, ex
 | Part | State |
 |---|---|
 | `crates/spendguard`: cap, allowlist, approval threshold | **Done.** 11 unit tests |
-| `crates/x402z-protocol`: 402 challenge type and validation | **Done.** 4 tests |
-| `crates/x402z-server`: paywalled `/api/quote`, receipt verification, dashboard, per-IP 402 rate limit | **Done.** 10 tests (ed25519 receipt, replay, underpaid, expired, wrong address, 429 + Retry-After) |
-| `crates/x402z-facilitator`: lightwalletd gRPC, incoming-viewing-key trial decryption (Sapling, Orchard, Ironwood), receipt signing | **Done.** 5 integration tests on real shielded transactions (real keys, real Halo2 proofs, real ed25519). Verified live against testnet.zec.rocks |
-| `crates/x402z-agent`: 402 → spendguard → `zcash_client_sqlite` wallet → pay → receipt → retry, ledger writer | **Done.** 4 ledger tests. Paid live on testnet |
+| `crates/x402z-protocol`: x402 v1 types (`PaymentRequiredResponse`, `PaymentRequirements`, `X-PAYMENT`, `X-PAYMENT-RESPONSE`, `/settle`, `/supported`), challenge validation, ZIP 321 URIs | **Done.** 13 tests, including the x402 spec's own 402 and payload examples, and ZIP 321's memo example |
+| `crates/x402z-server`: paywalled `/api/quote`, `X-PAYMENT` settlement via the facilitator, `POST /api/redeem` (paste a txid), QR, dashboard, SQLite challenge book, per-IP rate limit | **Done.** 21 tests |
+| `crates/x402z-facilitator`: lightwalletd gRPC, UIVK trial decryption (Sapling, Orchard, Ironwood), mined-block-time expiry, SQLite nonce bindings, `/verify` `/settle` `/supported` | **Done.** 10 tests. 6 of them build transactions in-process with real keys, real note encryption and real Halo2 proofs; these are **not broadcast**. Live paths checked against testnet.zec.rocks |
+| `crates/x402z-agent`: 402 → spendguard → `zcash_client_sqlite` wallet → pay → `X-PAYMENT` retry, file-locked ledger | **Done.** 8 tests. Paid live on testnet (Oct 20) |
+| `crates/x402z-mcp`: MCP server over stdio, with tools `paid_fetch`, `spend_status`, `ledger_tail` | **Done.** 3 stdio tests. Live LLM run via opencode ([transcript](docs/mcp-live-run.txt)) |
 | Encrypted audit log (only the owner's viewing key can read it) | Not started. The ledger is plain JSON |
-| Paid end-to-end runs on testnet | **Done.** [`030c3cbf…8351`](https://testnet.zecblock.com/tx/030c3cbf78ce8460553bba4e82c0ba813f039bd3ecf4d7f2e81c59837dc28351) (block 4521112) and the demo-video run [`cd64980a…916d`](https://testnet.zecblock.com/tx/cd64980a5247881a727aa916476a3ba757e59794263c2ff1bcde467654a0916d) (block 4521440); see [Verified testnet runs](#verified-testnet-runs) |
+| Paid end-to-end runs on testnet | **Done.** Four txids, two of them on the current code; see [Verified testnet runs](#verified-testnet-runs) |
 
-Nothing is mocked. If a binary is missing a key, a wallet or funds, it stops with an error and a non-zero exit code. It never fakes a payment.
+Nothing is mocked. If a binary is missing a key, a wallet or funds, it stops with an error and a non-zero exit code. It never fakes a payment. Test counts and what each test does and doesn't prove are in [TESTING.md](TESTING.md).
+
+## What still leaks
+
+Shielding hides the amount, the memo and both parties from the chain. It doesn't hide everything:
+- **The merchant sees the client's IP.** The paid request is ordinary HTTP. Use Tor or a proxy if that matters.
+- **lightwalletd sees which txid is looked up**, and when. The payer's wallet broadcasts through it, and the facilitator fetches the tx by id, so the operator can link the two lookups to the merchant's facilitator.
+- **The agent ledger is local plaintext JSON** (`X402Z_AGENT_LEDGER`): hosts, amounts, nonces and txids. It is not encrypted yet.
+- **Timing.** A payment lands in the block after the 402 was issued, so someone watching both the HTTP traffic and the chain can correlate the two by time, even though the transaction itself reveals nothing.
 
 ## Do X → see Y
 
-1. Run `cargo test --workspace`. You should see 34 tests pass: spendguard 11, protocol 4, server 10, agent 4, facilitator 5. The facilitator tests build real shielded transactions with Halo2 proofs and take about 30 s.
+1. Run the fast tests one crate at a time (low-RAM friendly):
+   ```sh
+   cargo test -p spendguard -p x402z-protocol -p x402z-server   # 11 + 13 + 21
+   cargo test -p x402z-agent                                      # 8
+   cargo test -p x402z-mcp                                        # 3 (drives the binary over stdio)
+   cargo test -p x402z-facilitator                                # 10; the 6 real-transaction tests prove Halo2 bundles, ~40 s
+   ```
+   That makes 66 tests in all.
 2. Run `cargo run -p x402z-facilitator` with no `.env`. It prints `error: X402Z_MERCHANT_UIVK not configured` and exits with code 2.
    - If `ZCASH_LWD_URL` is unset, it says so and uses `https://testnet.zec.rocks:443`.
    - If lightwalletd is unreachable, it prints `error: cannot connect to lightwalletd: …` and exits with code 1.
 3. Run `cargo run -p x402z-facilitator -- keygen`. It prints a fresh `X402Z_RECEIPT_SIGNING_KEY` / `X402Z_RECEIPT_PUBKEY` pair.
-4. Run `X402Z_AGENT_WALLET_DIR=./wallets/merchant cargo run -p x402z-agent -- new-wallet`. It creates a real testnet wallet and prints its seed phrase, birthday height, shielded address and incoming viewing key (UIVK). Use one such wallet for the merchant (UA + UIVK) and another for the agent.
+4. Run `X402Z_AGENT_WALLET_DIR=./wallets/merchant cargo run -p x402z-agent -- new-wallet`. It creates a real testnet wallet and prints its seed phrase, birthday height, shielded address and incoming viewing key (`X402Z_MERCHANT_UIVK`). Use one such wallet for the merchant (UA + UIVK) and another for the agent.
 5. Run the agent. Each exit code means one thing:
 
    | Situation | Output | Exit |
@@ -38,11 +62,62 @@ Nothing is mocked. If a binary is missing a key, a wallet or funds, it stops wit
    | Cap below the price, or host not in `X402Z_AGENT_ALLOWED_HOSTS` | `spendguard refused the payment: … No transaction was built or broadcast.` | 3 |
    | No `X402Z_AGENT_SEED` | `X402Z_AGENT_SEED not configured: no funded testnet wallet to pay from …` | 4 |
    | Wallet synced but holding too little TAZ | `insufficient testnet balance: spendable 0 zat …, need at least 110000 zat … Send TAZ to utest1…` | 4 |
-   | Facilitator rejects the tx | `facilitator rejected payment tx …` | 5 |
-   | Paid | the paid JSON on stdout | 0 |
+   | Server/facilitator refuses the payment | `server refused payment tx … (402 Payment Required, invalid_payment): …` | 5 |
+   | Paid | the paid JSON on stdout, `X-PAYMENT-RESPONSE: success=true …` on stderr | 0 |
 
-   Every decision is appended to `X402Z_AGENT_LEDGER`, and the dashboard shows it.
+   Every decision is appended to `X402Z_AGENT_LEDGER`, and the dashboard shows it. Two agent runs at once take turns on `<ledger>.lock`, so they can't both pass the cap.
 6. Send more than `X402Z_CHALLENGE_RATE_PER_MIN` requests (default 30) to `/api/quote` from one IP. You get `429 Too Many Requests` with a `Retry-After` header. A request that redeems a valid receipt is never rate limited.
+
+## x402 wire format
+
+Kage follows coinbase/x402 [`specs/x402-specification-v1.md`](https://github.com/coinbase/x402/blob/main/specs/x402-specification-v1.md) and [`specs/transports-v1/http.md`](https://github.com/coinbase/x402/blob/main/specs/transports-v1/http.md) (read 2026-10-21). A v2 spec also exists, with CAIP-2 networks and `PAYMENT-SIGNATURE` / `PAYMENT-REQUIRED` headers. Kage implements v1.
+
+- **402 body.** `{x402Version: 1, accepts: [PaymentRequirements], error}`. The Zcash entry is: `scheme: "zcash-shielded"`, `network: "zcash-testnet"`, `maxAmountRequired` (zatoshi, as a string), `resource`, `description`, `mimeType`, `payTo` (a shielded-only UA), `maxTimeoutSeconds: 900`, `asset: "ZEC"`, and `extra: {memoNonce, expiresAt, paymentUri}`.
+- **`X-PAYMENT`.** Base64 JSON `{x402Version: 1, scheme, network, payload: {txid, memoNonce}}`. The payload adds `memoNonce` to the txid for a reason: a shielded transaction gives the server nothing to look up, so the payer names the challenge it paid. The facilitator then finds that same nonce inside the encrypted memo, so a payment can't be pointed at a different challenge.
+- **`X-PAYMENT-RESPONSE`.** Base64 JSON `{success, errorReason?, transaction, network, payer}`. `payer` is always `""`: nobody, the merchant included, learns the payer's address. A payment that isn't confirmed yet gets `402` with the *same* challenge and `errorReason: "settlement_pending"`, so the client retries the same `X-PAYMENT`. Other reasons are `invalid_payment`, `payment_expired`, `nonce_already_used`, `unknown_challenge`, `invalid_payload`, `invalid_network`, `invalid_scheme` and `facilitator_error` (that last one comes with a 502, and nothing is burned).
+- **Facilitator endpoints.** `GET /supported` returns `{kinds: [{x402Version: 1, scheme: "zcash-shielded", network: "zcash-testnet"}]}`. `POST /verify` and `POST /settle` take `{x402Version, paymentPayload, paymentRequirements}`. `/verify` is read-only and returns `{isValid, invalidReason, payer}`. `/settle` binds the nonce and returns the settlement fields plus Kage's ed25519 `receipt` and `claims`. The resource server trusts only receipts signed by `X402Z_RECEIPT_PUBKEY`.
+- **Back-compat.** `X-PAYMENT-RECEIPT` (a receipt presented directly) and the legacy `/verify {challenge, txid}` body still work.
+
+## Any wallet can pay (ZIP 321)
+
+`extra.paymentUri` is a [ZIP 321](https://zips.z.cash/zip-0321) URI: `zcash:<ua>?amount=0.001&memo=<base64url(nonce), no padding>`. librustzcash's own ZIP 321 parser reads it back to the same address, amount and memo (test `zip321_uri`).
+
+The dashboard's 402 card shows:
+- the QR code, rendered by the server at `/api/challenge/{nonce}/qr.svg`, with no external service involved;
+- the URI, with **copy** and **Open in wallet** buttons;
+- a **paste txid** box.
+
+The paste box calls `POST /api/redeem {memoNonce, txid}`. That runs the same checks as `X-PAYMENT` and answers `200 paid` (with the content), `202 pending` (the page re-checks every 15 s), `422 rejected` or `502`. This path was run live on 2026-10-21 with zingo-cli as the third-party wallet (tx `ccb4214c…0ed3`, below).
+
+## Durable state and expiry (no money lost on a slow block)
+
+- **Server.** Issued challenges and redeemed nonces live in SQLite (`X402Z_SERVER_DB`, default `x402z-server.sqlite`). A restart between the 402 and the redeem keeps the challenge redeemable, and a redeemed nonce stays burned. Unredeemed challenges are kept for `X402Z_REDEEM_WINDOW_SECS` (default 24 h) after expiry.
+- **Facilitator.** Nonce → txid bindings live in SQLite (`X402Z_FACILITATOR_DB`). After a restart, a nonce still can't be receipted for a second transaction.
+- **Expiry is judged by the mined block's header time, not by when the payer asks.** The facilitator reads the block time with `GetBlock` and puts it in the receipt as `minedAt`. The server accepts a receipt when `minedAt <= expiresAt + X402Z_EXPIRY_GRACE_SECS` (default 1200 s, about 16 blocks), even if the receipt is redeemed later. Block header times can be off by a little (consensus allows some miner clock drift), and the grace absorbs that. A mempool-only receipt has no `minedAt`, so it must be redeemed in time.
+
+## MCP server (LLM agents)
+
+`x402z-mcp` speaks MCP over stdio as newline-delimited JSON-RPC 2.0, protocol `2025-06-18` (it also accepts `2025-03-26` and `2024-11-05`). It uses the agent's configuration (`X402Z_AGENT_*`).
+
+| Tool | Does |
+|---|---|
+| `paid_fetch {url}` | Runs the agent's x402 flow. Spendguard refusals (`spendguard_refused`), wallet problems (`wallet`), rejected payments (`payment_rejected`) and missing config (`setup_required`) come back as `isError: true` tool results with the reason. Payments at or above the approval threshold are always declined, because there's no operator to approve them over MCP |
+| `spend_status {}` | Spent today vs the daily cap, remaining budget, allowlist and threshold |
+| `ledger_tail {n}` | The last n spendguard decisions |
+
+Example client config (opencode `opencode.json`; other MCP clients take the same command and env):
+```json
+{ "mcp": { "kage": { "type": "local", "command": ["/path/to/target/release/x402z-mcp"],
+  "environment": { "X402Z_AGENT_LEDGER": "/path/ledger.json", "X402Z_AGENT_WALLET_DIR": "/path/wallet",
+                   "X402Z_AGENT_SEED": "…", "X402Z_AGENT_BIRTHDAY": "…",
+                   "X402Z_AGENT_ALLOWED_HOSTS": "127.0.0.1", "X402Z_AGENT_DAILY_CAP_ZAT": "500000" } } } }
+```
+Live run (2026-10-21, opencode with `openrouter/minimax/minimax-m3.1-flash:free`, cap set to 50,000 zat against the real server's 100,000 zat 402):
+- the model called `spend_status`, then `paid_fetch` on `http://127.0.0.1:4020/api/quote`;
+- `paid_fetch` came back as a tool error: `spendguard refused the payment: daily cap exceeded … No transaction was built or broadcast.`;
+- `ledger_tail` then showed the `denied` entry.
+
+The full transcript is in [docs/mcp-live-run.txt](docs/mcp-live-run.txt). A *paying* MCP run needs a funded agent wallet in `X402Z_AGENT_SEED`; it uses the same `paid_fetch` code path the CLI agent used for the paid runs below.
 
 ## Facilitator key: incoming viewing key by default
 
@@ -50,38 +125,38 @@ The facilitator reads `X402Z_MERCHANT_UIVK` (`uivktest1…`), the merchant's uni
 
 `X402Z_MERCHANT_UFVK` (a full viewing key) still works for older setups, but the facilitator logs a warning at startup, keeps only the incoming part, and `/health` reports `viewingKey: "ufvk (incoming part only…)"`. Get the UIVK from a UFVK with `X402Z_MERCHANT_UFVK=… x402z-facilitator derive-uivk`.
 
-Tests: every real-transaction case runs through the UIVK (decoded from its string) and the UFVK-reduced key, and must agree. A separate test builds the merchant's own change and outgoing outputs, with the open challenge's nonce in every memo. It checks that the full key sees all four outputs and that the incoming key sees none, so none of them can be credited.
+Tests run every real-transaction case through the UIVK (decoded from its string) and through the UFVK-reduced key, and the two must agree. A separate test builds the merchant's own change and outgoing outputs, with the open challenge's nonce in every memo. The full key sees all four outputs. The incoming key sees none, so none of them can be credited.
 
-## Facilitator API (merchant side, incoming viewing key only)
+## How the facilitator decides
 
-- `GET /health` makes a live lightwalletd round trip. It returns `200 {ok, chainTip, lightwalletd, receiptPubkey, minConfirmations}`, or `503` with the error.
-- `POST /verify` takes `{challenge: <the 402 JSON>, txid: "<explorer-order hex>"}`. The facilitator then:
-  1. fetches the tx with `GetTransaction`;
-  2. parses it at the consensus branch of its mined height;
-  3. trial-decrypts every Sapling, Orchard and Ironwood output with the merchant's incoming viewing key;
-  4. sums the outputs whose text memo equals `memoNonce` and whose recipient is `payTo`'s receiver for that pool. Sapling notes must go to the Sapling receiver. Orchard and Ironwood notes must go to the Orchard receiver.
+For `/settle` (and `/verify`) the facilitator:
+1. fetches the tx with `GetTransaction`;
+2. parses it at the consensus branch of its mined height;
+3. trial-decrypts every Sapling, Orchard and Ironwood output with the merchant's incoming viewing key;
+4. sums the outputs whose text memo equals `memoNonce` and whose recipient is `payTo`'s receiver for that pool. Sapling notes must go to the Sapling receiver; Orchard and Ironwood notes must go to the Orchard receiver;
+5. reads the mined block's time and checks it against `expiresAt + grace`.
 
-  Responses:
-  - `200 confirmed`, with a `receipt`.
-  - `202 pending`: found, but below `X402Z_MIN_CONFIRMATIONS` (default 1).
-  - `404 not_found`.
-  - `422 rejected`: no matching output, wrong recipient, underpaid, foreign `payTo`, a `payTo` that carries a transparent receiver (`BadPayTo`; only shielded receivers are accepted), or a nonce already receipted for another tx.
-  - `400`: bad challenge or txid.
-  - `502 error`: lightwalletd failed.
+It refuses on any of these:
+- no matching output;
+- wrong recipient;
+- underpaid;
+- paid after expiry;
+- foreign `payTo`;
+- a `payTo` with a transparent receiver (only shielded receivers are accepted);
+- a nonce already receipted for another tx.
 
-  The types are `x402z_protocol::{VerifyRequest, VerifyResponse}`.
+`GET /health` makes a live lightwalletd round trip.
 
 ## Dashboard (served by x402z-server)
 
 Fill in `X402Z_MERCHANT_UA`, `X402Z_RECEIPT_PUBKEY` and `X402Z_FACILITATOR_URL`, run `cargo run -p x402z-server`, then open http://127.0.0.1:4020.
 
-- Press **Request paid data →** and within a second you get a live HTTP 402 challenge (payTo, amount, memo nonce, 15-minute countdown), and the event shows up in the **Live payment feed**.
-- Send a request with a valid `X-PAYMENT-RECEIPT` and the feed shows `PAID` plus the txid, and `/api/quote` returns 200.
-- A bad, replayed, underpaid or expired receipt shows up as `REJECTED` and comes back with a fresh 402 and an `x-payment-error` header.
-- **Spend caps / audit trail** read `X402Z_AGENT_LEDGER`, a JSON file `{agents:[{agent,dailyCapZat,spentTodayZat,approvalThresholdZat,allowedHosts}], audit:[{ts,agent,host,amountZat,decision,reason}]}`. If it is unset or unreadable, the page shows a red banner naming the variable. `x402z-agent` writes this file. Its audit entries also carry `memoNonce`, plus `txid` once a payment is broadcast.
-- Receipt wire format: `base64url(claims_json).base64url(ed25519_sig)`, with claims as in `x402z_protocol::ReceiptClaims`.
-- Abuse limit: each client IP gets a token bucket of `X402Z_CHALLENGE_RATE_PER_MIN` challenges (default 30; `0` turns it off). This also caps how fast one client can grow the server's table of open challenges.
-- The layout collapses to one column below 860px, so it works on a phone (`X402Z_BIND=0.0.0.0:4020`).
+- Press **Request paid data →** and within a second you get a live x402 challenge: QR, ZIP 321 URI, payTo, amount, memo nonce and a 15-minute countdown. The event also lands in the **Live payment feed**.
+- Pay it from any wallet and paste the txid. Or let an agent send `X-PAYMENT`. While the payment confirms, the feed shows `confirming`; once it settles, it shows `paid` with the txid.
+- A bad, replayed, underpaid or late payment shows up as `refused` and comes back with a fresh 402 and an `x-payment-error` header.
+- **The spendguard panel is a local demo:** the payer's ledger and the merchant's dashboard sit on one machine. It reads `X402Z_AGENT_LEDGER`, a JSON file `{agents:[{agent,dailyCapZat,spentTodayZat,approvalThresholdZat,allowedHosts}], audit:[{ts,agent,host,amountZat,decision,reason,memoNonce,txid}]}`. In a real deployment the merchant never sees the agent's ledger. If the file is unset or unreadable, the page shows a red banner naming the variable.
+- Abuse limit: each client IP gets a token bucket of `X402Z_CHALLENGE_RATE_PER_MIN` challenges and redeem attempts (default 30; `0` turns it off).
+- The layout collapses to one column on narrow screens and works at 375 px (`X402Z_BIND=0.0.0.0:4020`).
 
 ## spendguard rules
 
@@ -96,15 +171,15 @@ These are checked in order. The first denial wins, so a payment that would be de
 
 ## Latency policy
 
-Testnet blocks arrive about every 75 s. By default, both the facilitator and the server require 1 confirmation (`X402Z_MIN_CONFIRMATIONS`). Below that, the facilitator answers `202 pending`. The agent polls every 15 s, for up to `X402Z_AGENT_CONFIRM_TIMEOUT_SECS` (default 900). Setting `X402Z_MIN_CONFIRMATIONS=0` on both accepts mempool-only payments; that is weaker, and the server logs a warning.
+Testnet blocks arrive about every 75 s, sometimes much slower. By default both the facilitator and the server require 1 confirmation (`X402Z_MIN_CONFIRMATIONS`). Below that, `X-PAYMENT` gets `402 settlement_pending` with the same challenge. The agent retries every 15 s, for up to `X402Z_AGENT_CONFIRM_TIMEOUT_SECS` (default 900). Setting `X402Z_MIN_CONFIRMATIONS=0` on both accepts mempool-only payments; that is weaker, and the server logs a warning.
 
 ## Running a paid payment yourself
 
 Earlier unfunded runs (health, rejections of foreign txs, exit codes 3/4) are logged in [docs/build-notes.md](docs/build-notes.md).
 
-**What a paid run needs** (all three were in place for the [verified runs](#verified-testnet-runs)):
+**What a paid run needs:**
 
-1. **A funded testnet wallet for the agent.** Put its 24-word BIP 39 phrase in `X402Z_AGENT_SEED` and its birthday height in `X402Z_AGENT_BIRTHDAY`. It needs at least 0.0011 TAZ spendable (price plus fee); more allows repeated runs. Alternatively, run `x402z-agent new-wallet` and send TAZ to the address it prints.
+1. **A funded testnet wallet for the agent.** Put its 24-word BIP 39 phrase in `X402Z_AGENT_SEED` and its birthday height in `X402Z_AGENT_BIRTHDAY`. It needs at least 0.0011 TAZ spendable (price plus fee); more allows repeated runs. Alternatively, run `x402z-agent new-wallet` and send TAZ to the address it prints. Or skip the agent and pay the dashboard's QR from any wallet.
 2. **A merchant UA and UIVK.** Any testnet wallet works, as long as the UA is derived from the same key. Run `new-wallet` into a second directory: it prints the UA and UIVK. You only need its seed later, to spend the income.
 3. **A receipt key pair**, from `x402z-facilitator keygen`.
 
@@ -115,21 +190,23 @@ cargo build --workspace
 target/debug/x402z-facilitator &      # logs "lightwalletd ... tip=<height>", listens on 127.0.0.1:4021
 target/debug/x402z-server &           # dashboard on http://127.0.0.1:4020
 target/debug/x402z-agent balance      # syncs the agent wallet: spendable must be >= 110000 zat
-target/debug/x402z-agent              # 402 -> spendguard -> pay -> wait ~1 block -> receipt -> 200 JSON on stdout
+target/debug/x402z-agent              # 402 -> spendguard -> pay -> X-PAYMENT until settled (~1 block) -> 200 JSON on stdout
 X402Z_AGENT_DAILY_CAP_ZAT=1 target/debug/x402z-agent   # cap demo: exit 3, nothing broadcast
 ```
 The first payment downloads the Sapling proving parameters to the default Zcash params folder (about 50 MB, once).
 
 ## Verified testnet runs
 
-Two payments went end to end on 2026-10-20 against `https://testnet.zec.rocks:443`, with nothing mocked. Both pay 100,000 zat as an Ironwood note to the same demo merchant wallet:
+Four payments went end to end against `https://testnet.zec.rocks:443`, with nothing mocked. Each pays 100,000 zat as an Ironwood note to the same demo merchant wallet. The Oct 20 runs used the agent's own wallet and the earlier receipt header. The Oct 21 runs used the current code: x402 v1 wire format, a facilitator holding only the published UIVK, and SQLite state. Both Oct 21 payments came from a separate zingo-cli demo wallet, not the agent's.
 
-| Txid | Block | Memo nonce | Notes |
+| Txid | Block | Memo nonce | Path |
 |---|---|---|---|
 | [`030c3cbf78ce8460553bba4e82c0ba813f039bd3ecf4d7f2e81c59837dc28351`](https://testnet.zecblock.com/tx/030c3cbf78ce8460553bba4e82c0ba813f039bd3ecf4d7f2e81c59837dc28351) | 4521112 | `x402z-f19a63da20cbc0749ea800b3` | first paid run, details below |
 | [`cd64980a5247881a727aa916476a3ba757e59794263c2ff1bcde467654a0916d`](https://testnet.zecblock.com/tx/cd64980a5247881a727aa916476a3ba757e59794263c2ff1bcde467654a0916d) | 4521440 | `x402z-af06b1d50af81616075f0cb3` | the run shown in the demo video |
+| [`ccb4214c6a1fdf183c086ae5b4f559d181ead4c1c61dc7e711fc4a08b95b0ed3`](https://testnet.zecblock.com/tx/ccb4214c6a1fdf183c086ae5b4f559d181ead4c1c61dc7e711fc4a08b95b0ed3) | 4524586 | `x402z-b7a15cc628bb7a06bf9a26cd` | 2026-10-21. **Any wallet:** the dashboard's 402 card showed the ZIP 321 URI and QR. zingo-cli paid the URI's address, amount and memo. The txid was pasted into the dashboard, and `POST /api/redeem` answered `paid`. A second redeem answered `nonce_already_used` |
+| [`25a8b324bebee30220382113c6fb9cc3be1144b036117c34778bde3b1d8b689d`](https://testnet.zecblock.com/tx/25a8b324bebee30220382113c6fb9cc3be1144b036117c34778bde3b1d8b689d) | 4524602 | `x402z-696c58afd509cc0f8753f3b0` | 2026-10-21. **x402 `X-PAYMENT`:** the client retried `GET /api/quote` with `X-PAYMENT` every 20 s. It got `402` + `X-PAYMENT-RESPONSE {"success":false,"errorReason":"settlement_pending"}` until the block landed, then `200` + `{"success":true,"transaction":"25a8b324…","network":"zcash-testnet","payer":""}`. The receipt carried `minedAt 1792562282` |
 
-First run (11:14 IST):
+First run (2026-10-20, 11:14 IST):
 
 - **Price:** 100,000 zat (0.001 TAZ), plus a 10,000 zat network fee. The agent's spendable balance went from 12,500,000 to 12,390,000 zat.
 - **Facilitator:** `CONFIRMED 100000 zat via [Ironwood], 2 conf (tip 4521113); receipt issued`.
@@ -169,10 +246,20 @@ incoming 100000 zat via Ironwood, memo text "x402z-f19a63da20cbc0749ea800b3"
 total to merchant with memo "x402z-f19a63da20cbc0749ea800b3": 100000 zat
 ```
 
-The demo-video payment checks the same way (`cd64980a5247881a727aa916476a3ba757e59794263c2ff1bcde467654a0916d x402z-af06b1d50af81616075f0cb3` → 100,000 zat). With a different memo nonce it prints `0 zat` and exits 2. If no output decrypts, it exits 1.
+The other three check the same way, each showing 100,000 zat with its nonce:
+- `cd64980a5247881a727aa916476a3ba757e59794263c2ff1bcde467654a0916d x402z-af06b1d50af81616075f0cb3`
+- `ccb4214c6a1fdf183c086ae5b4f559d181ead4c1c61dc7e711fc4a08b95b0ed3 x402z-b7a15cc628bb7a06bf9a26cd`
+- `25a8b324bebee30220382113c6fb9cc3be1144b036117c34778bde3b1d8b689d x402z-696c58afd509cc0f8753f3b0`
+
+Because the UIVK is published, anyone can run the merchant side of the Oct 21 runs. `check_uivk address "$uivk"` prints the merchant UA, and `x402z-facilitator keygen` gives a fresh receipt key. With a different memo nonce it prints `0 zat` and exits 2. If no output decrypts, it exits 1.
 
 ## Known limits
 
-- **Pre-release Zcash crates.** NU7 is live on testnet and only the pre-release librustzcash line parses its transactions; see [docs/build-notes.md](docs/build-notes.md) for the pinned versions and toolchain.
-- **Encrypted audit log.** Not built. `X402Z_AGENT_LEDGER` is plaintext JSON.
-- **First payment downloads the Sapling params** (~50 MB). A truncated download fails the hash check before anything is sent; delete the partial file and retry ([build notes](docs/build-notes.md#gotcha-truncated-sapling-params)).
+- **Pre-release Zcash crates.** NU7 is live on testnet, and only the pre-release librustzcash line parses its transactions. See [docs/build-notes.md](docs/build-notes.md) for the pinned versions and toolchain.
+- **Encrypted audit log.** Not built. `X402Z_AGENT_LEDGER` is plaintext JSON (see [What still leaks](#what-still-leaks)).
+- **Testnet only.** Mainnet challenges are refused by the protocol crate.
+- **First payment downloads the Sapling params** (~50 MB). A truncated download fails the hash check before anything is sent. Delete the partial file and retry ([build notes](docs/build-notes.md#gotcha-truncated-sapling-params)).
+
+## License
+
+MIT, Copyright (c) 2026 Nivesh Gajengi. See [LICENSE](LICENSE).
