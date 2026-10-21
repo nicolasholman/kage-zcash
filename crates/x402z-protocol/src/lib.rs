@@ -500,3 +500,30 @@ impl SettlementResponse {
         }
     }
 }
+
+// ---------------------------------------------------------------------------------------------
+// ZIP 321 payment URIs (https://zips.z.cash/zip-0321), so any Zcash wallet can pay a challenge.
+// ---------------------------------------------------------------------------------------------
+
+/// Zatoshi as a ZIP 321 `amount`: decimal ZEC, at most 8 fractional digits, no trailing zeros
+/// and no trailing ".".
+pub fn zec_decimal(zat: u64) -> String {
+    let (whole, frac) = (zat / 100_000_000, zat % 100_000_000);
+    if frac == 0 {
+        return whole.to_string();
+    }
+    let f = format!("{frac:08}");
+    format!("{whole}.{}", f.trim_end_matches('0'))
+}
+
+/// `zcash:<address>?amount=<ZEC>&memo=<base64url(memo)>`. ZIP 321: the memo parameter is the
+/// memo field contents "encoded as base64url without `=` padding"; for a text memo that is its
+/// UTF-8 bytes.
+pub fn zip321_uri(pay_to: &str, amount_zat: u64, memo_text: &str) -> String {
+    format!("zcash:{pay_to}?amount={}&memo={}", zec_decimal(amount_zat), URL_SAFE_NO_PAD.encode(memo_text.as_bytes()))
+}
+
+/// The ZIP 321 URI for a challenge.
+pub fn challenge_uri(ch: &PaymentRequired) -> String {
+    zip321_uri(&ch.pay_to, ch.amount_zat, &ch.memo_nonce)
+}
