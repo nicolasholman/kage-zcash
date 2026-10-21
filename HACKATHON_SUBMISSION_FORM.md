@@ -3,8 +3,31 @@
 **Event / track:** Zecathon, Shielded Payments. This is the team's one entry. Submission deadline: Oct 28 2026, 23:59 UTC.
 **Name:** Kage: shielded x402, private machine payments for AI agents
 **One line:** AI agents pay for HTTP APIs with Zcash shielded payments in the x402 v1 wire format. The merchant verifies with an incoming viewing key alone, and a spend guard caps every agent before any transaction exists.
-**Repo:** github.com/nickthelegend/zec-shielded-x402 (MIT)
-**Video:** `x402-demo-v2.mp4`, shared separately until hosted. It shows the Oct 20 agent run (tx `cd64980a…916d`). The x402 v1 wire format, UIVK-only facilitator, ZIP 321 path and MCP server came after the recording and are documented below with their own live txids.
+**Repo:** https://github.com/nickthelegend/zec-shielded-x402 (MIT)
+**Commit to submit:** `e444893` is the last change before this form-only commit. Submit the tip of `main` once it is pushed: `git log origin/main -1` must show this form commit on top of `e444893`. Today GitHub still serves `1e232bb`, an older README (34 tests, UFVK) and the internal planning notes at `docs/spec-shielded-x402-agents.md`, until Nick pushes.
+
+## Form fields still open (Nick decides)
+- **Demo video, about 2 minutes: NICK DECIDES. Nothing was recorded in this round.** The existing `x402-demo-v2.mp4` is 44 s, recorded on Oct 20 before the x402 v1 wire format, the UIVK-only facilitator, ZIP 321, MCP and the Kage Tab clients. It shows tx `cd64980a…916d` and the old receipt header. A new recording on the current code could show these four things:
+  - `X-PAYMENT` → `settlement_pending` → `200`;
+  - the QR / paste-txid path;
+  - a Kage Tab buying 5 tokens, then 5 instant calls and a refused replay;
+  - an MCP spendguard refusal.
+  The non-paying parts (`check_uivk` on the eight txids, the `live_testnet` tests, MCP refusals) need no wallet.
+- **Working demo URL: NICK DECIDES.** The form asks for one. The cheapest honest option is to serve the static `landing/index.html` with GitHub Pages after the push (Settings → Pages → branch `main`, folder `/`), which gives `https://nickthelegend.github.io/zec-shielded-x402/landing/`. It is docs and recorded output, not a hosted paywall. Nothing is hosted today.
+
+## Description (paste-ready, 1636 of 2,000 characters)
+
+```
+Kage lets AI agents pay for HTTP APIs with Zcash shielded payments, in the x402 v1 wire format. A server answers 402 with a zcash-shielded offer: a shielded address, an amount, a memo nonce and a ZIP 321 URI. The agent's spendguard checks a daily cap, a host allowlist and an approval threshold before any transaction exists. The agent pays, then retries with X-PAYMENT. The merchant's facilitator verifies the payment with only an incoming viewing key. It has no spend key, can't see the merchant's own spends, and returns payer: "".
+
+Any wallet can pay the QR/ZIP 321 request and paste the txid. An MCP server gives LLM agents paid_fetch and tab_fetch. Kage Tab sells N RFC 9474 blind-RSA tokens for one shielded payment. Each token pays for one later request that the server can't link to the payment.
+
+What is real: 8 testnet payments, each checkable by anyone with the published demo merchant UIVK and re-verified by a live test. They cover X-PAYMENT, ZIP 321 + paste-txid, and two Kage Tabs (1 tx -> 5 requests by CLI; 1 tx -> 3 MCP tab_fetch calls). There are 80 tests. 6 of them build transactions in-process with real keys and real Halo2 proofs.
+
+What is not real or not done: testnet only, with pre-release librustzcash crates. In the in-process tests, Sapling outputs use mock proof bytes. Server tests use an in-process stand-in for our own facilitator. The Oct 21 payments came from a zingo-cli demo wallet, not the agent's own wallet. Not audited.
+
+Leaks: the client IP reaches the merchant, lightwalletd sees txid lookups, and the agent ledger and tab tokens are plaintext local files. Timing can link a 402 to its block.
+```
 
 ## What it does
 - **x402 v1 over Zcash.** The 402 body is `{x402Version: 1, accepts: [{scheme: "zcash-shielded", network: "zcash-testnet", maxAmountRequired, payTo, asset: "ZEC", extra: {memoNonce, expiresAt, paymentUri}}], error}`. The client retries with `X-PAYMENT` (base64 `{x402Version, scheme, network, payload: {txid, memoNonce}}`) and gets `X-PAYMENT-RESPONSE`. The facilitator exposes `/verify`, `/settle` and `/supported`. All of this follows the coinbase/x402 v1 spec.
