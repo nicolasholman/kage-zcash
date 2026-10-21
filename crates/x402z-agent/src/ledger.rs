@@ -2,6 +2,10 @@
 //! (`{agents:[...], audit:[...]}`, see README). The agent persists every spendguard decision
 //! here, and today's spend is rebuilt from audit entries that carry a broadcast txid, so the
 //! daily cap holds across runs.
+//!
+//! Concurrent agent runs serialize on an exclusive lock on `<ledger>.lock` ([`LedgerFile::lock`]):
+//! the check against the cap and the record of the broadcast happen under one lock, so two runs
+//! can't both see room under the cap and both pay.
 
 use std::path::{Path, PathBuf};
 
@@ -46,12 +50,30 @@ pub struct AuditEntry {
     pub txid: Option<String>,
 }
 
+/// Exclusive advisory lock on the ledger, released when dropped (or when the process exits).
+pub struct LedgerLock {
+    _file: std::fs::File,
+}
+
 pub struct LedgerFile {
     path: PathBuf,
     pub data: Ledger,
 }
 
 impl LedgerFile {
+    /// Block until this process holds the exclusive lock for the ledger at `path`.
+    pub fn lock(path: &Path) -> Result<LedgerLock, String> {
+        let lock_path = path.with_extension("json.lock");
+        let file = std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(&lock_path)
+            .map_err(|e| format!("cannot open ledger lock {}: {e}", lock_path.display()))?;
+        file.lock().map_err(|e| format!("cannot lock {}: {e}", lock_path.display()))?;
+        Ok(LedgerLock { _file: file })
+    }
+
     /// A missing file starts an empty ledger; an unreadable or invalid one is an error.
     pub fn load(path: &Path) -> Result<Self, String> {
         let data = match std::fs::read(path) {
@@ -188,6 +210,44 @@ mod tests {
         let e = LedgerFile::load(&path).err().unwrap();
         assert!(e.contains("X402Z_AGENT_LEDGER"), "{e}");
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn concurrent_runs_cannot_both_pass_the_cap() {
+        // Cap 250k with 200k already paid today: room for exactly one more 50k payment.
+        let path = tmp("race");
+        let mut l = LedgerFile::load(&path).unwrap();
+        l.append(entry(DAY0 + 1, 200_000, Some("aa")));
+        l.save().unwrap();
+
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(6));
+        let runs: Vec<_> = (0..6)
+            .map(|i| {
+                let (path, barrier) = (path.clone(), barrier.clone());
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    // What `x402z-agent pay` does: lock, load, check, pay, record, unlock.
+                    let _lock = LedgerFile::lock(&path).unwrap();
+                    let mut l = LedgerFile::load(&path).unwrap();
+                    let now = DAY0 + 10;
+                    let g = l.guard("agent-1", &policy(), now);
+                    let req = SpendRequest { agent: "agent-1", host: "127.0.0.1:4020", amount_zat: 50_000, now_unix: now };
+                    if g.check(&req) != Decision::Allow {
+                        return false;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(30)); // building + broadcasting
+                    l.append(entry(now, 50_000, Some(&format!("tx{i}"))));
+                    l.save().unwrap();
+                    true
+                })
+            })
+            .collect();
+        let paid = runs.into_iter().map(|h| h.join().unwrap()).filter(|p| *p).count();
+        assert_eq!(paid, 1, "exactly one run may pay");
+        let l = LedgerFile::load(&path).unwrap();
+        assert_eq!(l.guard("agent-1", &policy(), DAY0 + 10).spent_today("agent-1", DAY0 + 10), 250_000);
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(path.with_extension("json.lock"));
     }
 
     #[test]

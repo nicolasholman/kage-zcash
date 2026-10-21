@@ -203,6 +203,9 @@ async fn cmd_pay() {
     let _ = wallet_dir();
     let agent = optional("X402Z_AGENT_NAME").unwrap_or_else(|| "agent-1".into());
     let policy = policy();
+    // Held from the cap check until the broadcast is recorded, so concurrent runs can't both
+    // pass the cap. Released before waiting for the receipt (and by the OS on any exit).
+    let ledger_lock = LedgerFile::lock(&ledger_path).unwrap_or_else(|e| die(2, e));
     let mut ledger = LedgerFile::load(&ledger_path).unwrap_or_else(|e| die(2, e));
     let http = reqwest::Client::builder().timeout(Duration::from_secs(30)).build().unwrap_or_else(|e| die(1, e));
 
@@ -324,6 +327,7 @@ async fn cmd_pay() {
     ledger.append(audit);
     ledger.save().unwrap_or_else(|e| die(1, e));
     eprintln!("paid: tx {txid_hex} ({} zat, memo {})", ch.amount_zat, ch.memo_nonce);
+    drop(ledger_lock);
 
     // 4. Get a receipt from the facilitator.
     let verify_url = format!("{}{VERIFY_PATH}", facilitator.trim_end_matches('/'));
