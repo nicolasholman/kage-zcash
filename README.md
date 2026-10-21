@@ -24,11 +24,11 @@ agent -> GET /api/quote
 | `crates/spendguard`: cap, allowlist, approval threshold | **Done.** 11 unit tests |
 | `crates/x402z-protocol`: x402 v1 types (`PaymentRequiredResponse`, `PaymentRequirements`, `X-PAYMENT`, `X-PAYMENT-RESPONSE`, `/settle`, `/supported`), challenge validation, ZIP 321 URIs | **Done.** 14 tests, including the x402 spec's own 402 and payload examples, and ZIP 321's memo example |
 | `crates/x402z-server`: paywalled `/api/quote`, `X-PAYMENT` settlement via the facilitator, `POST /api/redeem` (paste a txid), QR, dashboard, SQLite challenge book, per-IP rate limit, Kage Tab (blind-RSA tokens) | **Done.** 26 tests, including 5 Kage Tab attack tests |
-| `crates/x402z-facilitator`: lightwalletd gRPC, UIVK trial decryption (Sapling, Orchard, Ironwood), mined-block-time expiry, SQLite nonce bindings, `/verify` `/settle` `/supported` | **Done.** 13 tests. 6 of them build transactions in-process with real keys, real note encryption and real Halo2 proofs for the Orchard/Ironwood parts (Sapling outputs use sapling-crypto's mock proof bytes); these are **not broadcast**. 3 verify the four real Kage payments live against testnet.zec.rocks with only the published UIVK |
+| `crates/x402z-facilitator`: lightwalletd gRPC, UIVK trial decryption (Sapling, Orchard, Ironwood), mined-block-time expiry, SQLite nonce bindings, `/verify` `/settle` `/supported` | **Done.** 13 tests. 6 of them build transactions in-process with real keys, real note encryption and real Halo2 proofs for the Orchard/Ironwood parts (Sapling outputs use sapling-crypto's mock proof bytes); these are **not broadcast**. 3 verify the six real Kage payments live against testnet.zec.rocks with only the published UIVK |
 | `crates/x402z-agent`: 402 → spendguard → `zcash_client_sqlite` wallet → pay → `X-PAYMENT` retry, file-locked ledger | **Done.** 8 tests. Paid live on testnet (Oct 20) |
 | `crates/x402z-mcp`: MCP server over stdio, with tools `paid_fetch`, `spend_status`, `ledger_tail` | **Done.** 3 stdio tests. Live LLM run via opencode ([transcript](docs/mcp-live-run.txt)) |
 | Encrypted audit log (only the owner's viewing key can read it) | Not started. The ledger is plain JSON |
-| Paid end-to-end runs on testnet | **Done.** Four txids, two of them on the current code; see [Verified testnet runs](#verified-testnet-runs) |
+| Paid end-to-end runs on testnet | **Done.** Six txids, four of them on the current code; see [Verified testnet runs](#verified-testnet-runs) |
 
 Nothing is mocked. If a binary is missing a key, a wallet or funds, it stops with an error and a non-zero exit code. It never fakes a payment. Test counts and what each test does and doesn't prove are in [TESTING.md](TESTING.md).
 
@@ -219,7 +219,7 @@ The first payment downloads the Sapling proving parameters to the default Zcash 
 
 ## Verified testnet runs
 
-Four payments went end to end against `https://testnet.zec.rocks:443`, with nothing mocked. Each pays 100,000 zat as an Ironwood note to the same demo merchant wallet. The Oct 20 runs used the agent's own wallet and the earlier receipt header. The Oct 21 runs used the current code: x402 v1 wire format, a facilitator holding only the published UIVK, and SQLite state. Both Oct 21 payments came from a separate zingo-cli demo wallet, not the agent's.
+Six payments went end to end against `https://testnet.zec.rocks:443`, with nothing mocked. Each pays 100,000 zat as an Ironwood note to the same demo merchant wallet. The Oct 20 runs used the agent's own wallet and the earlier receipt header. The Oct 21 runs used the current code: x402 v1 wire format, a facilitator holding only the published UIVK, and SQLite state. All four Oct 21 payments came from a separate zingo-cli demo wallet, not the agent's.
 
 | Txid | Block | Memo nonce | Path |
 |---|---|---|---|
@@ -227,6 +227,8 @@ Four payments went end to end against `https://testnet.zec.rocks:443`, with noth
 | [`cd64980a5247881a727aa916476a3ba757e59794263c2ff1bcde467654a0916d`](https://testnet.zecblock.com/tx/cd64980a5247881a727aa916476a3ba757e59794263c2ff1bcde467654a0916d) | 4521440 | `x402z-af06b1d50af81616075f0cb3` | the run shown in the demo video |
 | [`ccb4214c6a1fdf183c086ae5b4f559d181ead4c1c61dc7e711fc4a08b95b0ed3`](https://testnet.zecblock.com/tx/ccb4214c6a1fdf183c086ae5b4f559d181ead4c1c61dc7e711fc4a08b95b0ed3) | 4524586 | `x402z-b7a15cc628bb7a06bf9a26cd` | 2026-10-21. **Any wallet:** the dashboard's 402 card showed the ZIP 321 URI and QR. zingo-cli paid the URI's address, amount and memo. The txid was pasted into the dashboard, and `POST /api/redeem` answered `paid`. A second redeem answered `nonce_already_used` |
 | [`25a8b324bebee30220382113c6fb9cc3be1144b036117c34778bde3b1d8b689d`](https://testnet.zecblock.com/tx/25a8b324bebee30220382113c6fb9cc3be1144b036117c34778bde3b1d8b689d) | 4524602 | `x402z-696c58afd509cc0f8753f3b0` | 2026-10-21. **x402 `X-PAYMENT`:** the client retried `GET /api/quote` with `X-PAYMENT` every 20 s. It got `402` + `X-PAYMENT-RESPONSE {"success":false,"errorReason":"settlement_pending"}` until the block landed, then `200` + `{"success":true,"transaction":"25a8b324…","network":"zcash-testnet","payer":""}`. The receipt carried `minedAt 1792562282` |
+| [`408aba269ac7ca946e3b0eaedcf4cadd582a01090679e98391b4e7c706d88dd0`](https://testnet.zecblock.com/tx/408aba269ac7ca946e3b0eaedcf4cadd582a01090679e98391b4e7c706d88dd0) | 4524693 | `x402z-97c10778f360d18cc8289703` | 2026-10-21, a repeat of the **x402 `X-PAYMENT`** path on the same stack |
+| [`a7c3b0b2eaeb406ddcd02276cd71e69e4e618b22a1cab8977c959f2da3fc38bc`](https://testnet.zecblock.com/tx/a7c3b0b2eaeb406ddcd02276cd71e69e4e618b22a1cab8977c959f2da3fc38bc) | 4524694 | `x402z-10699970ecb69ff79eb66735` | 2026-10-21, a repeat of the **ZIP 321 + paste-txid** path (`POST /api/redeem`) on the same stack |
 
 First run (2026-10-20, 11:14 IST):
 
@@ -268,10 +270,12 @@ incoming 100000 zat via Ironwood, memo text "x402z-f19a63da20cbc0749ea800b3"
 total to merchant with memo "x402z-f19a63da20cbc0749ea800b3": 100000 zat
 ```
 
-The other three check the same way, each showing 100,000 zat with its nonce:
+The other five check the same way, each showing 100,000 zat with its nonce (re-checked 2026-10-21, tip 4526061):
 - `cd64980a5247881a727aa916476a3ba757e59794263c2ff1bcde467654a0916d x402z-af06b1d50af81616075f0cb3`
 - `ccb4214c6a1fdf183c086ae5b4f559d181ead4c1c61dc7e711fc4a08b95b0ed3 x402z-b7a15cc628bb7a06bf9a26cd`
 - `25a8b324bebee30220382113c6fb9cc3be1144b036117c34778bde3b1d8b689d x402z-696c58afd509cc0f8753f3b0`
+- `408aba269ac7ca946e3b0eaedcf4cadd582a01090679e98391b4e7c706d88dd0 x402z-97c10778f360d18cc8289703`
+- `a7c3b0b2eaeb406ddcd02276cd71e69e4e618b22a1cab8977c959f2da3fc38bc x402z-10699970ecb69ff79eb66735`
 
 Because the UIVK is published, anyone can run the merchant side of the Oct 21 runs. `check_uivk address "$uivk"` prints the merchant UA, and `x402z-facilitator keygen` gives a fresh receipt key. With a different memo nonce it prints `0 zat` and exits 2. If no output decrypts, it exits 1.
 

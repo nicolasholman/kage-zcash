@@ -1,5 +1,5 @@
-//! Live against Zcash testnet (testnet.zec.rocks, override with ZCASH_LWD_URL): the four real
-//! Kage payments, fetched from lightwalletd and verified exactly as the facilitator does, with
+//! Live against Zcash testnet (testnet.zec.rocks, override with ZCASH_LWD_URL): every real
+//! Kage payment, fetched from lightwalletd and verified exactly as the facilitator does, with
 //! the demo merchant's published incoming viewing key. No mocks; needs network access.
 
 use x402z_facilitator::{
@@ -15,11 +15,13 @@ use zcash_protocol::{consensus::BlockHeight, ShieldedPool};
 const MERCHANT_UIVK: &str = "uivktest1ma9hgu9cmmmkv5f5npk7aktj8tradzqyxzwerez5trhku0xxgx7vsh0azzurz44pfdhmyrzxnur3n282f5t0glhje7kay4fw79njmg64g2wupcznmpfpy0gh6wngu0qw07ry404hnh6rq9vuj264gcjfxucylma4c8cuygxezqx2xwph5x66nckx4095pgvjzuq5rudsmr9dztnyv9f2w74unppttta6cu7fr3tx494zqstn2hv";
 
 /// (txid, mined height, memo nonce, block time where pinned)
-const PAYMENTS: [(&str, u32, &str, Option<u64>); 4] = [
+const PAYMENTS: [(&str, u32, &str, Option<u64>); 6] = [
     ("030c3cbf78ce8460553bba4e82c0ba813f039bd3ecf4d7f2e81c59837dc28351", 4_521_112, "x402z-f19a63da20cbc0749ea800b3", None),
     ("cd64980a5247881a727aa916476a3ba757e59794263c2ff1bcde467654a0916d", 4_521_440, "x402z-af06b1d50af81616075f0cb3", Some(1_792_482_929)),
     ("ccb4214c6a1fdf183c086ae5b4f559d181ead4c1c61dc7e711fc4a08b95b0ed3", 4_524_586, "x402z-b7a15cc628bb7a06bf9a26cd", None),
     ("25a8b324bebee30220382113c6fb9cc3be1144b036117c34778bde3b1d8b689d", 4_524_602, "x402z-696c58afd509cc0f8753f3b0", Some(1_792_562_282)),
+    ("408aba269ac7ca946e3b0eaedcf4cadd582a01090679e98391b4e7c706d88dd0", 4_524_693, "x402z-97c10778f360d18cc8289703", None),
+    ("a7c3b0b2eaeb406ddcd02276cd71e69e4e618b22a1cab8977c959f2da3fc38bc", 4_524_694, "x402z-10699970ecb69ff79eb66735", None),
 ];
 
 fn merchant() -> (MerchantKey, String) {
@@ -51,7 +53,7 @@ async fn fetch(c: &mut lwd::Client, txid: &str, tip: BlockHeight) -> (zcash_prim
 }
 
 #[tokio::test]
-async fn the_four_kage_payments_verify_with_only_the_published_uivk() {
+async fn every_kage_payment_verifies_with_only_the_published_uivk() {
     let (key, ua) = merchant();
     let (mut c, tip) = client().await;
     for (txid, height, nonce, time) in PAYMENTS {

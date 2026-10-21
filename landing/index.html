@@ -529,7 +529,7 @@ cargo test -p x402z-facilitator                                <span class="c">#
         <section class="doc" id="evidence" aria-labelledby="h-ev">
           <span class="path">trust / on-chain</span>
           <h2 id="h-ev">Live evidence<a class="anchor" href="#evidence" aria-label="Link to Live evidence">#</a></h2>
-          <p>Four payments went end to end against <code>testnet.zec.rocks</code>. Each pays 100,000 zat as an Ironwood note to the same demo merchant. The Oct 21 runs used the current code: x402 v1, a facilitator holding only the published UIVK, SQLite state.</p>
+          <p>Six payments went end to end against <code>testnet.zec.rocks</code>. Each pays 100,000 zat as an Ironwood note to the same demo merchant. The Oct 21 runs used the current code: x402 v1, a facilitator holding only the published UIVK, SQLite state.</p>
           <div class="tbl"><table>
             <thead><tr><th>Txid</th><th>Block</th><th>Date</th><th>Path</th></tr></thead>
             <tbody>
@@ -537,6 +537,8 @@ cargo test -p x402z-facilitator                                <span class="c">#
               <tr><td><a class="m" href="https://testnet.zecblock.com/tx/cd64980a5247881a727aa916476a3ba757e59794263c2ff1bcde467654a0916d">cd64980a…916d ↗</a></td><td class="num">4,521,440</td><td class="num">Oct 20</td><td>Agent's own wallet (earlier receipt header)</td></tr>
               <tr><td><a class="m" href="https://testnet.zecblock.com/tx/ccb4214c6a1fdf183c086ae5b4f559d181ead4c1c61dc7e711fc4a08b95b0ed3">ccb4214c…0ed3 ↗</a></td><td class="num">4,524,586</td><td class="num">Oct 21</td><td>ZIP 321 QR paid by zingo-cli, txid pasted, <code>/api/redeem</code> → paid</td></tr>
               <tr><td><a class="m" href="https://testnet.zecblock.com/tx/25a8b324bebee30220382113c6fb9cc3be1144b036117c34778bde3b1d8b689d">25a8b324…689d ↗</a></td><td class="num">4,524,602</td><td class="num">Oct 21</td><td><code>X-PAYMENT</code> → <code>settlement_pending</code> ×10 → 200 (the exchange above)</td></tr>
+              <tr><td><a class="m" href="https://testnet.zecblock.com/tx/408aba269ac7ca946e3b0eaedcf4cadd582a01090679e98391b4e7c706d88dd0">408aba26…8dd0 ↗</a></td><td class="num">4,524,693</td><td class="num">Oct 21</td><td><code>X-PAYMENT</code> path, repeated</td></tr>
+              <tr><td><a class="m" href="https://testnet.zecblock.com/tx/a7c3b0b2eaeb406ddcd02276cd71e69e4e618b22a1cab8977c959f2da3fc38bc">a7c3b0b2…38bc ↗</a></td><td class="num">4,524,694</td><td class="num">Oct 21</td><td>ZIP 321 + paste txid, repeated</td></tr>
             </tbody>
           </table></div>
           <p>Anyone can check them with the demo merchant's published incoming viewing key (in the README). It shows incoming payments to that demo wallet only; it can't spend and shows nothing about the payer.</p>
@@ -550,7 +552,7 @@ cargo test -p x402z-facilitator                                <span class="c">#
         <section class="doc" id="tests" aria-labelledby="h-tests">
           <span class="path">trust / tests</span>
           <h2 id="h-tests">Tests<a class="anchor" href="#tests" aria-label="Link to Tests">#</a></h2>
-          <p>75 tests. Six build in-process transactions with real keys, real note encryption and real Halo2 proofs for the Orchard/Ironwood parts (Sapling outputs use sapling-crypto's mock proof bytes); those are not broadcast. Three verify the four real payments live with only the UIVK. The full list is in <a href="https://github.com/nickthelegend/zec-shielded-x402/blob/main/TESTING.md">TESTING.md</a>.</p>
+          <p>75 tests. Six build in-process transactions with real keys, real note encryption and real Halo2 proofs for the Orchard/Ironwood parts (Sapling outputs use sapling-crypto's mock proof bytes); those are not broadcast. Three verify the six real payments live with only the UIVK. The full list is in <a href="https://github.com/nickthelegend/zec-shielded-x402/blob/main/TESTING.md">TESTING.md</a>.</p>
           <div class="tbl"><table>
             <thead><tr><th>Crate</th><th>Tests</th><th>Runs against</th></tr></thead>
             <tbody>

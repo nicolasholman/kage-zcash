@@ -22,12 +22,14 @@
 | `cd64980a5247881a727aa916476a3ba757e59794263c2ff1bcde467654a0916d` | 4521440 | agent's own wallet, the demo video (Oct 20) |
 | `ccb4214c6a1fdf183c086ae5b4f559d181ead4c1c61dc7e711fc4a08b95b0ed3` | 4524586 | third-party wallet (zingo-cli) paying the dashboard's ZIP 321 request, txid pasted, `/api/redeem` → paid (Oct 21) |
 | `25a8b324bebee30220382113c6fb9cc3be1144b036117c34778bde3b1d8b689d` | 4524602 | `X-PAYMENT` → `settlement_pending` → `200` + `X-PAYMENT-RESPONSE success` (Oct 21) |
+| `408aba269ac7ca946e3b0eaedcf4cadd582a01090679e98391b4e7c706d88dd0` | 4524693 | `X-PAYMENT` path, repeated (Oct 21) |
+| `a7c3b0b2eaeb406ddcd02276cd71e69e4e618b22a1cab8977c959f2da3fc38bc` | 4524694 | ZIP 321 + paste-txid path, repeated (Oct 21) |
 
-Anyone can check all four with the published demo merchant UIVK. See the README, "Verified testnet runs", and the `live_testnet` tests.
+Anyone can check all six with the published demo merchant UIVK. See the README, "Verified testnet runs", and the `live_testnet` tests.
 
 75 tests, listed in TESTING.md:
 - 6 build in-process transactions with real keys, note encryption and Halo2 proofs (not broadcast);
-- 3 verify the four real payments live against testnet.zec.rocks;
+- 3 verify the six real payments live against testnet.zec.rocks;
 - 3 drive the MCP binary over stdio;
 - 5 attack the Kage Tab.
 
