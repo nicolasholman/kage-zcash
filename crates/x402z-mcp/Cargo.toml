@@ -1,6 +1,6 @@
 [package]
 name = "x402z-mcp"
-description = "MCP server (stdio) exposing the Kage agent: paid_fetch over shielded x402, spend_status, ledger_tail"
+description = "MCP server (stdio) exposing the Kage agent: paid_fetch over shielded x402, tab_fetch (Kage Tab), spend_status, ledger_tail"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

@@ -8,6 +8,9 @@
 //!   (`isError: true`) naming the reason; nothing is paid in those cases.
 //! - `spend_status {}`: today's spend against the daily cap, allowlist, approval threshold.
 //! - `ledger_tail {n?}`: the last n spendguard decisions (default 10, max 100).
+//! - `tab_fetch {url, buy?}`: GET the URL spending one Kage Tab token (one shielded payment
+//!   bought N unlinkable blind-signed tokens). With no token left it buys a tab of `buy` tokens
+//!   (default `X402Z_AGENT_TAB_SIZE`, 5) from the agent's own wallet, inside spendguard, first.
 //!
 //! Configuration is the agent's (`X402Z_AGENT_*`, `ZCASH_LWD_URL`; see `.env.example`), read on
 //! every call so a missing variable is reported as "Setup required" instead of a crash.
@@ -21,6 +24,7 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use x402z_agent::{
     ledger::LedgerFile,
     pay::{self, AgentConfig, PayError},
+    tab,
 };
 
 const SUPPORTED_VERSIONS: [&str; 3] = ["2025-06-18", "2025-03-26", "2024-11-05"];
@@ -34,6 +38,20 @@ fn tools() -> Value {
             "inputSchema": {
                 "type": "object",
                 "properties": { "url": { "type": "string", "description": "http(s) URL of the paid resource" } },
+                "required": ["url"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "tab_fetch",
+            "title": "Fetch a URL with a Kage Tab token (one payment, N unlinkable requests)",
+            "description": "GET an HTTP URL spending one prepaid Kage Tab token: an RFC 9474 blind-RSA token the server signed without seeing it, so it can't link this request to the shielded payment that bought it or to the other tokens. A token request needs no new transaction and returns in milliseconds. If no token is left for the URL's server, first buy a tab of `buy` tokens (default 5) with one shielded Zcash testnet payment from the agent's own wallet, inside spendguard (the whole tab price counts against the daily cap); that purchase waits for 1 block. Returns the response and how many tokens remain.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "url": { "type": "string", "description": "http(s) URL of the paid resource" },
+                    "buy": { "type": "integer", "minimum": 1, "maximum": 100, "description": "tab size to buy when no token is left (default X402Z_AGENT_TAB_SIZE or 5)" }
+                },
                 "required": ["url"],
                 "additionalProperties": false
             }
@@ -97,6 +115,58 @@ async fn paid_fetch(args: &Value) -> Value {
         }
         Err(e) => tool_error(e.kind(), e.message()),
     }
+}
+
+async fn tab_fetch(args: &Value) -> Value {
+    let Some(url) = args.get("url").and_then(Value::as_str) else {
+        return tool_error("invalid_arguments", "tab_fetch needs {\"url\": \"http(s)://...\"}");
+    };
+    let size = match args.get("buy") {
+        None | Some(Value::Null) => match std::env::var("X402Z_AGENT_TAB_SIZE").ok().filter(|v| !v.trim().is_empty()) {
+            None => tab::DEFAULT_TAB_SIZE,
+            Some(v) => match v.trim().parse::<u32>() {
+                Ok(n) if n >= 1 => n,
+                _ => return tool_error("setup_required", "X402Z_AGENT_TAB_SIZE must be a positive integer"),
+            },
+        },
+        Some(v) => match v.as_u64() {
+            Some(n) if (1..=100).contains(&n) => n as u32,
+            _ => return tool_error("invalid_arguments", "buy must be an integer from 1 to 100"),
+        },
+    };
+    let cfg = match AgentConfig::from_env() {
+        Ok(c) => c,
+        Err(e) => return setup_required(&e),
+    };
+    let mut bought = None;
+    let fetched = match tab::fetch(&cfg, url).await {
+        Ok(Some(f)) => f,
+        Ok(None) => {
+            eprintln!("x402z-mcp: no tab token for {url}; buying a tab of {size}");
+            let b = match tab::buy(&cfg, url, size, &decline).await {
+                Ok(b) => b,
+                Err(e) => return tool_error(e.kind(), &format!("no tab token left, and buying a tab of {size} failed: {}", e.message())),
+            };
+            bought = Some(json!({
+                "tokens": b.n, "amountZat": b.amount_zat, "txid": b.txid, "memoNonce": b.memo_nonce, "keyId": b.key_id,
+                "explorer": format!("https://testnet.zecblock.com/tx/{}", b.txid)
+            }));
+            match tab::fetch(&cfg, url).await {
+                Ok(Some(f)) => f,
+                Ok(None) => return tool_error("runtime", "the tab was bought but no token is stored for this URL"),
+                Err(e) => return tool_error(e.kind(), e.message()),
+            }
+        }
+        Err(e) => return tool_error(e.kind(), e.message()),
+    };
+    let body = serde_json::from_str::<Value>(&fetched.body).unwrap_or(Value::String(fetched.body.clone()));
+    text_result(
+        &json!({
+            "status": fetched.status, "paidWith": "tab_token", "elapsedMs": fetched.elapsed_ms as u64,
+            "remainingTokens": fetched.remaining, "bought": bought, "settlement": fetched.settlement, "body": body
+        }),
+        false,
+    )
 }
 
 fn ledger_and_policy() -> Result<(LedgerFile, spendguard::Policy, String), PayError> {
@@ -173,6 +243,7 @@ async fn handle(msg: Value) -> Option<Value> {
             let args = params.get("arguments").cloned().unwrap_or(json!({}));
             match name {
                 "paid_fetch" => Ok(paid_fetch(&args).await),
+                "tab_fetch" => Ok(tab_fetch(&args).await),
                 "spend_status" => Ok(spend_status()),
                 "ledger_tail" => Ok(ledger_tail(&args)),
                 other => Err((-32602, format!("unknown tool '{other}'"))),
@@ -190,7 +261,7 @@ async fn handle(msg: Value) -> Option<Value> {
 async fn main() {
     let mut lines = BufReader::new(tokio::io::stdin()).lines();
     let mut out = tokio::io::stdout();
-    eprintln!("x402z-mcp: ready on stdio (tools: paid_fetch, spend_status, ledger_tail)");
+    eprintln!("x402z-mcp: ready on stdio (tools: paid_fetch, tab_fetch, spend_status, ledger_tail)");
     while let Ok(Some(line)) = lines.next_line().await {
         if line.trim().is_empty() {
             continue;

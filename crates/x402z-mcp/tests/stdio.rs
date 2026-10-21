@@ -1,9 +1,9 @@
 //! Drive the real `x402z-mcp` binary over stdio, as an MCP client does.
 //!
 //! The paid resource is a tiny HTTP server on 127.0.0.1 that answers every request with a fixed
-//! x402 402 (the shape `x402z-server` sends). The tests only go as far as spendguard: every
-//! paid_fetch here is refused before any wallet or chain work, so nothing is paid and no
-//! network beyond localhost is touched.
+//! x402 402 (the shape `x402z-server` sends, with a Kage Tab offer). The tests only go as far as
+//! spendguard and the wallet check: every paid_fetch and tab_fetch here is refused before any
+//! wallet or chain work, so nothing is paid and no network beyond localhost is touched.
 
 use std::{
     io::{BufRead, BufReader, Read, Write},
@@ -32,7 +32,10 @@ fn fixture_402() -> String {
                     "scheme": "zcash-shielded", "network": "zcash-testnet", "maxAmountRequired": "100000",
                     "resource": format!("http://{addr}/api/quote"), "description": "fixture", "mimeType": "application/json",
                     "payTo": PAY_TO, "maxTimeoutSeconds": 900, "asset": "ZEC",
-                    "extra": { "memoNonce": "x402z-fixture", "expiresAt": 4_000_000_000u64 }
+                    "extra": { "memoNonce": "x402z-fixture", "expiresAt": 4_000_000_000u64,
+                               "tab": { "scheme": "zcash-shielded-tab", "suite": "RSABSSA-SHA384-PSS-Randomized", "keyId": "fixture",
+                                        "publicKey": "AA==", "unitPriceZat": 100000, "maxTokens": 20, "issuePath": "/tab/issue",
+                                        "epochEndsAt": 4_000_000_000u64 } }
                 }]
             })
             .to_string();
@@ -53,7 +56,7 @@ impl Mcp {
     fn start(env: &[(&str, String)]) -> Self {
         let mut cmd = Command::new(env!("CARGO_BIN_EXE_x402z-mcp"));
         cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null());
-        for v in ["X402Z_AGENT_LEDGER", "X402Z_AGENT_WALLET_DIR", "X402Z_AGENT_SEED", "X402Z_AGENT_ALLOWED_HOSTS", "X402Z_AGENT_DAILY_CAP_ZAT", "X402Z_AGENT_APPROVAL_ZAT", "X402Z_AGENT_NAME"] {
+        for v in ["X402Z_AGENT_LEDGER", "X402Z_AGENT_WALLET_DIR", "X402Z_AGENT_SEED", "X402Z_AGENT_TAB_FILE", "X402Z_AGENT_TAB_SIZE", "X402Z_AGENT_ALLOWED_HOSTS", "X402Z_AGENT_DAILY_CAP_ZAT", "X402Z_AGENT_APPROVAL_ZAT", "X402Z_AGENT_NAME"] {
             cmd.env_remove(v);
         }
         for (k, v) in env {
@@ -120,7 +123,7 @@ fn handshake_and_tool_list() {
 
     let list = m.request("tools/list", json!({}));
     let names: Vec<&str> = list["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap()).collect();
-    assert_eq!(names, ["paid_fetch", "spend_status", "ledger_tail"]);
+    assert_eq!(names, ["paid_fetch", "tab_fetch", "spend_status", "ledger_tail"]);
     for t in list["result"]["tools"].as_array().unwrap() {
         assert_eq!(t["inputSchema"]["type"], "object");
     }
@@ -144,6 +147,49 @@ fn missing_config_is_setup_required_not_a_crash() {
     assert_eq!(structured(&r)["error"], "setup_required");
     let r = m.call("paid_fetch", json!({}));
     assert_eq!(structured(&r)["error"], "invalid_arguments");
+    let r = m.call("tab_fetch", json!({ "url": "http://127.0.0.1:9/x" }));
+    assert_eq!(structured(&r)["error"], "setup_required");
+    assert_eq!(structured(&m.call("tab_fetch", json!({ "url": "http://127.0.0.1:9/x", "buy": 0 })))["error"], "invalid_arguments");
+}
+
+#[test]
+fn tab_fetch_without_tokens_buys_a_tab_inside_spendguard() {
+    let url = format!("{}/api/quote", fixture_402());
+    let ledger = tmp_ledger("tab");
+    let wallet_dir = std::env::temp_dir().join(format!("x402z-mcp-{}-tab-wallet", std::process::id()));
+    let base = vec![
+        ("X402Z_AGENT_LEDGER", ledger.display().to_string()),
+        ("X402Z_AGENT_WALLET_DIR", wallet_dir.display().to_string()),
+        ("X402Z_AGENT_ALLOWED_HOSTS", "127.0.0.1".to_string()),
+    ];
+
+    // a tab of 5 costs 500,000 zat: over a 300,000 zat cap, so spendguard refuses the whole tab
+    let mut env = base.clone();
+    env.push(("X402Z_AGENT_DAILY_CAP_ZAT", "300000".into()));
+    let mut m = Mcp::start(&env);
+    let v = structured(&m.call("tab_fetch", json!({ "url": url })));
+    assert_eq!(v["error"], "spendguard_refused", "{v}");
+    assert!(v["message"].as_str().unwrap().contains("buying a tab of 5 failed"), "{v}");
+    assert!(v["message"].as_str().unwrap().contains("daily cap exceeded"), "{v}");
+    drop(m);
+
+    // a tab of 2 fits the cap, but there is no funded wallet: a wallet error, nothing paid
+    let mut m = Mcp::start(&env);
+    let r = m.call("tab_fetch", json!({ "url": url, "buy": 2 }));
+    assert_eq!(r["isError"], true);
+    let v = structured(&r);
+    assert_eq!(v["error"], "wallet", "{v}");
+    assert!(v["message"].as_str().unwrap().contains("X402Z_AGENT_SEED not configured"), "{v}");
+
+    let t = structured(&m.call("ledger_tail", json!({ "n": 5 })));
+    let entries = t["entries"].as_array().unwrap();
+    let got: Vec<(&str, u64)> = entries.iter().map(|e| (e["decision"].as_str().unwrap(), e["amountZat"].as_u64().unwrap())).collect();
+    assert_eq!(got, [("denied", 500_000), ("allowed", 200_000)]);
+    assert!(entries.iter().all(|e| e.get("txid").is_none()));
+    assert!(entries[1]["reason"].as_str().unwrap().contains("not paid"));
+    for p in [ledger.clone(), ledger.with_extension("json.lock"), ledger.with_extension("tab.json"), ledger.with_extension("tab.json.lock")] {
+        let _ = std::fs::remove_file(p);
+    }
 }
 
 #[test]
