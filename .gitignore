@@ -8,3 +8,7 @@ node_modules/
 
 # Local agent workspace state; not part of the project.
 /.loom/
+
+# Internal working notes kept on disk, not published.
+/CLAUDE.md
+/docs/zecathon-near-factcheck.md
