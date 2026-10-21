@@ -2,7 +2,9 @@
 .env
 *.sqlite
 *.db
-!/.loom/log.db
 node_modules/
 
 .cargo-home/
+
+# Local agent workspace state; not part of the project.
+/.loom/
