@@ -1,0 +1,43 @@
+name: Pages
+
+# Publishes the static landing page (landing/) to GitHub Pages:
+#   https://nickthelegend.github.io/zec-shielded-x402/
+# The page is a single self-contained index.html (inline CSS/JS, anchor links and
+# absolute https links only), so it works unchanged under the /zec-shielded-x402/ base path.
+# One-time setup: Settings -> Pages -> Source: "GitHub Actions"
+# (or: gh api -X POST repos/nickthelegend/zec-shielded-x402/pages -f build_type=workflow).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "landing/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the landing page is present
+        run: test -s landing/index.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: landing
+      - id: deployment
+        uses: actions/deploy-pages@v4
