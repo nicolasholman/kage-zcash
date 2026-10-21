@@ -35,6 +35,24 @@ impl Store {
                  expires_at INTEGER NOT NULL,
                  spent_txid TEXT,
                  spent_at   INTEGER
+             );
+             -- Kage Tab: blind-RSA issuing keys (one active per epoch) and spent tokens.
+             CREATE TABLE IF NOT EXISTS tab_keys (
+                 key_id     TEXT PRIMARY KEY,
+                 sk_der     BLOB NOT NULL,
+                 created_at INTEGER NOT NULL,
+                 active     INTEGER NOT NULL
+             );
+             CREATE TABLE IF NOT EXISTS tab_issued (
+                 nonce     TEXT PRIMARY KEY,
+                 key_id    TEXT NOT NULL,
+                 tokens    INTEGER NOT NULL,
+                 issued_at INTEGER NOT NULL
+             );
+             CREATE TABLE IF NOT EXISTS tab_spent (
+                 token_id TEXT PRIMARY KEY,
+                 key_id   TEXT NOT NULL,
+                 spent_at INTEGER NOT NULL
              );",
         )
         .map_err(err)?;
@@ -110,6 +128,71 @@ impl Store {
             .unwrap()
             .execute("DELETE FROM challenges WHERE spent_txid IS NULL AND expires_at < ?1", params![cutoff as i64])
             .map_err(err)
+    }
+}
+
+/// Kage Tab storage.
+impl Store {
+    /// The active issuing key: (key_id, secret key DER, created_at).
+    pub fn active_tab_key(&self) -> Result<Option<(String, Vec<u8>, u64)>, String> {
+        self.conn
+            .lock()
+            .unwrap()
+            .query_row("SELECT key_id, sk_der, created_at FROM tab_keys WHERE active = 1", [], |r| {
+                Ok((r.get(0)?, r.get(1)?, r.get::<_, i64>(2)? as u64))
+            })
+            .optional()
+            .map_err(err)
+    }
+
+    /// Retire every key and make `key_id` the only active one (a new epoch).
+    pub fn install_tab_key(&self, key_id: &str, sk_der: &[u8], now: u64) -> Result<(), String> {
+        let mut conn = self.conn.lock().unwrap();
+        let tx = conn.transaction().map_err(err)?;
+        tx.execute("UPDATE tab_keys SET active = 0", []).map_err(err)?;
+        tx.execute(
+            "INSERT INTO tab_keys (key_id, sk_der, created_at, active) VALUES (?1, ?2, ?3, 1)",
+            params![key_id, sk_der, now as i64],
+        )
+        .map_err(err)?;
+        tx.commit().map_err(err)
+    }
+
+    /// Burn `nonce` for `txid` and record the tab issuance in one transaction. False if the
+    /// nonce was already spent (by a tab or a single payment), so a nonce issues at most once.
+    pub fn spend_for_tab(&self, nonce: &str, txid: &str, key_id: &str, tokens: u32, now: u64) -> Result<bool, String> {
+        let mut conn = self.conn.lock().unwrap();
+        let tx = conn.transaction().map_err(err)?;
+        let n = tx
+            .execute(
+                "UPDATE challenges SET spent_txid = ?2, spent_at = ?3 WHERE nonce = ?1 AND spent_txid IS NULL",
+                params![nonce, txid, now as i64],
+            )
+            .map_err(err)?;
+        if n != 1 {
+            return Ok(false);
+        }
+        tx.execute(
+            "INSERT INTO tab_issued (nonce, key_id, tokens, issued_at) VALUES (?1, ?2, ?3, ?4)",
+            params![nonce, key_id, tokens, now as i64],
+        )
+        .map_err(err)?;
+        tx.commit().map_err(err)?;
+        Ok(true)
+    }
+
+    /// Record a redeemed token. False if it was already spent.
+    pub fn spend_token(&self, token_id: &str, key_id: &str, now: u64) -> Result<bool, String> {
+        let n = self
+            .conn
+            .lock()
+            .unwrap()
+            .execute(
+                "INSERT OR IGNORE INTO tab_spent (token_id, key_id, spent_at) VALUES (?1, ?2, ?3)",
+                params![token_id, key_id, now as i64],
+            )
+            .map_err(err)?;
+        Ok(n == 1)
     }
 }
 

@@ -5,11 +5,13 @@
 //! Issued challenges and redeemed nonces live in SQLite (`X402Z_SERVER_DB`), so a restart
 //! neither loses an open challenge nor un-burns a redeemed one.
 mod store;
+mod tab;
 
 use std::{
     collections::HashMap,
     net::{IpAddr, SocketAddr},
     path::PathBuf,
+    sync::RwLock,
     process::exit,
     sync::{Arc, Mutex},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -30,6 +32,7 @@ use x402z_protocol::{
     challenge_uri, decode_header, encode_header, paid_in_time, reason, FacilitatorRequest, Network, PaymentPayload, PaymentRequired,
     PaymentRequiredResponse, PaymentRequirements, ReceiptClaims, SettleResponse, SettlementResponse, VerifyStatus,
     DEFAULT_EXPIRY_GRACE_SECS, PAYMENT_HEADER, PAYMENT_RESPONSE_HEADER, RECEIPT_HEADER, SCHEME, SETTLE_PATH, X402_VERSION,
+    TabIssueRequest, TabIssueResponse, TAB_ISSUE_PATH, TAB_SCHEME,
 };
 
 use store::Store;
@@ -88,6 +91,9 @@ struct Config {
     /// A payment mined up to this long after `expiresAt` still counts.
     expiry_grace_secs: u64,
     redeem_window_secs: u64,
+    /// Kage Tab: most tokens one payment may buy (0 turns the tab off) and the key epoch.
+    tab_max_tokens: u32,
+    tab_epoch_secs: u64,
 }
 
 /// Live event feed for the dashboard (in memory; the durable state is in [`Store`]).
@@ -157,6 +163,8 @@ struct App {
     store: Store,
     /// Client for the facilitator's `/settle`.
     http: reqwest::Client,
+    /// Kage Tab issuing key, loaded from the store on first use.
+    tab: RwLock<Option<Arc<tab::TabKey>>>,
     book: Mutex<Book>,
     limiter: Mutex<ChallengeLimiter>,
 }
@@ -227,7 +235,15 @@ fn settle(store: &Store, merchant_ua: &str, c: &ReceiptClaims, now_unix: u64, gr
     if row.spent_txid.is_some() {
         return Err(ReceiptError::Replayed);
     }
-    let ch = &row.challenge;
+    check_receipt(&row.challenge, merchant_ua, c, now_unix, grace_secs)?;
+    if !store.mark_spent(&c.memo_nonce, &c.txid, now_unix).map_err(ReceiptError::Storage)? {
+        return Err(ReceiptError::Replayed);
+    }
+    Ok(())
+}
+
+/// The checks `settle` makes before burning: paid in time (by `minedAt`), to us, enough.
+fn check_receipt(ch: &PaymentRequired, merchant_ua: &str, c: &ReceiptClaims, now_unix: u64, grace_secs: u64) -> Result<(), ReceiptError> {
     let paid_at = c.mined_at.unwrap_or(now_unix);
     if !paid_in_time(ch.expires_at, paid_at, grace_secs) {
         return Err(ReceiptError::Expired { expires_at: ch.expires_at, paid_at });
@@ -237,9 +253,6 @@ fn settle(store: &Store, merchant_ua: &str, c: &ReceiptClaims, now_unix: u64, gr
     }
     if c.amount_zat < ch.amount_zat {
         return Err(ReceiptError::Underpaid { paid: c.amount_zat, want: ch.amount_zat });
-    }
-    if !store.mark_spent(&c.memo_nonce, &c.txid, now_unix).map_err(ReceiptError::Storage)? {
-        return Err(ReceiptError::Replayed);
     }
     Ok(())
 }
@@ -297,10 +310,22 @@ fn with_header(mut resp: Response, name: &'static str, value: &str) -> Response 
 
 /// HTTP 402 with the x402 v1 body `{x402Version, accepts, error}`. A failed payment attempt also
 /// gets `X-PAYMENT-RESPONSE` (base64 SettlementResponse) and the human-readable `x-payment-error`.
-fn payment_required(ch: &PaymentRequired, resource: &str, error: Option<String>, settlement: Option<SettlementResponse>) -> Response {
+fn payment_required(app: &App, ch: &PaymentRequired, resource: &str, error: Option<String>, settlement: Option<SettlementResponse>) -> Response {
+    let mut req = requirements(ch, resource);
+    match tab_key(app) {
+        Ok(Some(k)) => {
+            if let Ok(mut extra) = req.zcash_extra() {
+                let o = tab::offer(&k, app.cfg.price_zat, app.cfg.tab_max_tokens, app.cfg.tab_epoch_secs);
+                extra.tab = serde_json::to_value(o).ok();
+                req.set_zcash_extra(&extra);
+            }
+        }
+        Ok(None) => {}
+        Err(e) => eprintln!("warning: tab offer left out: {e}"),
+    }
     let body = PaymentRequiredResponse {
         x402_version: X402_VERSION,
-        accepts: vec![requirements(ch, resource)],
+        accepts: vec![req],
         error: error.clone().unwrap_or_else(|| format!("{PAYMENT_HEADER} header is required")),
     };
     let mut resp = (StatusCode::PAYMENT_REQUIRED, Json(body)).into_response();
@@ -350,7 +375,23 @@ fn mint(app: &App, peer: SocketAddr, resource: &str, detail: &str, error: Option
         Err(e) => return storage_error(e),
     };
     book.push("challenge", Some(&ch.memo_nonce), Some(ch.amount_zat), None, detail.into());
-    payment_required(&ch, resource, error, settlement)
+    payment_required(app, &ch, resource, error, settlement)
+}
+
+/// The active tab key (cached; rotated when its epoch ends). `None` when the tab is off.
+fn tab_key(app: &App) -> Result<Option<Arc<tab::TabKey>>, String> {
+    if app.cfg.tab_max_tokens == 0 {
+        return Ok(None);
+    }
+    let now_unix = now();
+    if let Some(k) = app.tab.read().unwrap().as_ref() {
+        if now_unix < k.created_at.saturating_add(app.cfg.tab_epoch_secs) {
+            return Ok(Some(k.clone()));
+        }
+    }
+    let k = Arc::new(tab::load_or_rotate(&app.store, now_unix, app.cfg.tab_epoch_secs)?);
+    *app.tab.write().unwrap() = Some(k.clone());
+    Ok(Some(k))
 }
 
 /// Result of redeeming a (memoNonce, txid) pair through the facilitator.
@@ -372,13 +413,34 @@ fn refused(reason: &str, message: impl Into<String>) -> Redeem {
 /// Ask the facilitator to settle `txid` against the stored challenge `nonce`, check its signed
 /// receipt with the facilitator's public key, and burn the nonce.
 async fn redeem(app: &App, nonce: &str, txid: &str, resource: &str) -> Redeem {
+    let (_, c) = match confirmed_receipt(app, nonce, txid, resource).await {
+        Ok(x) => x,
+        Err(r) => return r,
+    };
+    match settle(&app.store, &app.cfg.merchant_ua, &c, now(), app.cfg.expiry_grace_secs) {
+        Ok(()) => Redeem::Paid(c),
+        Err(e) => receipt_refusal(e),
+    }
+}
+
+fn receipt_refusal(e: ReceiptError) -> Redeem {
+    match e {
+        ReceiptError::Storage(e) => Redeem::Unavailable(e),
+        e @ ReceiptError::Replayed => refused(reason::NONCE_USED, e.reason()),
+        e @ ReceiptError::Expired { .. } => refused(reason::EXPIRED, e.reason()),
+        e => refused(reason::INVALID_PAYMENT, e.reason()),
+    }
+}
+
+/// The facilitator-confirmed, signature-checked receipt for (nonce, txid). Burns nothing.
+async fn confirmed_receipt(app: &App, nonce: &str, txid: &str, resource: &str) -> Result<(store::Row, ReceiptClaims), Redeem> {
     let row = match app.store.get(nonce) {
-        Err(e) => return Redeem::Unavailable(e),
-        Ok(None) => return refused(reason::UNKNOWN_CHALLENGE, ReceiptError::UnknownNonce.reason()),
+        Err(e) => return Err(Redeem::Unavailable(e)),
+        Ok(None) => return Err(refused(reason::UNKNOWN_CHALLENGE, ReceiptError::UnknownNonce.reason())),
         Ok(Some(r)) => r,
     };
     if row.spent_txid.is_some() {
-        return refused(reason::NONCE_USED, ReceiptError::Replayed.reason());
+        return Err(refused(reason::NONCE_USED, ReceiptError::Replayed.reason()));
     }
     let url = format!("{}{SETTLE_PATH}", app.cfg.facilitator_url.trim_end_matches('/'));
     let body = FacilitatorRequest {
@@ -388,46 +450,40 @@ async fn redeem(app: &App, nonce: &str, txid: &str, resource: &str) -> Redeem {
     };
     let resp = match app.http.post(&url).json(&body).send().await {
         Ok(r) => r,
-        Err(e) => return Redeem::Unavailable(format!("facilitator unreachable at {url}: {e}")),
+        Err(e) => return Err(Redeem::Unavailable(format!("facilitator unreachable at {url}: {e}"))),
     };
     let code = resp.status();
     let s: SettleResponse = match resp.json().await {
         Ok(s) => s,
-        Err(e) => return Redeem::Unavailable(format!("facilitator answered {code} with an unreadable body: {e}")),
+        Err(e) => return Err(Redeem::Unavailable(format!("facilitator answered {code} with an unreadable body: {e}"))),
     };
     let msg = s.error.clone().unwrap_or_default();
     match s.status {
         VerifyStatus::Pending | VerifyStatus::NotFound => {
-            return Redeem::Pending { challenge: row.challenge, message: if msg.is_empty() { "payment not confirmed yet".into() } else { msg } }
+            return Err(Redeem::Pending { challenge: row.challenge, message: if msg.is_empty() { "payment not confirmed yet".into() } else { msg } })
         }
         VerifyStatus::Rejected => {
             let why = s.settlement.error_reason.unwrap_or_else(|| reason::INVALID_PAYMENT.into());
-            return Redeem::Refused { reason: why, message: msg };
+            return Err(Redeem::Refused { reason: why, message: msg });
         }
-        VerifyStatus::Error => return Redeem::Unavailable(format!("facilitator: {msg}")),
+        VerifyStatus::Error => return Err(Redeem::Unavailable(format!("facilitator: {msg}"))),
         VerifyStatus::Confirmed => {}
     }
     let Some(receipt) = s.receipt else {
-        return Redeem::Unavailable("facilitator confirmed without a receipt".into());
+        return Err(Redeem::Unavailable("facilitator confirmed without a receipt".into()));
     };
     let c = match decode_receipt(&app.cfg.receipt_key, &receipt) {
         Ok(c) => c,
-        Err(e) => return refused(reason::INVALID_PAYMENT, e.reason()),
+        Err(e) => return Err(refused(reason::INVALID_PAYMENT, e.reason())),
     };
     if c.memo_nonce != nonce || !c.txid.eq_ignore_ascii_case(txid.trim()) {
-        return refused(reason::INVALID_PAYMENT, "receipt does not match the payment that was presented");
+        return Err(refused(reason::INVALID_PAYMENT, "receipt does not match the payment that was presented"));
     }
     if c.confirmations < app.cfg.min_confirmations {
         let e = ReceiptError::Unconfirmed { have: c.confirmations, need: app.cfg.min_confirmations };
-        return Redeem::Pending { challenge: row.challenge, message: e.reason() };
+        return Err(Redeem::Pending { challenge: row.challenge, message: e.reason() });
     }
-    match settle(&app.store, &app.cfg.merchant_ua, &c, now(), app.cfg.expiry_grace_secs) {
-        Ok(()) => Redeem::Paid(c),
-        Err(ReceiptError::Storage(e)) => Redeem::Unavailable(e),
-        Err(e @ ReceiptError::Replayed) => refused(reason::NONCE_USED, e.reason()),
-        Err(e @ ReceiptError::Expired { .. }) => refused(reason::EXPIRED, e.reason()),
-        Err(e) => refused(reason::INVALID_PAYMENT, e.reason()),
-    }
+    Ok((row, c))
 }
 
 fn record_paid(app: &App, c: &ReceiptClaims, via: &str) {
@@ -437,6 +493,11 @@ fn record_paid(app: &App, c: &ReceiptClaims, via: &str) {
 
 /// `X-PAYMENT` (x402 v1): base64 `{x402Version, scheme, network, payload: {txid, memoNonce}}`.
 async fn x_payment(app: &App, peer: SocketAddr, resource: &str, header: &str) -> Response {
+    if let Ok(p) = decode_header::<PaymentPayload>(header) {
+        if p.scheme == TAB_SCHEME {
+            return tab_payment(app, peer, resource, &p);
+        }
+    }
     let payload = decode_header::<PaymentPayload>(header).map_err(|e| (e.reason(), format!("{PAYMENT_HEADER} {e}"))).and_then(|p| {
         p.zcash_payload().map_err(|e| (e.reason(), format!("{PAYMENT_HEADER} {e}")))
     });
@@ -455,7 +516,7 @@ async fn x_payment(app: &App, peer: SocketAddr, resource: &str, header: &str) ->
         Redeem::Pending { challenge, message } => {
             app.book.lock().unwrap().push("pending", Some(&challenge.memo_nonce), Some(challenge.amount_zat), Some(&p.txid), message.clone());
             // Same challenge again: the payer retries the same X-PAYMENT once the tx confirms.
-            payment_required(&challenge, resource, Some(message), Some(SettlementResponse::failed(reason::PENDING)))
+            payment_required(app, &challenge, resource, Some(message), Some(SettlementResponse::failed(reason::PENDING)))
         }
         Redeem::Refused { reason: why, message } => {
             app.book.lock().unwrap().push("rejected", Some(&p.memo_nonce), None, Some(&p.txid), message.clone());
@@ -467,6 +528,112 @@ async fn x_payment(app: &App, peer: SocketAddr, resource: &str, header: &str) ->
             with_header(resp, PAYMENT_RESPONSE_HEADER, &encode_header(&SettlementResponse::failed(reason::FACILITATOR_ERROR)))
         }
     }
+}
+
+/// `X-PAYMENT` with scheme `zcash-shielded-tab`: spend one blind-signed tab token.
+fn tab_payment(app: &App, peer: SocketAddr, resource: &str, p: &PaymentPayload) -> Response {
+    let result = match (p.tab_payload(), tab_key(app)) {
+        (Err(e), _) => Err((e.reason(), format!("{PAYMENT_HEADER} {e}"))),
+        (_, Err(e)) => return storage_error(e),
+        (_, Ok(None)) => Err((reason::INVALID_SCHEME, "this server does not offer a tab".to_string())),
+        (Ok(t), Ok(Some(k))) => tab::spend(&app.store, &k, &t, now()).map_err(|e| {
+            let why = match e {
+                tab::TabError::DoubleSpent => reason::NONCE_USED,
+                tab::TabError::OtherEpoch { .. } => reason::EXPIRED,
+                _ => reason::INVALID_PAYMENT,
+            };
+            (why, e.reason())
+        }),
+    };
+    match result {
+        Ok(token_id) => {
+            app.book.lock().unwrap().push("paid", None, Some(app.cfg.price_zat), None, format!("unlocked by tab token {}…", &token_id[..12]));
+            let resp = Json(serde_json::json!({
+                "product": "Kage demo quote",
+                "servedAt": now(),
+                "settlement": { "tab": true, "token": token_id },
+                "quote": "Paid content unlocked by a blind-signed tab token. The server can't link this request to the shielded payment that bought the tab.",
+            }))
+            .into_response();
+            with_header(resp, PAYMENT_RESPONSE_HEADER, &encode_header(&SettlementResponse::ok(&format!("tab:{}", &token_id[..16]))))
+        }
+        Err((why, msg)) => {
+            app.book.lock().unwrap().push("rejected", None, None, None, msg.clone());
+            mint(app, peer, resource, "402 re-issued after a refused tab token", Some(msg), Some(SettlementResponse::failed(why)))
+        }
+    }
+}
+
+/// `POST /tab/issue {memoNonce, txid, keyId, blinded[n]}`: one shielded payment of at least
+/// `n * price` to the challenge buys n blind signatures. The nonce is burned once (durably), so
+/// it can never issue again; an underpaid n burns nothing and can be retried with fewer.
+async fn tab_issue(State(app): State<Arc<App>>, ConnectInfo(peer): ConnectInfo<SocketAddr>, headers: HeaderMap, body: axum::body::Bytes) -> Response {
+    let fail = |code: StatusCode, why: &str, msg: String| {
+        (code, Json(serde_json::json!({ "status": "rejected", "reason": why, "message": msg }))).into_response()
+    };
+    let req: TabIssueRequest = match serde_json::from_slice(&body) {
+        Ok(r) => r,
+        Err(e) => return fail(StatusCode::BAD_REQUEST, reason::INVALID_PAYLOAD, format!("body must be {{memoNonce, txid, keyId, blinded}}: {e}")),
+    };
+    let k = match tab_key(&app) {
+        Ok(Some(k)) => k,
+        Ok(None) => return fail(StatusCode::NOT_FOUND, reason::INVALID_SCHEME, "this server does not offer a tab".into()),
+        Err(e) => return storage_error(e),
+    };
+    if req.key_id != k.key_id {
+        return fail(StatusCode::UNPROCESSABLE_ENTITY, reason::EXPIRED, format!("keyId {} is not the active tab key {}", req.key_id, k.key_id));
+    }
+    let n = req.blinded.len();
+    if n == 0 || n > app.cfg.tab_max_tokens as usize {
+        return fail(StatusCode::BAD_REQUEST, reason::INVALID_PAYLOAD, format!("blinded must hold 1 to {} messages", app.cfg.tab_max_tokens));
+    }
+    let blinded = match tab::parse_blinded(&k, &req.blinded) {
+        Ok(b) => b,
+        Err(e) => return fail(StatusCode::BAD_REQUEST, reason::INVALID_PAYLOAD, e),
+    };
+    let txid = req.txid.trim().to_ascii_lowercase();
+    if txid.len() != 64 || !txid.chars().all(|c| c.is_ascii_hexdigit()) {
+        return fail(StatusCode::BAD_REQUEST, reason::INVALID_PAYLOAD, "txid must be 64 hex characters".into());
+    }
+    if let Err(wait) = app.limiter.lock().unwrap().try_acquire(peer.ip(), Instant::now()) {
+        return too_many_challenges(wait);
+    }
+    let resource = resource_url(&headers);
+    let (row, c) = match confirmed_receipt(&app, req.memo_nonce.trim(), &txid, &resource).await {
+        Ok(x) => x,
+        Err(Redeem::Pending { message, .. }) => {
+            return (StatusCode::ACCEPTED, Json(serde_json::json!({ "status": "pending", "reason": reason::PENDING, "message": message }))).into_response()
+        }
+        Err(Redeem::Refused { reason: why, message }) => return fail(StatusCode::UNPROCESSABLE_ENTITY, &why, message),
+        Err(Redeem::Unavailable(m)) => return fail(StatusCode::BAD_GATEWAY, reason::FACILITATOR_ERROR, m),
+        Err(Redeem::Paid(_)) => unreachable!("confirmed_receipt never burns"),
+    };
+    if let Err(e) = check_receipt(&row.challenge, &app.cfg.merchant_ua, &c, now(), app.cfg.expiry_grace_secs) {
+        return match receipt_refusal(e) {
+            Redeem::Refused { reason: why, message } => fail(StatusCode::UNPROCESSABLE_ENTITY, &why, message),
+            Redeem::Unavailable(m) => fail(StatusCode::SERVICE_UNAVAILABLE, reason::FACILITATOR_ERROR, m),
+            _ => fail(StatusCode::UNPROCESSABLE_ENTITY, reason::INVALID_PAYMENT, "refused".into()),
+        };
+    }
+    let paid_for = c.amount_zat / app.cfg.price_zat.max(1);
+    if (n as u64) > paid_for {
+        return fail(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            reason::INVALID_PAYMENT,
+            format!("underpaid for {n} tokens: paid {} zat covers {paid_for} at {} zat each; nothing burned, retry with at most {paid_for}", c.amount_zat, app.cfg.price_zat),
+        );
+    }
+    match app.store.spend_for_tab(&c.memo_nonce, &c.txid, &k.key_id, n as u32, now()) {
+        Ok(true) => {}
+        Ok(false) => return fail(StatusCode::UNPROCESSABLE_ENTITY, reason::NONCE_USED, ReceiptError::Replayed.reason()),
+        Err(e) => return fail(StatusCode::SERVICE_UNAVAILABLE, reason::FACILITATOR_ERROR, e),
+    }
+    let sigs = match tab::blind_sign_all(&k, &blinded) {
+        Ok(s) => s,
+        Err(e) => return fail(StatusCode::INTERNAL_SERVER_ERROR, reason::FACILITATOR_ERROR, e),
+    };
+    app.book.lock().unwrap().push("paid", Some(&c.memo_nonce), Some(c.amount_zat), Some(&c.txid), format!("tab of {n} tokens issued"));
+    Json(TabIssueResponse { key_id: k.key_id.clone(), blind_signatures: sigs }).into_response()
 }
 
 async fn quote(State(app): State<Arc<App>>, ConnectInfo(peer): ConnectInfo<SocketAddr>, headers: HeaderMap) -> Response {
@@ -646,6 +813,7 @@ fn router(app: Arc<App>) -> Router {
         .route("/", get(|| async { Html(DASHBOARD) }))
         .route(QUOTE_PATH, get(quote))
         .route("/api/redeem", axum::routing::post(redeem_api))
+        .route(TAB_ISSUE_PATH, axum::routing::post(tab_issue))
         .route("/api/challenge/{nonce}/qr.svg", get(challenge_qr))
         .route("/api/events", get(events))
         .route("/api/status", get(status))
@@ -701,6 +869,8 @@ async fn main() {
         min_confirmations,
         expiry_grace_secs: nonneg("X402Z_EXPIRY_GRACE_SECS", DEFAULT_EXPIRY_GRACE_SECS),
         redeem_window_secs: nonneg("X402Z_REDEEM_WINDOW_SECS", DEFAULT_REDEEM_WINDOW_SECS),
+        tab_max_tokens: u32::try_from(nonneg("X402Z_TAB_MAX_TOKENS", tab::DEFAULT_MAX_TOKENS as u64)).unwrap_or(u32::MAX),
+        tab_epoch_secs: nonneg("X402Z_TAB_EPOCH_SECS", tab::DEFAULT_EPOCH_SECS).max(60),
     };
     let db_path = PathBuf::from(optional("X402Z_SERVER_DB").unwrap_or_else(|| "x402z-server.sqlite".into()));
     let store = Store::open(&db_path).unwrap_or_else(|e| {
@@ -726,7 +896,22 @@ async fn main() {
         eprintln!("error: cannot build HTTP client: {e}");
         exit(1);
     });
-    let app = Arc::new(App { cfg, store, http, book: Mutex::new(Book::default()), limiter: Mutex::new(ChallengeLimiter::new(rate)) });
+    let app = Arc::new(App {
+        cfg,
+        store,
+        http,
+        tab: RwLock::new(None),
+        book: Mutex::new(Book::default()),
+        limiter: Mutex::new(ChallengeLimiter::new(rate)),
+    });
+    match tab_key(&app) {
+        Ok(Some(k)) => eprintln!("tab: key {} ({} tokens max per payment)", k.key_id, app.cfg.tab_max_tokens),
+        Ok(None) => eprintln!("tab: off (X402Z_TAB_MAX_TOKENS=0)"),
+        Err(e) => {
+            eprintln!("error: {e}");
+            exit(2);
+        }
+    }
     let router = router(app).into_make_service_with_connect_info::<SocketAddr>();
     let listener = tokio::net::TcpListener::bind(&bind).await.unwrap_or_else(|e| {
         eprintln!("error: cannot bind {bind}: {e}");
@@ -944,10 +1129,36 @@ mod tests {
             min_confirmations: 1,
             expiry_grace_secs: GRACE,
             redeem_window_secs: DEFAULT_REDEEM_WINDOW_SECS,
+            tab_max_tokens: 5,
+            tab_epoch_secs: tab::DEFAULT_EPOCH_SECS,
         };
         let store = Store::open(db).unwrap();
+        // One RSA key for the whole test binary (generation is slow); a store that already
+        // has an active key (restart tests) keeps it.
+        if store.active_tab_key().unwrap().is_none() {
+            tab::install(&store, test_tab_key_der(), now()).unwrap();
+        }
         let http = reqwest::Client::new();
-        Arc::new(App { cfg, store, http, book: Mutex::new(Book::default()), limiter: Mutex::new(ChallengeLimiter::new(rate)) })
+        Arc::new(App {
+            cfg,
+            store,
+            http,
+            tab: RwLock::new(None),
+            book: Mutex::new(Book::default()),
+            limiter: Mutex::new(ChallengeLimiter::new(rate)),
+        })
+    }
+
+    fn test_tab_key_der() -> &'static [u8] {
+        static DER: std::sync::OnceLock<Vec<u8>> = std::sync::OnceLock::new();
+        DER.get_or_init(|| {
+            let kp = blind_rsa_signatures::KeyPair::<blind_rsa_signatures::Sha384, blind_rsa_signatures::PSS, blind_rsa_signatures::Randomized>::generate(
+                &mut blind_rsa_signatures::DefaultRng,
+                2048,
+            )
+            .unwrap();
+            kp.sk.to_der().unwrap()
+        })
     }
 
     fn test_app(rate: u32) -> Arc<App> {
@@ -1049,13 +1260,15 @@ mod tests {
     const TX_PENDING: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
     const TX_UNDERPAID: &str = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
     const TX_FOREIGN_KEY: &str = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
+    /// Pays three times the challenge price (a tab of up to 3 tokens).
+    const TX_PAID_3X: &str = "3333333333333333333333333333333333333333333333333333333333333333";
 
     async fn stand_in_settle(Json(req): Json<FacilitatorRequest>) -> Response {
         let pay = req.payment_payload.zcash_payload().unwrap();
         let ch = req.payment_requirements.to_challenge().unwrap();
         let claims = ReceiptClaims {
             memo_nonce: pay.memo_nonce.clone(),
-            amount_zat: ch.amount_zat,
+            amount_zat: if pay.txid == TX_PAID_3X { 3 * ch.amount_zat } else { ch.amount_zat },
             pay_to: ch.pay_to.clone(),
             txid: pay.txid.clone(),
             confirmations: 2,
@@ -1081,7 +1294,7 @@ mod tests {
             error: Some(msg.into()),
         };
         let r = match pay.txid.as_str() {
-            TX_OK => confirmed(&key()),
+            TX_OK | TX_PAID_3X => confirmed(&key()),
             TX_FOREIGN_KEY => confirmed(&SigningKey::from_bytes(&[9u8; 32])),
             TX_PENDING => failed(VerifyStatus::Pending, reason::PENDING, "payment found (100000 zat) with 0 confirmation(s); need 1"),
             TX_UNDERPAID => failed(VerifyStatus::Rejected, reason::INVALID_PAYMENT, "underpaid: 99999 zat < 100000 zat"),
@@ -1294,5 +1507,207 @@ mod tests {
         assert_eq!(r.status(), StatusCode::BAD_REQUEST);
         let r = post_redeem(app.clone(), serde_json::json!({"txid": TX_OK})).await;
         assert_eq!(r.status(), StatusCode::BAD_REQUEST);
+    }
+
+    // -- Kage Tab: attack tests -------------------------------------------------------------------
+
+    use blind_rsa_signatures::{BlindSignature, BlindingResult, DefaultRng};
+    use x402z_protocol::{b64, b64_any, TabOffer, TabPayload};
+
+    /// What a tab client does: blind n fresh random messages for the offered key.
+    fn blind_n(offer: &TabOffer, n: usize) -> (tab::Pk, Vec<(Vec<u8>, BlindingResult)>) {
+        let pk = tab::Pk::from_spki(&b64_any(&offer.public_key).unwrap()).unwrap();
+        let toks = (0..n)
+            .map(|_| {
+                let mut msg = vec![0u8; 32];
+                rand::thread_rng().fill_bytes(&mut msg);
+                let br = pk.blind(&mut DefaultRng, &msg).unwrap();
+                (msg, br)
+            })
+            .collect();
+        (pk, toks)
+    }
+
+    async fn tab_offer_and_nonce(app: &Arc<App>) -> (TabOffer, String) {
+        let v = body_json(get_quote(app.clone(), [10, 0, 0, 1], None).await).await;
+        let extra = &v["accepts"][0]["extra"];
+        (serde_json::from_value(extra["tab"].clone()).unwrap(), extra["memoNonce"].as_str().unwrap().to_string())
+    }
+
+    async fn issue(app: &Arc<App>, nonce: &str, txid: &str, key_id: &str, toks: &[(Vec<u8>, BlindingResult)]) -> Response {
+        let body = serde_json::json!({
+            "memoNonce": nonce, "txid": txid, "keyId": key_id,
+            "blinded": toks.iter().map(|(_, br)| b64(&br.blind_message)).collect::<Vec<_>>(),
+        });
+        let req = axum::http::Request::post("/tab/issue")
+            .header("content-type", "application/json")
+            .header("host", "kage.test")
+            .body(axum::body::Body::from(body.to_string()))
+            .unwrap();
+        call(app.clone(), req).await
+    }
+
+    /// Unblind the server's answer into spendable tokens.
+    async fn finalize(pk: &tab::Pk, toks: &[(Vec<u8>, BlindingResult)], r: Response) -> Vec<TabPayload> {
+        assert_eq!(r.status(), StatusCode::OK);
+        let v = body_json(r).await;
+        let key_id = v["keyId"].as_str().unwrap().to_string();
+        let sigs = v["blindSignatures"].as_array().unwrap();
+        assert_eq!(sigs.len(), toks.len());
+        toks.iter()
+            .zip(sigs)
+            .map(|((msg, br), s)| {
+                let bs = BlindSignature(b64_any(s.as_str().unwrap()).unwrap());
+                let sig = pk.finalize(&bs, br, msg).unwrap(); // also verifies against the public key
+                TabPayload { key_id: key_id.clone(), msg: b64(msg), randomizer: b64(&br.msg_randomizer.unwrap().0), sig: b64(&sig) }
+            })
+            .collect()
+    }
+
+    async fn spend_token(app: &Arc<App>, t: &TabPayload) -> Response {
+        get_quote_with(app.clone(), [10, 0, 0, 1], &[(PAYMENT_HEADER, &encode_header(&PaymentPayload::tab(t)))]).await
+    }
+
+    #[tokio::test]
+    async fn one_payment_buys_n_unlinkable_tokens_each_spendable_once() {
+        let app = app_with_stand_in().await;
+        let (offer, nonce) = tab_offer_and_nonce(&app).await;
+        assert_eq!((offer.scheme.as_str(), offer.suite.as_str(), offer.unit_price_zat, offer.max_tokens), ("zcash-shielded-tab", "RSABSSA-SHA384-PSS-Randomized", 100_000, 5));
+        let (pk, toks) = blind_n(&offer, 3);
+        let tokens = finalize(&pk, &toks, issue(&app, &nonce, TX_PAID_3X, &offer.key_id, &toks).await).await;
+        // the server only ever saw blinded messages, never the messages it later accepts
+        for ((msg, br), t) in toks.iter().zip(&tokens) {
+            assert_ne!(br.blind_message.0, *msg);
+            assert_eq!(b64_any(&t.msg).unwrap(), *msg);
+        }
+        for t in &tokens {
+            let r = spend_token(&app, t).await;
+            assert_eq!(r.status(), StatusCode::OK);
+            let s = settlement_of(&r);
+            assert!(s.success && s.transaction.starts_with("tab:"));
+        }
+        // ATTACK: double-spend a token
+        let r = spend_token(&app, &tokens[1]).await;
+        assert_eq!(r.status(), StatusCode::PAYMENT_REQUIRED);
+        assert_eq!(settlement_of(&r).error_reason.as_deref(), Some(reason::NONCE_USED));
+        assert_eq!(body_json(r).await["error"], "tab token already spent");
+    }
+
+    #[tokio::test]
+    async fn forged_and_tampered_tokens_are_refused() {
+        let app = app_with_stand_in().await;
+        let (offer, nonce) = tab_offer_and_nonce(&app).await;
+        let (pk, toks) = blind_n(&offer, 1);
+        let good = finalize(&pk, &toks, issue(&app, &nonce, TX_OK, &offer.key_id, &toks).await).await.remove(0);
+
+        // ATTACK: random signature bytes
+        let mut forged = good.clone();
+        let mut junk = vec![0u8; 256];
+        rand::thread_rng().fill_bytes(&mut junk);
+        forged.sig = b64(&junk);
+        assert_eq!(body_json(spend_token(&app, &forged).await).await["error"], "tab token signature invalid");
+        // ATTACK: a valid signature moved onto another message
+        let mut moved = good.clone();
+        moved.msg = b64(b"some other message the server never signed");
+        assert_eq!(body_json(spend_token(&app, &moved).await).await["error"], "tab token signature invalid");
+        // ATTACK: different randomizer
+        let mut rnd = good.clone();
+        rnd.randomizer = b64(&[7u8; 32]);
+        assert_eq!(body_json(spend_token(&app, &rnd).await).await["error"], "tab token signature invalid");
+        // ATTACK: a token self-signed with the attacker's own key, claiming the server's keyId
+        let mine = blind_rsa_signatures::KeyPair::<blind_rsa_signatures::Sha384, blind_rsa_signatures::PSS, blind_rsa_signatures::Randomized>::generate(&mut DefaultRng, 2048).unwrap();
+        let msg = b"self-made token".to_vec();
+        let br = mine.pk.blind(&mut DefaultRng, &msg).unwrap();
+        let sig = mine.pk.finalize(&mine.sk.blind_sign(&br.blind_message).unwrap(), &br, &msg).unwrap();
+        let fake = TabPayload { key_id: offer.key_id.clone(), msg: b64(&msg), randomizer: b64(&br.msg_randomizer.unwrap().0), sig: b64(&sig) };
+        assert_eq!(body_json(spend_token(&app, &fake).await).await["error"], "tab token signature invalid");
+        // none of that spent the real token
+        assert_eq!(spend_token(&app, &good).await.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn tokens_from_another_key_epoch_are_refused() {
+        let app = app_with_stand_in().await;
+        let (offer, nonce) = tab_offer_and_nonce(&app).await;
+        let (pk, toks) = blind_n(&offer, 1);
+        let old = finalize(&pk, &toks, issue(&app, &nonce, TX_OK, &offer.key_id, &toks).await).await.remove(0);
+
+        // the epoch rolls over: a new issuing key replaces the old one
+        let new_key = tab::rotate(&app.store, now()).unwrap();
+        *app.tab.write().unwrap() = None;
+        assert_ne!(new_key.key_id, offer.key_id);
+        let r = spend_token(&app, &old).await;
+        assert_eq!(r.status(), StatusCode::PAYMENT_REQUIRED);
+        assert_eq!(settlement_of(&r).error_reason.as_deref(), Some(reason::EXPIRED));
+        assert!(body_json(r).await["error"].as_str().unwrap().contains("another epoch"));
+        // ...and the old token relabelled with the new keyId fails the signature check
+        let mut relabelled = old.clone();
+        relabelled.key_id = new_key.key_id.clone();
+        assert_eq!(body_json(spend_token(&app, &relabelled).await).await["error"], "tab token signature invalid");
+        // issuing against the old keyId is refused too
+        let (offer2, nonce2) = tab_offer_and_nonce(&app).await;
+        assert_eq!(offer2.key_id, new_key.key_id);
+        let (_, toks2) = blind_n(&offer, 1); // blinded for the retired key
+        let r = issue(&app, &nonce2, TX_OK, &offer.key_id, &toks2).await;
+        assert_eq!(r.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
+    #[tokio::test]
+    async fn a_nonce_issues_once_and_underpaid_n_burns_nothing() {
+        let app = app_with_stand_in().await;
+        let (offer, nonce) = tab_offer_and_nonce(&app).await;
+
+        // ATTACK: pay for 1, ask for 2
+        let (pk, two) = blind_n(&offer, 2);
+        let r = issue(&app, &nonce, TX_OK, &offer.key_id, &two).await;
+        assert_eq!(r.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        let v = body_json(r).await;
+        assert!(v["message"].as_str().unwrap().contains("underpaid for 2 tokens"), "{v}");
+        assert!(app.store.get(&nonce).unwrap().unwrap().spent_txid.is_none(), "underpaid n burns nothing");
+
+        // the honest retry with 1 works
+        let one = &two[..1];
+        let toks = finalize(&pk, one, issue(&app, &nonce, TX_OK, &offer.key_id, one).await).await;
+        assert_eq!(toks.len(), 1);
+
+        // ATTACK: reissue on the same nonce (same txid, fresh blinded messages)
+        let (_, again) = blind_n(&offer, 1);
+        let r = issue(&app, &nonce, TX_OK, &offer.key_id, &again).await;
+        assert_eq!(r.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(body_json(r).await["reason"], reason::NONCE_USED);
+        // ...and the nonce can't be redeemed as a single payment either
+        let r = get_quote_with(app.clone(), [10, 0, 0, 1], &[(PAYMENT_HEADER, &x_payment_header(TX_OK, &nonce))]).await;
+        assert_eq!(settlement_of(&r).error_reason.as_deref(), Some(reason::NONCE_USED));
+
+        // more than maxTokens, or malformed blinded messages, are refused up front
+        let (_, six) = blind_n(&offer, 6);
+        let (_, n2) = tab_offer_and_nonce(&app).await;
+        assert_eq!(issue(&app, &n2, TX_PAID_3X, &offer.key_id, &six).await.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn tab_key_and_spent_tokens_survive_a_restart() {
+        let path = tmp_db("tab-restart");
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            axum::serve(listener, Router::new().route(SETTLE_PATH, axum::routing::post(stand_in_settle))).await.unwrap();
+        });
+        let start = || {
+            let mut a = Arc::try_unwrap(test_app_at(100, &path)).ok().unwrap();
+            a.cfg.facilitator_url = format!("http://{addr}");
+            Arc::new(a)
+        };
+        let app = start();
+        let (offer, nonce) = tab_offer_and_nonce(&app).await;
+        let (pk, toks) = blind_n(&offer, 2);
+        let tokens = finalize(&pk, &toks, issue(&app, &nonce, TX_PAID_3X, &offer.key_id, &toks).await).await;
+        assert_eq!(spend_token(&app, &tokens[0]).await.status(), StatusCode::OK);
+        drop(app);
+
+        let app = start();
+        assert_eq!(tab_offer_and_nonce(&app).await.0.key_id, offer.key_id, "same key after restart");
+        assert_eq!(spend_token(&app, &tokens[1]).await.status(), StatusCode::OK);
+        assert_eq!(body_json(spend_token(&app, &tokens[0]).await).await["error"], "tab token already spent");
     }
 }

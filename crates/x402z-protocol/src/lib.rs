@@ -527,3 +527,93 @@ pub fn zip321_uri(pay_to: &str, amount_zat: u64, memo_text: &str) -> String {
 pub fn challenge_uri(ch: &PaymentRequired) -> String {
     zip321_uri(&ch.pay_to, ch.amount_zat, &ch.memo_nonce)
 }
+
+// ---------------------------------------------------------------------------------------------
+// Kage Tab: one shielded payment buys N unlinkable RFC 9474 blind-RSA tokens.
+// ---------------------------------------------------------------------------------------------
+
+/// `X-PAYMENT` scheme for spending one tab token.
+pub const TAB_SCHEME: &str = "zcash-shielded-tab";
+/// RFC 9474 variant used for tab tokens.
+pub const TAB_SUITE: &str = "RSABSSA-SHA384-PSS-Randomized";
+pub const TAB_ISSUE_PATH: &str = "/tab/issue";
+
+/// `extra.tab` in a 402: pay `n * unitPriceZat` (n <= maxTokens) to the challenge, then
+/// `POST /tab/issue` with n blinded messages for the key `keyId`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TabOffer {
+    pub scheme: String,
+    pub suite: String,
+    pub key_id: String,
+    /// Base64 (standard) DER SubjectPublicKeyInfo of the RSA-2048 issuing key.
+    pub public_key: String,
+    pub unit_price_zat: u64,
+    pub max_tokens: u32,
+    pub issue_path: String,
+    /// Unix seconds after which this key's unspent tokens stop being accepted.
+    pub epoch_ends_at: u64,
+}
+
+/// `POST /tab/issue` body. Blinded messages are base64 (standard or URL-safe).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TabIssueRequest {
+    pub memo_nonce: String,
+    pub txid: String,
+    pub key_id: String,
+    pub blinded: Vec<String>,
+}
+
+/// `POST /tab/issue` answer: one blind signature per blinded message, same order.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TabIssueResponse {
+    pub key_id: String,
+    pub blind_signatures: Vec<String>,
+}
+
+/// `payload` of an `X-PAYMENT` with scheme `zcash-shielded-tab`. All byte fields base64.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TabPayload {
+    pub key_id: String,
+    pub msg: String,
+    /// The 32-byte RFC 9474 message randomizer from blinding.
+    pub randomizer: String,
+    pub sig: String,
+}
+
+impl PaymentPayload {
+    pub fn tab(p: &TabPayload) -> Self {
+        Self {
+            x402_version: X402_VERSION,
+            scheme: TAB_SCHEME.into(),
+            network: NETWORK_TESTNET.into(),
+            payload: serde_json::to_value(p).expect("serializable"),
+        }
+    }
+
+    pub fn tab_payload(&self) -> Result<TabPayload, WireError> {
+        if self.x402_version != X402_VERSION {
+            return Err(WireError::Version(self.x402_version));
+        }
+        if self.scheme != TAB_SCHEME {
+            return Err(WireError::Scheme(self.scheme.clone()));
+        }
+        if self.network != NETWORK_TESTNET {
+            return Err(WireError::Network(self.network.clone()));
+        }
+        serde_json::from_value(self.payload.clone()).map_err(|e| WireError::Json(e.to_string()))
+    }
+}
+
+/// Decode base64 in any of the common alphabets/paddings.
+pub fn b64_any(s: &str) -> Option<Vec<u8>> {
+    let s = s.trim();
+    STANDARD.decode(s).or_else(|_| URL_SAFE.decode(s)).or_else(|_| URL_SAFE_NO_PAD.decode(s)).or_else(|_| base64::engine::general_purpose::STANDARD_NO_PAD.decode(s)).ok()
+}
+
+pub fn b64(bytes: &[u8]) -> String {
+    STANDARD.encode(bytes)
+}

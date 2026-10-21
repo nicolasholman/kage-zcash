@@ -148,3 +148,16 @@ fn settlement_response_matches_spec_fields() {
     let sup = SupportedResponse { kinds: vec![SupportedKind { x402_version: 1, scheme: SCHEME.into(), network: NETWORK_TESTNET.into() }] };
     assert_eq!(serde_json::to_value(&sup).unwrap(), serde_json::json!({"kinds": [{"x402Version": 1, "scheme": "zcash-shielded", "network": "zcash-testnet"}]}));
 }
+
+#[test]
+fn tab_payload_round_trips_and_is_scheme_checked() {
+    let t = TabPayload { key_id: "k1".into(), msg: b64(b"m"), randomizer: b64(&[1u8; 32]), sig: b64(&[2u8; 256]) };
+    let h = encode_header(&PaymentPayload::tab(&t));
+    let p: PaymentPayload = decode_header(&h).unwrap();
+    assert_eq!(p.scheme, TAB_SCHEME);
+    assert_eq!(p.tab_payload().unwrap(), t);
+    // a tab payload is not a zcash-shielded payment, and vice versa
+    assert_eq!(p.zcash_payload(), Err(WireError::Scheme(TAB_SCHEME.into())));
+    assert_eq!(PaymentPayload::zcash("ab", "n").tab_payload(), Err(WireError::Scheme(SCHEME.into())));
+    assert_eq!(b64_any(&t.randomizer).unwrap(), vec![1u8; 32]);
+}
