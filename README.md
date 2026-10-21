@@ -1,11 +1,11 @@
 # Kage — shielded x402: private machine payments for AI agents
 
-HTTP 402 payments for AI agents, settled as **Zcash shielded** testnet transactions. The merchant's facilitator verifies a payment with a viewing key alone (it holds no spend key). Before the agent builds any transaction, **spendguard** checks it against a daily cap, a host allowlist and an approval threshold.
+HTTP 402 payments for AI agents, settled as **Zcash shielded** testnet transactions. The merchant's facilitator verifies a payment with an incoming viewing key alone: it holds no spend key, and it cannot see the merchant's own spends or change. Before the agent builds any transaction, **spendguard** checks it against a daily cap, a host allowlist and an approval threshold.
 
 ```
 agent -> GET /api/quote -> 402 {scheme, network, payTo, amountZat, memoNonce, expiresAt}
       -> spendguard.check() -> shielded tx (memo = nonce)
-      -> facilitator scans with UFVK via lightwalletd -> ed25519 receipt
+      -> facilitator trial-decrypts with the merchant UIVK via lightwalletd -> ed25519 receipt
       -> agent retries with X-PAYMENT-RECEIPT -> 200
 ```
 
@@ -16,7 +16,7 @@ agent -> GET /api/quote -> 402 {scheme, network, payTo, amountZat, memoNonce, ex
 | `crates/spendguard`: cap, allowlist, approval threshold | **Done.** 11 unit tests |
 | `crates/x402z-protocol`: 402 challenge type and validation | **Done.** 4 tests |
 | `crates/x402z-server`: paywalled `/api/quote`, receipt verification, dashboard, per-IP 402 rate limit | **Done.** 10 tests (ed25519 receipt, replay, underpaid, expired, wrong address, 429 + Retry-After) |
-| `crates/x402z-facilitator`: lightwalletd gRPC, UFVK trial decryption (Sapling, Orchard, Ironwood), receipt signing | **Done.** 5 integration tests on real shielded transactions (real keys, real Halo2 proofs, real ed25519). Verified live against testnet.zec.rocks |
+| `crates/x402z-facilitator`: lightwalletd gRPC, incoming-viewing-key trial decryption (Sapling, Orchard, Ironwood), receipt signing | **Done.** 5 integration tests on real shielded transactions (real keys, real Halo2 proofs, real ed25519). Verified live against testnet.zec.rocks |
 | `crates/x402z-agent`: 402 → spendguard → `zcash_client_sqlite` wallet → pay → receipt → retry, ledger writer | **Done.** 4 ledger tests. Paid live on testnet |
 | Encrypted audit log (only the owner's viewing key can read it) | Not started. The ledger is plain JSON |
 | Paid end-to-end runs on testnet | **Done.** [`030c3cbf…8351`](https://testnet.zecblock.com/tx/030c3cbf78ce8460553bba4e82c0ba813f039bd3ecf4d7f2e81c59837dc28351) (block 4521112) and the demo-video run [`cd64980a…916d`](https://testnet.zecblock.com/tx/cd64980a5247881a727aa916476a3ba757e59794263c2ff1bcde467654a0916d) (block 4521440); see [Verified testnet runs](#verified-testnet-runs) |
@@ -26,11 +26,11 @@ Nothing is mocked. If a binary is missing a key, a wallet or funds, it stops wit
 ## Do X → see Y
 
 1. Run `cargo test --workspace`. You should see 34 tests pass: spendguard 11, protocol 4, server 10, agent 4, facilitator 5. The facilitator tests build real shielded transactions with Halo2 proofs and take about 30 s.
-2. Run `cargo run -p x402z-facilitator` with no `.env`. It prints `error: X402Z_MERCHANT_UFVK not configured` and exits with code 2.
+2. Run `cargo run -p x402z-facilitator` with no `.env`. It prints `error: X402Z_MERCHANT_UIVK not configured` and exits with code 2.
    - If `ZCASH_LWD_URL` is unset, it says so and uses `https://testnet.zec.rocks:443`.
    - If lightwalletd is unreachable, it prints `error: cannot connect to lightwalletd: …` and exits with code 1.
 3. Run `cargo run -p x402z-facilitator -- keygen`. It prints a fresh `X402Z_RECEIPT_SIGNING_KEY` / `X402Z_RECEIPT_PUBKEY` pair.
-4. Run `X402Z_AGENT_WALLET_DIR=./wallets/merchant cargo run -p x402z-agent -- new-wallet`. It creates a real testnet wallet and prints its seed phrase, birthday height, shielded address and UFVK. Use one such wallet for the merchant (UA + UFVK) and another for the agent.
+4. Run `X402Z_AGENT_WALLET_DIR=./wallets/merchant cargo run -p x402z-agent -- new-wallet`. It creates a real testnet wallet and prints its seed phrase, birthday height, shielded address and incoming viewing key (UIVK). Use one such wallet for the merchant (UA + UIVK) and another for the agent.
 5. Run the agent. Each exit code means one thing:
 
    | Situation | Output | Exit |
@@ -44,13 +44,21 @@ Nothing is mocked. If a binary is missing a key, a wallet or funds, it stops wit
    Every decision is appended to `X402Z_AGENT_LEDGER`, and the dashboard shows it.
 6. Send more than `X402Z_CHALLENGE_RATE_PER_MIN` requests (default 30) to `/api/quote` from one IP. You get `429 Too Many Requests` with a `Retry-After` header. A request that redeems a valid receipt is never rate limited.
 
-## Facilitator API (merchant side, viewing key only)
+## Facilitator key: incoming viewing key by default
+
+The facilitator reads `X402Z_MERCHANT_UIVK` (`uivktest1…`), the merchant's unified *incoming* viewing key. That is the least key that can see a payment: it decrypts notes sent to the merchant's external addresses, and nothing else. It cannot see the merchant's spends, change or outgoing payments, and it cannot spend.
+
+`X402Z_MERCHANT_UFVK` (a full viewing key) still works for older setups, but the facilitator logs a warning at startup, keeps only the incoming part, and `/health` reports `viewingKey: "ufvk (incoming part only…)"`. Get the UIVK from a UFVK with `X402Z_MERCHANT_UFVK=… x402z-facilitator derive-uivk`.
+
+Tests: every real-transaction case runs through the UIVK (decoded from its string) and the UFVK-reduced key, and must agree. A separate test builds the merchant's own change and outgoing outputs, with the open challenge's nonce in every memo. It checks that the full key sees all four outputs and that the incoming key sees none, so none of them can be credited.
+
+## Facilitator API (merchant side, incoming viewing key only)
 
 - `GET /health` makes a live lightwalletd round trip. It returns `200 {ok, chainTip, lightwalletd, receiptPubkey, minConfirmations}`, or `503` with the error.
 - `POST /verify` takes `{challenge: <the 402 JSON>, txid: "<explorer-order hex>"}`. The facilitator then:
   1. fetches the tx with `GetTransaction`;
   2. parses it at the consensus branch of its mined height;
-  3. trial-decrypts it with the UFVK's external incoming viewing key;
+  3. trial-decrypts every Sapling, Orchard and Ironwood output with the merchant's incoming viewing key;
   4. sums the outputs whose text memo equals `memoNonce` and whose recipient is `payTo`'s receiver for that pool. Sapling notes must go to the Sapling receiver. Orchard and Ironwood notes must go to the Orchard receiver.
 
   Responses:
@@ -97,7 +105,7 @@ Earlier unfunded runs (health, rejections of foreign txs, exit codes 3/4) are lo
 **What a paid run needs** (all three were in place for the [verified runs](#verified-testnet-runs)):
 
 1. **A funded testnet wallet for the agent.** Put its 24-word BIP 39 phrase in `X402Z_AGENT_SEED` and its birthday height in `X402Z_AGENT_BIRTHDAY`. It needs at least 0.0011 TAZ spendable (price plus fee); more allows repeated runs. Alternatively, run `x402z-agent new-wallet` and send TAZ to the address it prints.
-2. **A merchant UA and UFVK.** Any testnet wallet's UFVK works, as long as the UA is derived from it. Or run `new-wallet` into a second directory; you only need its seed later, to spend the income.
+2. **A merchant UA and UIVK.** Any testnet wallet works, as long as the UA is derived from the same key. Run `new-wallet` into a second directory: it prints the UA and UIVK. You only need its seed later, to spend the income.
 3. **A receipt key pair**, from `x402z-facilitator keygen`.
 
 **Commands.** Put every variable from `.env.example` in one `.env`, then:

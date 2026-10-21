@@ -71,6 +71,11 @@ pub fn encode_ufvk(ufvk: &UnifiedFullViewingKey) -> Result<String, String> {
     ufvk.encode(&NETWORK).map_err(|e| format!("cannot encode viewing key: {e:?}"))
 }
 
+/// The account's unified incoming viewing key (what a merchant's facilitator needs).
+pub fn encode_uivk(ufvk: &UnifiedFullViewingKey) -> Result<String, String> {
+    ufvk.to_unified_incoming_viewing_key().encode(&NETWORK).map_err(|e| format!("cannot encode incoming viewing key: {e:?}"))
+}
+
 /// Shielded-only UA with both an Orchard (also used by Ironwood) and a Sapling receiver, so
 /// any shielded testnet wallet can pay it; no transparent receiver.
 pub fn address(ufvk: &UnifiedFullViewingKey) -> Result<String, String> {

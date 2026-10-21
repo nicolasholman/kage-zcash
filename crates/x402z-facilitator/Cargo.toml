@@ -1,6 +1,6 @@
 [package]
 name = "x402z-facilitator"
-description = "x402z facilitator: verifies shielded payments with the merchant UFVK via lightwalletd and signs ed25519 receipts"
+description = "x402z facilitator: verifies shielded payments with the merchant incoming viewing key via lightwalletd and signs ed25519 receipts"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -25,6 +25,7 @@ zcash_primitives = "=0.31.0-pre.2"
 zcash_protocol = "=0.11.0-pre.1"
 orchard = "0.16"
 sapling = { package = "sapling-crypto", version = "0.9" }
+zcash_note_encryption = "0.5"
 tonic = { version = "0.14", features = ["transport", "tls-ring", "tls-webpki-roots"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "time"] }
 axum = "0.8"
@@ -42,5 +43,3 @@ sapling = { package = "sapling-crypto", version = "0.9", features = ["test-depen
 secp256k1 = "0.33"
 zip32 = "0.3"
 rand10 = { package = "rand", version = "0.10" }
-# examples/check_uivk.rs
-zcash_note_encryption = "0.5"

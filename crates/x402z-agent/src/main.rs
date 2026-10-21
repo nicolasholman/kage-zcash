@@ -139,8 +139,8 @@ async fn cmd_new_wallet() {
     println!("X402Z_AGENT_BIRTHDAY={tip}");
     println!("# Fund this shielded address with testnet ZEC (TAZ):");
     println!("address={ua}");
-    println!("# Viewing key (for X402Z_MERCHANT_UFVK if this wallet is a merchant):");
-    println!("ufvk={}", wallet::encode_ufvk(&ufvk).unwrap_or_else(|e| die(1, e)));
+    println!("# Incoming viewing key (for X402Z_MERCHANT_UIVK if this wallet is a merchant):");
+    println!("X402Z_MERCHANT_UIVK={}", wallet::encode_uivk(&ufvk).unwrap_or_else(|e| die(1, e)));
 }
 
 async fn cmd_address() {
@@ -150,7 +150,7 @@ async fn cmd_address() {
         .unwrap_or_else(|| die(4, "no wallet account yet; run `x402z-agent new-wallet` or `x402z-agent balance` with X402Z_AGENT_SEED"));
     let ufvk = wallet::ufvk(&db, id).unwrap_or_else(|e| die(1, e));
     println!("address={}", wallet::address(&ufvk).unwrap_or_else(|e| die(1, e)));
-    println!("ufvk={}", wallet::encode_ufvk(&ufvk).unwrap_or_else(|e| die(1, e)));
+    println!("uivk={}", wallet::encode_uivk(&ufvk).unwrap_or_else(|e| die(1, e)));
 }
 
 async fn cmd_balance() {

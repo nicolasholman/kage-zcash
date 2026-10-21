@@ -1,25 +1,140 @@
-//! Does a transaction pay a 402 challenge? Decided by trial decryption with the merchant UFVK.
+//! Does a transaction pay a 402 challenge? Decided by trial decryption with the merchant's
+//! unified *incoming* viewing key (UIVK), the least key that can see payments.
 //!
 //! An output counts toward the challenge only if it
-//! 1. decrypts with the UFVK's *external* incoming viewing key (a real incoming payment, not
-//!    change or an outgoing output recovered with the OVK),
+//! 1. decrypts with the merchant's *external* incoming viewing key for its pool (a real incoming
+//!    payment; change and outgoing outputs never decrypt with this key),
 //! 2. carries a text memo exactly equal to `memoNonce`, and
 //! 3. was sent to the receiver of `payTo` for its pool (Sapling receiver for Sapling notes,
 //!    the Orchard receiver for Orchard and Ironwood notes, which share it).
 //!
 //! The values of all such outputs are summed and compared to `amountZat`.
+//!
+//! A full viewing key (UFVK) is accepted for compatibility, but only its incoming part is used:
+//! [`MerchantKey::from_ufvk`] keeps the derived UIVK and drops the rest.
 
-use std::collections::HashMap;
-
-use zcash_client_backend::{decrypt_transaction, TransferType};
-use zcash_keys::{address::Address, keys::UnifiedFullViewingKey};
-use zcash_primitives::transaction::Transaction;
+use orchard::note_encryption::{DomainVersion, IronwoodVersion, NoteEncryptionDomain, OrchardVersion};
+use sapling::note_encryption::SaplingDomain;
+use zcash_keys::{
+    address::Address,
+    keys::{UnifiedFullViewingKey, UnifiedIncomingViewingKey},
+};
+use zcash_note_encryption::try_note_decryption;
+use zcash_primitives::transaction::{components::sapling::zip212_enforcement, Transaction};
 use zcash_protocol::{
     consensus::{BlockHeight, BranchId, Parameters},
-    memo::Memo,
+    memo::{Memo, MemoBytes},
     ShieldedPool,
 };
 use x402z_protocol::PaymentRequired;
+
+/// The merchant key the facilitator verifies with: always a unified incoming viewing key.
+#[derive(Debug, Clone)]
+pub struct MerchantKey {
+    uivk: UnifiedIncomingViewingKey,
+    /// True when it was derived from a full viewing key (the operator gave more than needed).
+    pub from_full_key: bool,
+}
+
+impl MerchantKey {
+    pub fn from_uivk(uivk: UnifiedIncomingViewingKey) -> Self {
+        Self { uivk, from_full_key: false }
+    }
+
+    /// Keep only the external incoming part of `ufvk`; the full key is not retained.
+    pub fn from_ufvk(ufvk: &UnifiedFullViewingKey) -> Self {
+        Self { uivk: ufvk.to_unified_incoming_viewing_key(), from_full_key: true }
+    }
+
+    /// Decode a `uivktest1...` string.
+    pub fn decode_uivk<P: Parameters>(params: &P, s: &str) -> Result<Self, String> {
+        UnifiedIncomingViewingKey::decode(params, s.trim()).map(Self::from_uivk).map_err(|e| e.to_string())
+    }
+
+    /// Decode a `uviewtest1...` string and reduce it to its incoming part.
+    pub fn decode_ufvk<P: Parameters>(params: &P, s: &str) -> Result<Self, String> {
+        UnifiedFullViewingKey::decode(params, s.trim()).map(|k| Self::from_ufvk(&k)).map_err(|e| e.to_string())
+    }
+
+    pub fn uivk(&self) -> &UnifiedIncomingViewingKey {
+        &self.uivk
+    }
+}
+
+/// One output that decrypted with the merchant's incoming viewing key.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IncomingOutput {
+    pub pool: ShieldedPool,
+    pub value_zat: u64,
+    /// Raw 512-byte memo field.
+    pub memo: [u8; 512],
+    pub recipient: Recipient,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Recipient {
+    Sapling(sapling::PaymentAddress),
+    /// Orchard and Ironwood notes (same receiver type).
+    Orchard(orchard::Address),
+}
+
+/// The memo as text, if it is a text memo.
+pub fn memo_text(memo: &[u8; 512]) -> Option<String> {
+    match MemoBytes::from_bytes(memo).ok().and_then(|b| Memo::try_from(&b).ok()) {
+        Some(Memo::Text(t)) => Some(t.to_string()),
+        _ => None,
+    }
+}
+
+fn orchard_family<V: DomainVersion>(
+    pool: ShieldedPool,
+    ivk: &orchard::keys::IncomingViewingKey,
+    bundle: &orchard::bundle::Bundle<orchard::bundle::Authorized, zcash_protocol::value::ZatBalance>,
+    out: &mut Vec<IncomingOutput>,
+) {
+    let p = orchard::keys::PreparedIncomingViewingKey::new(ivk);
+    for a in bundle.actions() {
+        let d = NoteEncryptionDomain::<V>::for_action(a);
+        if let Some((note, addr, memo)) = try_note_decryption(&d, &p, a) {
+            out.push(IncomingOutput { pool, value_zat: note.value().inner(), memo, recipient: Recipient::Orchard(addr) });
+        }
+    }
+}
+
+/// Trial-decrypt every Sapling, Orchard and Ironwood output of `tx` with the incoming viewing
+/// key, per pool. `height` is the mined height (or the next block for a mempool tx); it picks
+/// the Sapling ZIP 212 rules.
+pub fn incoming_outputs<P: Parameters>(
+    params: &P,
+    uivk: &UnifiedIncomingViewingKey,
+    tx: &Transaction,
+    height: BlockHeight,
+) -> Vec<IncomingOutput> {
+    let mut out = Vec::new();
+    if let (Some(b), Some(ivk)) = (tx.sapling_bundle(), uivk.sapling()) {
+        let d = SaplingDomain::new(zip212_enforcement(params, height));
+        let p = ivk.prepare();
+        for o in b.shielded_outputs() {
+            if let Some((note, addr, memo)) = try_note_decryption(&d, &p, o) {
+                out.push(IncomingOutput {
+                    pool: ShieldedPool::Sapling,
+                    value_zat: note.value().inner(),
+                    memo,
+                    recipient: Recipient::Sapling(addr),
+                });
+            }
+        }
+    }
+    if let Some(ivk) = uivk.orchard() {
+        if let Some(b) = tx.orchard_bundle() {
+            orchard_family::<OrchardVersion>(ShieldedPool::Orchard, ivk, b, &mut out);
+        }
+        if let Some(b) = tx.ironwood_bundle() {
+            orchard_family::<IronwoodVersion>(ShieldedPool::Ironwood, ivk, b, &mut out);
+        }
+    }
+    out
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Payment {
@@ -81,15 +196,12 @@ pub fn parse_tx<P: Parameters>(
     Transaction::read(data, BranchId::for_height(params, height)).map_err(|e| VerifyError::Unparseable(e.to_string()))
 }
 
-fn memo_matches(memo: &zcash_protocol::memo::MemoBytes, nonce: &str) -> bool {
-    matches!(Memo::try_from(memo), Ok(Memo::Text(t)) if &*t == nonce)
-}
-
-/// Check that `tx` pays `challenge`. Does not check expiry or confirmation policy; the caller
-/// owns those (they depend on wall-clock time and configuration).
+/// Check that `tx` pays `challenge`, seen through the merchant's incoming viewing key only.
+/// Does not check expiry or confirmation policy; the caller owns those (they depend on
+/// wall-clock time and configuration).
 pub fn verify_payment<P: Parameters>(
     params: &P,
-    ufvk: &UnifiedFullViewingKey,
+    key: &MerchantKey,
     challenge: &PaymentRequired,
     tx: &Transaction,
     mined: Option<BlockHeight>,
@@ -105,37 +217,24 @@ pub fn verify_payment<P: Parameters>(
         return Err(VerifyError::BadPayTo);
     }
 
-    let ufvks = HashMap::from([(0u32, ufvk.clone())]);
-    let d = decrypt_transaction(params, mined, Some(tip), tx, &ufvks);
-
     let nonce = challenge.memo_nonce.as_str();
     let mut memo_seen = false;
     let mut paid: u64 = 0;
     let mut pools = Vec::new();
-    let mut credit = |value: u64, pool: ShieldedPool| {
-        paid = paid.saturating_add(value);
-        if !pools.contains(&pool) {
-            pools.push(pool);
-        }
-    };
-
-    for o in d.sapling_outputs() {
-        if o.transfer_type() != TransferType::Incoming || !memo_matches(o.memo(), nonce) {
+    for o in incoming_outputs(params, key.uivk(), tx, mined.unwrap_or(tip + 1)) {
+        if memo_text(&o.memo).as_deref() != Some(nonce) {
             continue;
         }
         memo_seen = true;
-        if ua.sapling() == Some(&o.note().recipient()) {
-            credit(o.note().value().inner(), o.value_pool());
-        }
-    }
-    for o in d.orchard_outputs().iter().chain(d.ironwood_outputs()) {
-        if o.transfer_type() != TransferType::Incoming || !memo_matches(o.memo(), nonce) {
-            continue;
-        }
-        memo_seen = true;
-        let (note, _) = o.note();
-        if ua.orchard() == Some(&note.recipient()) {
-            credit(note.value().inner(), o.value_pool());
+        let to_pay_to = match &o.recipient {
+            Recipient::Sapling(a) => ua.sapling() == Some(a),
+            Recipient::Orchard(a) => ua.orchard() == Some(a),
+        };
+        if to_pay_to {
+            paid = paid.saturating_add(o.value_zat);
+            if !pools.contains(&o.pool) {
+                pools.push(o.pool);
+            }
         }
     }
 

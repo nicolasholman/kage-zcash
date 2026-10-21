@@ -3,8 +3,8 @@
 //!     cargo run -p x402z-facilitator --example check_uivk -- <uivktest1...> <txid> [memoNonce]
 //!
 //! Fetches the transaction from lightwalletd (`X402Z_LWD_URL`, default testnet.zec.rocks),
-//! trial-decrypts every Sapling, Orchard and Ironwood output with the UIVK, and prints what it
-//! finds. An incoming key sees received notes and their memos; it cannot see spends or change,
+//! trial-decrypts every Sapling, Orchard and Ironwood output with the UIVK (the same
+//! `verify::incoming_outputs` the facilitator uses), and prints what it finds. An incoming key sees received notes and their memos; it cannot see spends or change,
 //! and it cannot spend.
 //!
 //!     cargo run -p x402z-facilitator --example check_uivk -- derive
@@ -12,13 +12,8 @@
 //! prints the UIVK for the UFVK in `X402Z_MERCHANT_UFVK` (read from the environment, never
 //! from the command line).
 
-use orchard::note_encryption::{DomainVersion, IronwoodVersion, NoteEncryptionDomain, OrchardVersion};
-use sapling::note_encryption::SaplingDomain;
 use x402z_facilitator::{lwd, verify, NETWORK};
 use zcash_keys::keys::{UnifiedFullViewingKey, UnifiedIncomingViewingKey};
-use zcash_note_encryption::try_note_decryption;
-use zcash_primitives::transaction::components::sapling::zip212_enforcement;
-use zcash_protocol::memo::{Memo, MemoBytes};
 
 fn die(msg: impl std::fmt::Display) -> ! {
     eprintln!("error: {msg}");
@@ -26,25 +21,10 @@ fn die(msg: impl std::fmt::Display) -> ! {
 }
 
 fn memo_text(m: &[u8; 512]) -> String {
-    match MemoBytes::from_bytes(m).ok().and_then(|b| Memo::try_from(&b).ok()) {
-        Some(Memo::Text(t)) => format!("text {:?}", &*t),
-        Some(Memo::Empty) => "empty".into(),
-        _ => "non-text".into(),
-    }
-}
-
-fn orchard_family<V: DomainVersion>(
-    pool: &str,
-    ivk: &orchard::keys::IncomingViewingKey,
-    bundle: &orchard::bundle::Bundle<orchard::bundle::Authorized, zcash_protocol::value::ZatBalance>,
-    found: &mut Vec<(String, u64, String)>,
-) {
-    let p = orchard::keys::PreparedIncomingViewingKey::new(ivk);
-    for a in bundle.actions() {
-        let d = NoteEncryptionDomain::<V>::for_action(a);
-        if let Some((note, _, memo)) = try_note_decryption(&d, &p, a) {
-            found.push((pool.into(), note.value().inner(), memo_text(&memo)));
-        }
+    match verify::memo_text(m) {
+        Some(t) => format!("text {t:?}"),
+        None if m.iter().all(|b| *b == 0) || m[0] == 0xF6 => "empty".into(),
+        None => "non-text".into(),
     }
 }
 
@@ -79,24 +59,10 @@ async fn main() {
         die("lightwalletd returned a different transaction");
     }
 
-    let mut found = Vec::new();
-    if let (Some(b), Some(ivk)) = (tx.sapling_bundle(), uivk.sapling()) {
-        let d = SaplingDomain::new(zip212_enforcement(&NETWORK, mined.unwrap_or(tip + 1)));
-        let p = ivk.prepare();
-        for o in b.shielded_outputs() {
-            if let Some((note, _, memo)) = try_note_decryption(&d, &p, o) {
-                found.push(("Sapling".into(), note.value().inner(), memo_text(&memo)));
-            }
-        }
-    }
-    if let Some(ivk) = uivk.orchard() {
-        if let Some(b) = tx.orchard_bundle() {
-            orchard_family::<OrchardVersion>("Orchard", ivk, b, &mut found);
-        }
-        if let Some(b) = tx.ironwood_bundle() {
-            orchard_family::<IronwoodVersion>("Ironwood", ivk, b, &mut found);
-        }
-    }
+    let found: Vec<(String, u64, String)> = verify::incoming_outputs(&NETWORK, &uivk, &tx, mined.unwrap_or(tip + 1))
+        .into_iter()
+        .map(|o| (format!("{:?}", o.pool), o.value_zat, memo_text(&o.memo)))
+        .collect();
 
     let conf = verify::confirmations(mined, tip);
     match mined {

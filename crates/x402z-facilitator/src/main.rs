@@ -1,11 +1,17 @@
-//! Facilitator: merchant UFVK only (no spend key). Fetches a payer's transaction from
-//! lightwalletd, trial-decrypts it with the UFVK, checks it against the 402 challenge and
-//! signs an ed25519 receipt for `X-PAYMENT-RECEIPT`.
+//! Facilitator: merchant incoming viewing key only (no spend key, and by default no full
+//! viewing key). Fetches a payer's transaction from lightwalletd, trial-decrypts it with the
+//! UIVK, checks it against the 402 challenge and signs an ed25519 receipt for
+//! `X-PAYMENT-RECEIPT`.
+//!
+//! Key: `X402Z_MERCHANT_UIVK` (`uivktest1...`, recommended). `X402Z_MERCHANT_UFVK` still works
+//! but logs a warning: a full viewing key also reveals the merchant's outgoing payments and
+//! change, which the facilitator never needs. Only its incoming part is kept in memory.
 //!
 //! `GET /health`  live lightwalletd round-trip; 200 with the chain tip, 503 if it fails.
 //! `POST /verify` `{challenge, txid}` -> `VerifyResponse` (see x402z_protocol).
 //!
 //! `x402z-facilitator keygen` prints a fresh receipt key pair for `.env`.
+//! `x402z-facilitator derive-uivk` prints the UIVK for the UFVK in `X402Z_MERCHANT_UFVK`.
 use std::{
     collections::HashMap,
     process::exit,
@@ -25,11 +31,10 @@ use ed25519_dalek::SigningKey;
 use x402z_facilitator::{
     lwd::{self, FetchedTx, TxLocation},
     receipt,
-    verify::{self, VerifyError},
+    verify::{self, MerchantKey, VerifyError},
     NETWORK,
 };
 use x402z_protocol::{ReceiptClaims, VerifyRequest, VerifyResponse, VerifyStatus, HEALTH_PATH, VERIFY_PATH};
-use zcash_keys::keys::UnifiedFullViewingKey;
 
 fn require(var: &str) -> String {
     match std::env::var(var) {
@@ -52,7 +57,7 @@ fn now() -> u64 {
 struct App {
     lwd_url: String,
     lwd: lwd::Client,
-    ufvk: UnifiedFullViewingKey,
+    key: MerchantKey,
     signing_key: SigningKey,
     /// When set, challenges for any other `payTo` are refused outright.
     merchant_ua: Option<String>,
@@ -136,7 +141,7 @@ async fn verify_handler(State(app): State<Arc<App>>, body: Bytes) -> Response {
         if tx.txid() != txid {
             return Err(VerifyError::TxidMismatch { asked: txid_hex.clone(), got: tx.txid().to_string() });
         }
-        verify::verify_payment(&NETWORK, &app.ufvk, ch, &tx, mined, tip)
+        verify::verify_payment(&NETWORK, &app.key, ch, &tx, mined, tip)
     });
     let payment = match result {
         Ok(p) => p,
@@ -205,6 +210,7 @@ async fn health(State(app): State<Arc<App>>) -> Response {
             "lightwalletd": app.lwd_url,
             "chainTip": u32::from(tip),
             "minConfirmations": app.min_confirmations,
+            "viewingKey": if app.key.from_full_key { "ufvk (incoming part only; prefer X402Z_MERCHANT_UIVK)" } else { "uivk" },
             "receiptPubkey": hex::encode(app.signing_key.verifying_key().as_bytes()),
         }))
         .into_response(),
@@ -213,6 +219,51 @@ async fn health(State(app): State<Arc<App>>) -> Response {
             Json(serde_json::json!({ "ok": false, "lightwalletd": app.lwd_url, "error": e.to_string() })),
         )
             .into_response(),
+    }
+}
+
+/// The merchant key from the environment: UIVK preferred, UFVK accepted with a warning.
+fn merchant_key() -> MerchantKey {
+    match (optional("X402Z_MERCHANT_UIVK"), optional("X402Z_MERCHANT_UFVK")) {
+        (Some(_), Some(_)) => {
+            eprintln!("error: set only one of X402Z_MERCHANT_UIVK and X402Z_MERCHANT_UFVK (the UIVK is enough)");
+            exit(2);
+        }
+        (Some(s), None) => MerchantKey::decode_uivk(&NETWORK, &s).unwrap_or_else(|e| {
+            eprintln!("error: X402Z_MERCHANT_UIVK is not a testnet unified incoming viewing key (uivktest1...): {e}");
+            exit(2);
+        }),
+        (None, Some(s)) => {
+            let k = MerchantKey::decode_ufvk(&NETWORK, &s).unwrap_or_else(|e| {
+                eprintln!("error: X402Z_MERCHANT_UFVK is not a testnet unified full viewing key (uviewtest1...): {e}");
+                exit(2);
+            });
+            eprintln!(
+                "warning: X402Z_MERCHANT_UFVK is a full viewing key; it also reveals the merchant's outgoing payments \
+                 and change. The facilitator only needs incoming payments: set X402Z_MERCHANT_UIVK instead \
+                 (`x402z-facilitator derive-uivk` prints it). Using only the UFVK's incoming part."
+            );
+            k
+        }
+        (None, None) => {
+            eprintln!("error: X402Z_MERCHANT_UIVK not configured (see .env.example)");
+            exit(2);
+        }
+    }
+}
+
+fn derive_uivk() {
+    let s = require("X402Z_MERCHANT_UFVK");
+    let k = MerchantKey::decode_ufvk(&NETWORK, &s).unwrap_or_else(|e| {
+        eprintln!("error: X402Z_MERCHANT_UFVK is not a testnet unified full viewing key: {e}");
+        exit(2);
+    });
+    match k.uivk().encode(&NETWORK) {
+        Ok(u) => println!("X402Z_MERCHANT_UIVK={u}"),
+        Err(e) => {
+            eprintln!("error: cannot encode the UIVK: {e:?}");
+            exit(1);
+        }
     }
 }
 
@@ -227,8 +278,9 @@ async fn main() {
     match std::env::args().nth(1).as_deref() {
         None | Some("serve") => {}
         Some("keygen") => return keygen(),
+        Some("derive-uivk") => return derive_uivk(),
         Some(other) => {
-            eprintln!("error: unknown command '{other}' (usage: x402z-facilitator [serve|keygen])");
+            eprintln!("error: unknown command '{other}' (usage: x402z-facilitator [serve|keygen|derive-uivk])");
             exit(2);
         }
     }
@@ -237,10 +289,7 @@ async fn main() {
         eprintln!("ZCASH_LWD_URL not set; using {}", lwd::DEFAULT_LWD_URL);
         lwd::DEFAULT_LWD_URL.to_string()
     });
-    let ufvk = UnifiedFullViewingKey::decode(&NETWORK, &require("X402Z_MERCHANT_UFVK")).unwrap_or_else(|e| {
-        eprintln!("error: X402Z_MERCHANT_UFVK is not a testnet unified full viewing key (uviewtest1...): {e}");
-        exit(2);
-    });
+    let key = merchant_key();
     let signing_key = receipt::parse_signing_key(&require("X402Z_RECEIPT_SIGNING_KEY")).unwrap_or_else(|e| {
         eprintln!("error: X402Z_RECEIPT_SIGNING_KEY invalid: {e} (generate one with `x402z-facilitator keygen`)");
         exit(2);
@@ -281,7 +330,7 @@ async fn main() {
     let app = Arc::new(App {
         lwd_url,
         lwd: client,
-        ufvk,
+        key,
         signing_key,
         merchant_ua,
         min_confirmations,

@@ -8,13 +8,17 @@
 //!   encryption and trial decryption are real.
 //!
 //! Transactions are serialized and re-parsed exactly as bytes from lightwalletd would be.
+//!
+//! Every verification runs twice and must agree: once with the merchant's unified incoming
+//! viewing key decoded from its `uivktest1...` string (the facilitator's default), and once
+//! with a key reduced from the full viewing key (the deprecated `X402Z_MERCHANT_UFVK` path).
 
-use std::str::FromStr;
+use std::{collections::HashMap, str::FromStr};
 
 use secp256k1::SecretKey;
 use x402z_facilitator::{
     receipt,
-    verify::{self, VerifyError},
+    verify::{self, MerchantKey, VerifyError},
     NETWORK,
 };
 use x402z_protocol::{Network, PaymentRequired, ReceiptClaims, SCHEME};
@@ -35,7 +39,8 @@ use zcash_transparent::{
     builder::TransparentSigningSet,
     bundle::{OutPoint, TxOut},
 };
-use zip32::DiversifierIndex;
+use zcash_client_backend::{decrypt_transaction, TransferType};
+use zip32::{DiversifierIndex, Scope};
 
 const NONCE: &str = "x402z-0123456789abcdef01234567";
 const PRICE: u64 = 100_000;
@@ -76,6 +81,10 @@ enum Out<'a> {
     Ironwood(orchard::Address, u64, &'a str),
     Sapling(sapling::PaymentAddress, u64, &'a str),
     Transparent(TransparentAddress, u64),
+    /// Ironwood output whose sender keeps an outgoing-viewing-key copy (as a wallet does when
+    /// it pays someone, or sends itself change).
+    IronwoodOvk(orchard::Address, u64, &'a str, orchard::keys::OutgoingViewingKey),
+    SaplingOvk(sapling::PaymentAddress, u64, &'a str, sapling::keys::OutgoingViewingKey),
 }
 
 /// Build, prove, sign and serialize a tx funded by one transparent input of exactly
@@ -109,6 +118,12 @@ fn build_tx(outs: &[Out<'_>]) -> Vec<u8> {
                     b.add_sapling_output::<zip317::FeeError>(None, *to, Zatoshis::from_u64(*v).unwrap(), memo(m)).unwrap()
                 }
                 Out::Transparent(to, v) => b.add_transparent_output(to, Zatoshis::from_u64(*v).unwrap()).unwrap(),
+                Out::IronwoodOvk(to, v, m, ovk) => b
+                    .add_ironwood_output::<zip317::FeeError>(Some(ovk.clone()), *to, Zatoshis::from_u64(*v).unwrap(), memo(m))
+                    .unwrap(),
+                Out::SaplingOvk(to, v, m, ovk) => b
+                    .add_sapling_output::<zip317::FeeError>(Some(*ovk), *to, Zatoshis::from_u64(*v).unwrap(), memo(m))
+                    .unwrap(),
             }
         }
         b
@@ -116,6 +131,7 @@ fn build_tx(outs: &[Out<'_>]) -> Vec<u8> {
     let rule = zip317::FeeRule::standard();
     let paid: u64 = outs.iter().map(|o| match o {
         Out::Ironwood(_, v, _) | Out::Sapling(_, v, _) | Out::Transparent(_, v) => *v,
+        Out::IronwoodOvk(_, v, _, _) | Out::SaplingOvk(_, v, _, _) => *v,
     }).sum();
     let fee = make(paid).get_fee(&rule).unwrap().into_u64();
     let mut signing = TransparentSigningSet::new();
@@ -136,12 +152,24 @@ fn build_tx(outs: &[Out<'_>]) -> Vec<u8> {
     bytes
 }
 
-/// What the facilitator does with lightwalletd's bytes.
+/// The merchant's UIVK as an operator would configure it: encoded, then decoded.
+fn uivk_key(ufvk: &UnifiedFullViewingKey) -> MerchantKey {
+    let s = ufvk.to_unified_incoming_viewing_key().encode(&NETWORK).unwrap();
+    assert!(s.starts_with("uivktest1"), "{s}");
+    MerchantKey::decode_uivk(&NETWORK, &s).unwrap()
+}
+
+/// What the facilitator does with lightwalletd's bytes, through the UIVK path (default) and
+/// the UFVK-reduced path; both must agree.
 fn check(bytes: &[u8], ufvk: &UnifiedFullViewingKey, ch: &PaymentRequired, mined: Option<u32>, tip: u32) -> Result<verify::Payment, VerifyError> {
     let mined = mined.map(BlockHeight::from_u32);
     let tip = BlockHeight::from_u32(tip);
     let tx: Transaction = verify::parse_tx(&NETWORK, bytes, mined, tip)?;
-    verify::verify_payment(&NETWORK, ufvk, ch, &tx, mined, tip)
+    let via_uivk = verify::verify_payment(&NETWORK, &uivk_key(ufvk), ch, &tx, mined, tip);
+    let reduced = MerchantKey::from_ufvk(ufvk);
+    assert!(reduced.from_full_key);
+    assert_eq!(via_uivk, verify::verify_payment(&NETWORK, &reduced, ch, &tx, mined, tip), "UIVK and UFVK paths disagree");
+    via_uivk
 }
 
 #[test]
@@ -284,4 +312,43 @@ fn transparent_receivers_and_outputs_are_never_accepted() {
     // Transparent value does not top up a short shielded payment.
     let mixed = build_tx(&[Out::Transparent(taddr, PRICE), Out::Ironwood(*ua_at(&ufvk, 0).orchard().unwrap(), PRICE - 1, NONCE)]);
     assert_eq!(check(&mixed, &ufvk, &challenge(&pay_to, PRICE), Some(h), h), Err(VerifyError::Underpaid { paid: PRICE - 1, want: PRICE }));
+}
+
+#[test]
+fn uivk_cannot_see_the_merchants_own_change_or_outgoing_outputs() {
+    let ufvk = merchant(4);
+    let ua = ua_at(&ufvk, 0);
+    let ch = challenge(&ua.encode(&NETWORK), PRICE);
+    let h = target_height();
+    let ofvk = ufvk.orchard().unwrap();
+    let sfvk = ufvk.sapling().unwrap();
+    let stranger = ua_at(&merchant(5), 0);
+    // What the merchant's own wallet emits when it spends: change to its internal (change)
+    // addresses, and payments to someone else with an outgoing-viewing-key copy. Every output
+    // carries the open challenge's nonce, so only the key decides what is visible.
+    let bytes = build_tx(&[
+        Out::IronwoodOvk(ofvk.address_at(0u32, Scope::Internal), PRICE, NONCE, ofvk.to_ovk(Scope::Internal)),
+        Out::SaplingOvk(sfvk.change_address().1, PRICE, NONCE, sfvk.to_ovk(Scope::Internal)),
+        Out::IronwoodOvk(*stranger.orchard().unwrap(), PRICE, NONCE, ofvk.to_ovk(Scope::External)),
+        Out::SaplingOvk(*stranger.sapling().unwrap(), PRICE, NONCE, sfvk.to_ovk(Scope::External)),
+    ]);
+    let tx = verify::parse_tx(&NETWORK, &bytes, Some(h), h).unwrap();
+
+    // The full viewing key sees all four: two change outputs and two outgoing payments.
+    let d = decrypt_transaction(&NETWORK, Some(h), Some(h), &tx, &HashMap::from([(0u32, ufvk.clone())]));
+    let mut kinds: Vec<TransferType> = d.sapling_outputs().iter().map(|o| o.transfer_type()).collect();
+    kinds.extend(d.ironwood_outputs().iter().map(|o| o.transfer_type()));
+    assert_eq!(kinds.iter().filter(|k| **k == TransferType::AccountInternal).count(), 2, "{kinds:?}");
+    assert_eq!(kinds.iter().filter(|k| **k == TransferType::Outgoing).count(), 2, "{kinds:?}");
+
+    // The incoming key sees none of them, so none can be credited to a challenge.
+    assert!(verify::incoming_outputs(&NETWORK, uivk_key(&ufvk).uivk(), &tx, h).is_empty());
+    assert_eq!(check(&bytes, &ufvk, &ch, Some(h.into()), h.into()), Err(VerifyError::NoMatchingOutput));
+
+    // Control: a real incoming payment in the same shape is visible to the incoming key.
+    let paid = build_tx(&[Out::Ironwood(*ua.orchard().unwrap(), PRICE, NONCE)]);
+    let tx = verify::parse_tx(&NETWORK, &paid, Some(h), h).unwrap();
+    let seen = verify::incoming_outputs(&NETWORK, uivk_key(&ufvk).uivk(), &tx, h);
+    assert_eq!(seen.len(), 1);
+    assert_eq!(verify::memo_text(&seen[0].memo).as_deref(), Some(NONCE));
 }
