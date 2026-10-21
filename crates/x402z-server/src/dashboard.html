@@ -3,371 +3,358 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Kage — shielded x402 for agents</title>
-<meta name="description" content="Kage dashboard: HTTP 402 payments for AI agents, settled as Zcash shielded testnet transactions and checked by spendguard first.">
-<meta name="theme-color" content="#f4b728">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23f4b728'/%3E%3Cpath d='M9 21l7-11 7 11' fill='none' stroke='%230c0c0d' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<title>Kage — merchant console</title>
+<meta name="description" content="Kage merchant console: HTTP 402 payments for AI agents in the x402 v1 wire format, settled as Zcash shielded testnet transactions and checked by spendguard first.">
+<meta name="theme-color" content="#ffffff">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230c0c0d'/%3E%3Cpath d='M8 23V9M8 16l9-7M11.5 13.3L18 23' fill='none' stroke='%23f4b728' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='23.5' cy='20.5' r='2.5' fill='%23f4b728'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{
-  --gold:#f4b728;--gold-ink:#1a1405;--butter:#fdf3d3;
-  --ink:#0c0c0d;--panel:#151517;--panel2:#1c1c1f;--panel3:#242428;
-  --line:rgba(255,255,255,.07);--line2:rgba(255,255,255,.13);
-  --text:#f4f4f1;--muted:#8f8f88;--faint:#5c5c57;
-  --ok:#86e0a6;--ok-bg:#15291d;--bad:#ff8a84;--bad-bg:#331719;--warn:#f4b728;--warn-bg:#2d2410;
-  --font:'Geist',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
-  --mono:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-  color-scheme:dark;
+  --ink:#0c0c0d;--gold:#f4b728;--butter:#fdf3d3;
+  --paper:#fff;--rail:#fafaf7;--line:#ebe9e2;--line2:#dcd9cf;
+  --text:#0c0c0d;--body:#2c2c2a;--muted:#5d5c55;--faint:#8b897f;
+  --ok:#1d7a45;--ok-bg:#e5f4ea;--bad:#b42318;--bad-bg:#fde8e6;--wait:#6b4e00;--wait-bg:#fdf3d3;
+  --code:#0c0c0d;--code-line:#232326;--code-text:#e9e8e2;--code-dim:#8b897f;
+  --font:'Geist',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  color-scheme:light;
 }
 *{box-sizing:border-box}
-html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+html{-webkit-text-size-adjust:100%;scroll-padding-top:20px}
 html,body{margin:0}
-body{background:var(--gold);color:var(--text);font:400 15px/1.5 var(--font);letter-spacing:-.01em;-webkit-font-smoothing:antialiased;padding:24px;min-height:100vh;overflow-x:hidden}
+body{background:var(--paper);color:var(--text);font:400 15px/1.55 var(--font);letter-spacing:-.006em;-webkit-font-smoothing:antialiased;overflow-x:hidden}
 a{color:inherit}
-:focus-visible{outline:2px solid var(--gold);outline-offset:3px;border-radius:8px}
-.m{font-family:var(--mono);letter-spacing:0;font-size:.92em;overflow-wrap:anywhere}
-.num{font-variant-numeric:tabular-nums}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px;border-radius:4px}
+.m{font-family:var(--mono);letter-spacing:0;font-size:.9em;overflow-wrap:anywhere}
+code{font-family:var(--mono);font-size:.86em;background:var(--rail);border:1px solid var(--line);border-radius:5px;padding:1px 5px;overflow-wrap:anywhere}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+h1,h2,h3{font-weight:600;margin:0}
 
-/* frame */
-.frame{max-width:1400px;margin:0 auto;background:var(--ink);border-radius:36px;padding:26px 40px 30px;min-width:0}
+/* shell: sidebar + main */
+.shell{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:100vh;background:linear-gradient(90deg,var(--rail) 231px,var(--line) 231px,var(--line) 232px,var(--paper) 232px)}
+.side{position:sticky;top:0;height:100vh;overflow:auto;border-right:1px solid var(--line);background:var(--rail);padding:20px 16px;display:flex;flex-direction:column;gap:22px}
+.brand{display:inline-flex;align-items:center;gap:9px;text-decoration:none;font-weight:600;font-size:17px;letter-spacing:-.03em}
+.brand svg{width:26px;height:26px;flex:none}
+.brand small{font-weight:400;color:var(--faint);font-size:14px}
+.grp{font:500 11.5px/1 var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--faint);margin:0 0 8px 10px}
+.nav{display:grid;gap:1px}
+.nav a{display:block;text-decoration:none;font-size:14px;color:var(--muted);padding:6px 10px;border-left:2px solid transparent;border-radius:0 6px 6px 0}
+.nav a:hover{color:var(--ink);background:#f1f0eb}
+.nav a.on{color:var(--ink);font-weight:500;border-left-color:var(--gold);background:#f1f0eb}
+.envs{display:grid;gap:8px;margin-top:auto;font-size:13px}
+.env{display:flex;justify-content:space-between;gap:8px;align-items:center;border-top:1px solid var(--line);padding-top:8px;color:var(--muted)}
+.env b{font-weight:500;color:var(--ink);font-family:var(--mono);font-size:12px;text-align:right;overflow-wrap:anywhere}
+.dot{display:inline-flex;align-items:center;gap:6px}
+.dot::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--faint)}
+.dot.ok::before{background:#2fa463}.dot.bad::before{background:var(--bad)}.dot.gold::before{background:var(--gold)}
 
-/* top bar */
-.top{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
-.brand{display:inline-flex;align-items:center;gap:10px;text-decoration:none;font-weight:500;font-size:22px;letter-spacing:-.045em;color:var(--text)}
-.brand svg{width:32px;height:32px;flex:none}
-.brand small{font:400 13px var(--font);letter-spacing:0;color:var(--faint);margin-left:2px}
-.nav{display:flex;gap:4px;flex:1;justify-content:center;min-width:0}
-.nav a{text-decoration:none;color:var(--text);font-weight:500;font-size:15px;padding:8px 14px;border-radius:999px;white-space:nowrap;transition:color .15s,background .15s}
-.nav a:hover{color:var(--gold);background:var(--panel)}
-.right{display:flex;align-items:center;gap:10px}
-.netpill{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 16px;border-radius:999px;background:var(--panel);font-weight:500;font-size:14px;white-space:nowrap}
-.netpill::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 4px rgba(244,183,40,.18);animation:pulse 2.2s ease-in-out infinite}
-@keyframes pulse{50%{box-shadow:0 0 0 7px rgba(244,183,40,0)}}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 20px;border-radius:999px;border:0;cursor:pointer;font:500 15px/1 var(--font);letter-spacing:-.02em;background:var(--gold);color:var(--gold-ink);text-decoration:none;white-space:nowrap;transition:transform .2s cubic-bezier(.2,.7,.2,1),filter .15s}
-.btn:hover{filter:brightness(1.06)}.btn:active{transform:scale(.97)}
-.btn svg{width:16px;height:16px;flex:none}
-.btn.lg{height:54px;width:100%;font-size:16px}
+.main{min-width:0;padding:28px 40px 48px;max-width:1240px}
+.head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;padding-bottom:20px;border-bottom:1px solid var(--line)}
+.crumb{font:500 12px/1 var(--mono);color:var(--faint)}
+.head h1{font-size:30px;letter-spacing:-.04em;line-height:1.1;margin-top:10px}
+.head p{margin:6px 0 0;color:var(--muted);font-size:14px}
+.pill{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 11px;border-radius:999px;border:1px solid var(--line2);font:500 12.5px/1 var(--mono);white-space:nowrap;background:var(--paper)}
+.pill::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--gold)}
 
 /* banners */
 #banners:empty{display:none}
-#banners{display:grid;gap:8px;margin-top:20px}
-.banner{display:flex;gap:12px;align-items:flex-start;background:var(--bad-bg);border:1px solid rgba(255,138,132,.28);color:#ffd2cf;border-radius:18px;padding:14px 18px;font-size:14px;overflow-wrap:anywhere}
-.banner .bi{flex:none;width:22px;height:22px;border-radius:50%;background:var(--bad);color:var(--ink);display:grid;place-items:center;font-weight:500;font-size:13px;margin-top:-1px}
-.banner b{color:#fff;font-family:var(--mono);font-weight:500;letter-spacing:0}
+#banners{display:grid;gap:8px;margin-top:18px}
+.banner{display:flex;gap:12px;align-items:flex-start;background:var(--bad-bg);border:1px solid #f6c7c2;color:#7a1a12;border-radius:8px;padding:12px 14px;font-size:14px;overflow-wrap:anywhere}
+.banner .bi{flex:none;font:600 11px/1 var(--mono);background:var(--bad);color:#fff;border-radius:4px;padding:4px 6px;margin-top:1px}
+.banner b{color:var(--bad);font-family:var(--mono);font-weight:500}
 
-/* layout */
-.main{display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:32px;margin-top:30px}
-@media (max-width:1100px){.main{grid-template-columns:minmax(0,1fr)}}
-.col{display:grid;gap:24px;align-content:start;min-width:0}
-section{scroll-margin-top:24px;min-width:0}
+section{scroll-margin-top:20px;min-width:0}
+.sec{margin-top:34px}
+.sechead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.sechead h2{font-size:19px;letter-spacing:-.025em}
+.lbl{color:var(--muted);font-size:13px}
+.path{font:500 12px/1 var(--mono);color:var(--faint);display:block;margin-bottom:6px}
 
-/* overview */
-.head{display:flex;align-items:center;gap:14px}
-.duo{display:flex;flex:none}
-.duo span{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;border:3px solid var(--ink)}
-.duo span:first-child{background:var(--gold);color:var(--ink)}
-.duo span:last-child{background:var(--panel3);color:var(--gold);margin-left:-12px}
-.duo svg{width:20px;height:20px}
-h1,h2,h3{font-weight:500;margin:0}
-h1{font-size:30px;letter-spacing:-.04em;line-height:1.1}
-h2{font-size:24px;letter-spacing:-.035em;line-height:1.15}
-h3{font-size:17px;letter-spacing:-.025em}
-.lbl{color:var(--muted);font-size:14px}
-.balrow{display:flex;align-items:flex-end;justify-content:space-between;gap:16px 24px;flex-wrap:wrap;margin-top:22px}
-.big{font-weight:500;font-size:clamp(44px,6vw,72px);line-height:1;letter-spacing:-.045em;margin:8px 0 0;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
-.big .fade{color:var(--faint)}
-.big .unit{font-size:.36em;letter-spacing:-.02em;color:var(--muted);margin-left:.35em}
-.chip{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 14px;border-radius:999px;background:var(--panel2);color:var(--muted);font-size:13px;font-weight:500;white-space:nowrap}
-.chip b{color:var(--text);font-weight:500}
-.chip.gold{background:rgba(244,183,40,.13);color:var(--gold)}
-.capbar{height:8px;border-radius:99px;background:var(--panel2);overflow:hidden;margin-top:18px}
-.capbar i{display:block;height:100%;width:0;background:var(--gold);border-radius:99px;transition:width .5s cubic-bezier(.2,.7,.2,1)}
+/* try it: request | response */
+.split{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.req{padding:20px;border-right:1px solid var(--line);background:var(--rail);min-width:0}
+.line{display:flex;align-items:center;gap:10px;font:500 14px/1 var(--mono);background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:10px 12px;min-width:0}
+.verb{background:var(--ink);color:var(--gold);border-radius:4px;padding:4px 6px;font-size:12px}
+.req p{color:var(--muted);font-size:14px;margin:14px 0 0}
+.req p b{color:var(--ink);font-weight:500}
+.price{font:500 13px/1 var(--mono);color:var(--muted);margin-left:auto;white-space:nowrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:42px;padding:0 16px;border-radius:8px;border:0;cursor:pointer;font:500 15px/1 var(--font);background:var(--ink);color:#fff;text-decoration:none;white-space:nowrap;margin-top:16px;width:100%}
+.btn:hover{background:#2a2a2d}.btn:active{transform:scale(.99)}
+.btn svg{width:15px;height:15px}
+.steps{list-style:none;margin:18px 0 0;padding:0;display:grid;gap:0}
+.step{display:grid;grid-template-columns:22px minmax(0,1fr);gap:10px;align-items:center;font:500 13px/1.2 var(--mono);color:var(--faint);padding:7px 0;position:relative}
+.step::before{content:"";width:10px;height:10px;border-radius:50%;border:2px solid var(--line2);background:var(--paper);justify-self:center;position:relative;z-index:1}
+.step:not(:last-child)::after{content:"";position:absolute;left:10px;top:24px;bottom:-8px;width:2px;background:var(--line)}
+.step.done{color:var(--body)}
+.step.done::before{background:#2fa463;border-color:#2fa463}
+.step.on{color:var(--ink)}
+.step.on::before{background:var(--gold);border-color:var(--gold);box-shadow:0 0 0 4px rgba(244,183,40,.22)}
+
+.res{min-width:0;background:var(--paper)}
+.resbar{display:flex;justify-content:space-between;gap:10px;padding:11px 16px;border-bottom:1px solid var(--line);font:500 12px/1.2 var(--mono);color:var(--muted)}
+.challenge{padding:18px;min-height:240px}
+.challenge pre{margin:0;font:12px/1.55 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink)}
+.status402{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font:500 14px/1.2 var(--mono);color:var(--wait)}
+.status402 #ttl{display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:5px;background:var(--wait-bg);color:var(--wait);font-size:12px;font-variant-numeric:tabular-nums}
+.status402 #ttl:empty{display:none}
+.payany{display:grid;grid-template-columns:140px minmax(0,1fr);gap:18px;align-items:start;margin-top:14px}
+.qr{display:block;width:140px;height:140px;border-radius:8px;background:#fff;border:1px solid var(--line);padding:6px}
+.kv{display:grid;grid-template-columns:62px minmax(0,1fr) auto;gap:8px 10px;margin:0;font-size:14px;align-items:center}
+.kv dt{color:var(--faint);font:500 12px/1.4 var(--mono)}
+.kv dd{margin:0;min-width:0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.kv dd .sub{color:var(--faint);font-size:12px}
+.copy{font:500 12px/1 var(--font);height:26px;padding:0 9px;border-radius:6px;border:1px solid var(--line2);cursor:pointer;background:var(--paper);color:var(--muted)}
+.copy:hover{color:var(--ink);border-color:var(--ink)}
+.uri{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:14px}
+.uri code{flex:1 1 220px;min-width:0;overflow-wrap:anywhere;font:12px/1.45 var(--mono);padding:8px 10px;border-radius:6px}
+.uri .open{display:inline-flex;align-items:center;font:500 12px/1 var(--font);height:26px;padding:0 10px;border-radius:6px;background:var(--gold);color:var(--ink);text-decoration:none}
+.redeem{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;align-items:center;padding-top:14px;border-top:1px dashed var(--line2)}
+.redeem label{flex-basis:100%;font-size:13px;color:var(--muted)}
+.redeem input{flex:1 1 220px;min-width:0;height:38px;border-radius:8px;border:1px solid var(--line2);padding:0 12px;font:12.5px var(--mono);background:var(--paper);color:var(--ink)}
+.redeem input:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
+.redeem button{font:500 13.5px/1 var(--font);height:38px;padding:0 16px;border-radius:8px;border:0;cursor:pointer;background:var(--ink);color:#fff}
+.redeem button:disabled{opacity:.5;cursor:default}
+.rout{margin-top:10px;font-size:13.5px;color:var(--muted);overflow-wrap:anywhere}
+.rout:empty{display:none}
+.rout b{color:var(--ink)}.rout.ok b{color:var(--ok)}.rout.bad b{color:var(--bad)}
+.rout pre{max-height:240px;overflow:auto;margin-top:8px;background:var(--code);color:var(--code-text);border-radius:8px;padding:12px}
+.challenge .note{color:var(--muted);font-size:13px;margin-top:14px}
+@media (max-width:480px){.payany{grid-template-columns:minmax(0,1fr)}.qr{justify-self:center;width:184px;height:184px}}
+
+/* metrics strip */
+.metrics{display:grid;grid-template-columns:minmax(0,2fr) repeat(3,minmax(0,1fr));border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.metric{padding:16px 18px;border-right:1px solid var(--line);min-width:0}
+.metric:last-child{border-right:0}
+.metric .v{font:600 26px/1.1 var(--font);letter-spacing:-.035em;margin-top:6px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.metric .s{color:var(--muted);font-size:13px;margin-top:4px}
+.big{font:600 34px/1.05 var(--font);letter-spacing:-.04em;margin:6px 0 0;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.fade{color:#c9c6bb}
+.unit{font:500 .42em var(--mono);letter-spacing:0;color:var(--faint);margin-left:.4em}
+.metric .v .unit{font-size:.45em}
+.spendrow{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px;border-radius:5px;background:var(--rail);border:1px solid var(--line);color:var(--muted);font:500 12px/1 var(--mono);white-space:nowrap}
+.chip b{color:var(--ink);font-weight:500}
+.chip.gold{background:var(--butter);border-color:#f3e2a8;color:var(--wait)}
+.capbar{height:6px;border-radius:3px;background:var(--line);overflow:hidden;margin-top:12px}
+.capbar i{display:block;height:100%;width:0;background:var(--gold);transition:width .5s cubic-bezier(.2,.7,.2,1)}
 .capbar i.full{background:var(--bad)}
-.capnote{display:flex;justify-content:space-between;gap:12px;margin-top:8px;color:var(--muted);font-size:13px;flex-wrap:wrap}
-.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:22px}
-@media (max-width:640px){.stats{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.stats .tile:first-child{grid-column:1/-1}}
-.tile{background:var(--panel);border-radius:22px;padding:18px 20px;min-width:0}
-.tile .v{font-size:30px;font-weight:500;letter-spacing:-.04em;line-height:1.1;margin-top:6px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
-.tile .v .fade{color:var(--faint)}.tile .v .unit{font-size:.5em;color:var(--muted);margin-left:.3em;letter-spacing:-.01em}
-.tile .s{color:var(--muted);font-size:13px;margin-top:4px}
+.capnote{display:flex;justify-content:space-between;gap:12px;margin-top:6px;color:var(--muted);font-size:12.5px;flex-wrap:wrap}
+.sk{display:block;height:12px;border-radius:4px;background:linear-gradient(90deg,var(--line),#f4f2ec,var(--line));background-size:200% 100%;animation:sh 1.4s linear infinite}
+@keyframes sh{to{background-position:-200% 0}}
 
-/* activity list */
-.sechead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}
-.thead,.feed li{display:grid;grid-template-columns:40px minmax(0,1.6fr) minmax(0,1fr) 112px 84px;gap:14px;align-items:center}
-.thead{color:var(--muted);font-size:13px;padding:10px 0;border-bottom:1px solid var(--line)}
+/* log tables */
+.log{border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.thead,.feed li{display:grid;grid-template-columns:76px minmax(0,1.7fr) minmax(0,.8fr) 110px 76px;gap:14px;align-items:center}
+.thead{color:var(--muted);font:500 12px/1.2 var(--mono);padding:10px 16px;background:var(--rail);border-bottom:1px solid var(--line)}
 .thead span:last-child,.feed .when{text-align:right}
 .feed{list-style:none;margin:0;padding:0}
-#feed{max-height:560px;overflow:auto;overscroll-behavior:contain}
-.feed li{padding:12px 0;border-bottom:1px solid var(--line);font-size:15px}
+#feed{max-height:520px;overflow:auto;overscroll-behavior:contain}
+.feed li{padding:11px 16px;border-bottom:1px solid var(--line);font-size:14px}
 .feed li:last-child{border-bottom:0}
 .feed li.new{animation:in .9s ease-out}
-@keyframes in{from{background:rgba(244,183,40,.12)}to{background:transparent}}
-.ico{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--panel3);color:var(--text)}
-.ico svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-.ico.k-paid,.ico.k-allowed{background:var(--gold);color:var(--ink)}
-.ico.k-rejected,.ico.k-denied{background:var(--bad-bg);color:var(--bad)}
-.ico.k-challenge,.ico.k-needs_approval,.ico.k-pending{background:var(--warn-bg);color:var(--warn)}
+@keyframes in{from{background:var(--butter)}to{background:transparent}}
+.code{font:500 12px/1 var(--mono);display:inline-flex;align-items:center;justify-content:center;height:22px;padding:0 7px;border-radius:5px;background:var(--rail);border:1px solid var(--line);color:var(--muted);justify-self:start;white-space:nowrap}
+.k-paid.code,.k-allowed.code{background:var(--ok-bg);border-color:#c6e8d2;color:var(--ok)}
+.k-rejected.code,.k-denied.code{background:var(--bad-bg);border-color:#f6c7c2;color:var(--bad)}
+.k-challenge.code,.k-needs_approval.code,.k-pending.code{background:var(--wait-bg);border-color:#f3e2a8;color:var(--wait)}
 .what{min-width:0}
 .what .t{font-weight:500;overflow-wrap:anywhere}
-.what .d{color:var(--muted);font-size:13px;margin-top:2px;overflow-wrap:anywhere}
-.what .d .m{font-size:12px}
-.what a{color:var(--gold);text-decoration:none;border-bottom:1px solid rgba(244,183,40,.35)}
-.what a:hover{border-bottom-color:var(--gold)}
-.amt{font-variant-numeric:tabular-nums;white-space:nowrap}
+.what .d{color:var(--muted);font-size:12.5px;margin-top:2px;overflow-wrap:anywhere}
+.what a{text-decoration:none;border-bottom:1px solid var(--line2)}
+.what a:hover{border-bottom-color:var(--ink)}
+.amt{font-variant-numeric:tabular-nums;white-space:nowrap;font-size:13.5px}
 .amt.none{color:var(--faint)}
-.st{justify-self:start;display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:999px;font-size:13px;font-weight:500;white-space:nowrap;background:var(--panel3);color:var(--muted)}
-.st.k-paid,.st.k-allowed{background:var(--ok-bg);color:var(--ok)}
-.st.k-rejected,.st.k-denied{background:var(--bad-bg);color:var(--bad)}
-.st.k-challenge,.st.k-needs_approval,.st.k-pending{background:var(--warn-bg);color:var(--warn)}
-.when{color:var(--muted);font-size:13px;white-space:nowrap;font-variant-numeric:tabular-nums}
-@media (max-width:760px){
+.st{justify-self:start;display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:5px;font:500 12px/1 var(--mono);white-space:nowrap;background:var(--rail);border:1px solid var(--line);color:var(--muted)}
+.st.k-paid,.st.k-allowed{background:var(--ok-bg);border-color:#c6e8d2;color:var(--ok)}
+.st.k-rejected,.st.k-denied{background:var(--bad-bg);border-color:#f6c7c2;color:var(--bad)}
+.st.k-challenge,.st.k-needs_approval,.st.k-pending{background:var(--wait-bg);border-color:#f3e2a8;color:var(--wait)}
+.when{color:var(--faint);font:12px/1.2 var(--mono);white-space:nowrap;font-variant-numeric:tabular-nums}
+@media (max-width:820px){
   .thead{display:none}
-  .feed li{grid-template-columns:36px minmax(0,1fr) auto;grid-template-areas:"i w a" "i w s" "i w n";gap:2px 12px;align-items:start}
-  .feed li .ico{grid-area:i;width:34px;height:34px}
+  .feed li{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"c a" "w w" "s n";gap:6px 12px;align-items:center}
+  .feed li .code{grid-area:c}
   .feed li .what{grid-area:w}
   .feed li .amt{grid-area:a;text-align:right;justify-self:end}
-  .feed li .st{grid-area:s;justify-self:end;height:24px;padding:0 9px;font-size:12px;margin-top:2px}
+  .feed li .st{grid-area:s}
   .feed li .when{grid-area:n;text-align:right}
 }
 
-/* empty / loading */
-.empty{display:grid;justify-items:center;gap:6px;text-align:center;padding:34px 16px;color:var(--muted);font-size:14px}
-.empty .ei{width:44px;height:44px;border-radius:50%;background:var(--panel2);display:grid;place-items:center;color:var(--gold);margin-bottom:4px}
-.empty .ei svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-.empty b{color:var(--text);font-weight:500;font-size:15px}
-.empty code{font-family:var(--mono);font-size:12px;color:var(--text);background:var(--panel2);padding:2px 6px;border-radius:6px;overflow-wrap:anywhere}
-.empty.setup .ei{background:var(--bad-bg);color:var(--bad)}
-.sk{display:block;height:12px;border-radius:99px;background:linear-gradient(90deg,var(--panel2),var(--panel3),var(--panel2));background-size:200% 100%;animation:sh 1.4s linear infinite}
-@keyframes sh{to{background-position:-200% 0}}
-
-/* cards */
-.card{background:var(--panel);border-radius:28px;padding:22px;min-width:0}
-.card p{color:var(--muted);margin:8px 0 0;font-size:14px;line-height:1.55}
-.card p b{color:var(--text);font-weight:500}
-.cardtop{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
-.price{color:var(--gold);font-weight:500;font-size:14px;font-variant-numeric:tabular-nums}
-.steps{display:flex;gap:6px;flex-wrap:wrap;margin:18px 0 16px;padding:0;list-style:none}
-.step{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border-radius:999px;font-size:12.5px;font-weight:500;background:var(--panel2);color:var(--muted);transition:background .2s,color .2s}
-.step::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--faint)}
-.step.on{background:var(--gold);color:var(--gold-ink)}
-.step.on::before{background:var(--gold-ink)}
-.step.done{color:var(--text)}
-.step.done::before{background:var(--ok)}
-.btn-row{margin-top:18px}
-
-/* 402 challenge: butter receipt */
-.challenge{margin-top:2px;background:var(--butter);color:var(--ink);border-radius:22px;padding:18px;min-height:150px}
-.challenge .empty{color:#6b6250;padding:26px 8px}
-.challenge .empty .ei{background:var(--ink);color:var(--gold)}
-.challenge pre{margin:0;font:12px/1.5 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink)}
-.status402{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-weight:500;font-size:15px;letter-spacing:-.02em}
-.status402 #ttl{display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:999px;background:var(--ink);color:var(--gold);font-size:12px;font-variant-numeric:tabular-nums;letter-spacing:0}
-.status402 #ttl:empty{display:none}
-.kv{display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:10px 10px;margin:14px 0 0;font-size:14px;align-items:center}
-.kv dt{color:#6b6250;font-size:13px}
-.kv dd{margin:0;min-width:0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
-.kv dd .sub{color:#6b6250;font-size:12px}
-.copy{font:500 12px/1 var(--font);height:28px;padding:0 11px;border-radius:999px;border:0;cursor:pointer;background:var(--ink);color:var(--butter);transition:transform .15s}
-.copy:active{transform:scale(.95)}
-.challenge .note{color:#6b6250;font-size:13px;margin-top:14px;padding-top:12px;border-top:1px solid rgba(12,12,13,.1)}
-/* any wallet: ZIP 321 QR + URI + paste txid */
-.payany{display:grid;grid-template-columns:132px minmax(0,1fr);gap:16px;align-items:start;margin-top:14px}
-.payany .kv{margin:0;grid-template-columns:56px minmax(0,1fr) auto}
-.qr{display:block;width:132px;height:132px;border-radius:14px;background:#fff;padding:4px}
-.uri{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:14px}
-.uri code{flex:1 1 220px;min-width:0;overflow-wrap:anywhere;font:12px/1.45 var(--mono);background:rgba(12,12,13,.06);padding:8px 10px;border-radius:10px;color:var(--ink)}
-.uri .open{display:inline-flex;align-items:center;font:500 12px/1 var(--font);height:28px;padding:0 11px;border-radius:999px;background:var(--gold);color:var(--gold-ink);text-decoration:none}
-.redeem{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;align-items:center}
-.redeem label{flex-basis:100%;font-size:13px;color:#6b6250}
-.redeem input{flex:1 1 220px;min-width:0;height:36px;border-radius:999px;border:1px solid rgba(12,12,13,.18);padding:0 14px;font:12.5px var(--mono);background:#fff;color:var(--ink)}
-.redeem input:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
-.redeem button{font:500 13px/1 var(--font);height:36px;padding:0 16px;border-radius:999px;border:0;cursor:pointer;background:var(--ink);color:var(--butter)}
-.redeem button:disabled{opacity:.5;cursor:default}
-.rout{margin-top:10px;font-size:13px;color:#6b6250;overflow-wrap:anywhere}
-.rout:empty{display:none}
-.rout b{color:var(--ink)}.rout.ok b{color:#1d6b3a}.rout.bad b{color:#a3261f}
-.rout a{color:var(--ink)}
-.rout pre{max-height:220px;overflow:auto;margin-top:8px}
-@media (max-width:440px){.payany{grid-template-columns:minmax(0,1fr)}.qr{justify-self:center;width:176px;height:176px}}
+/* empty / setup */
+.empty{display:grid;justify-items:center;gap:4px;text-align:center;padding:30px 16px;color:var(--muted);font-size:14px}
+.empty .ei{font:500 12px/1 var(--mono);color:var(--faint);border:1px dashed var(--line2);border-radius:6px;padding:6px 8px;margin-bottom:6px}
+.empty b{color:var(--ink);font-weight:500;font-size:15px}
+.empty.setup .ei{color:var(--bad);border-color:#f6c7c2;background:var(--bad-bg)}
 
 /* spendguard */
-.agent{padding:14px 0;border-bottom:1px solid var(--line)}
-.agent:last-child{border-bottom:0}
+.guard{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:0;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.guard>div{padding:16px 18px;min-width:0}
+.guard>div:first-child{border-right:1px solid var(--line);background:var(--rail)}
+.demo-note{margin:0 0 12px;padding:10px 12px;border-radius:8px;background:var(--butter);color:#3b3220;font-size:13px;line-height:1.45}
+.demo-note b{font-weight:600;color:var(--ink)}
+.rules{margin:0 0 6px;padding-left:20px;color:var(--body);font-size:13.5px}
+.rules li{margin:3px 0}
+.agent{padding:12px 0;border-top:1px solid var(--line)}
 .agent .row{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
-.agent .name{font-weight:500}
-.agent .fig{font-variant-numeric:tabular-nums;font-size:14px;color:var(--muted)}
-.agent .fig b{color:var(--text);font-weight:500}
-.bar{height:6px;border-radius:99px;background:var(--panel3);overflow:hidden;margin:10px 0 10px}
-.bar i{display:block;height:100%;background:var(--ok);border-radius:99px;transition:width .5s cubic-bezier(.2,.7,.2,1)}
+.agent .name{font:500 14px/1.3 var(--mono)}
+.agent .fig{font-variant-numeric:tabular-nums;font-size:13px;color:var(--muted)}
+.agent .fig b{color:var(--ink);font-weight:500}
+.bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden;margin:9px 0}
+.bar i{display:block;height:100%;background:#2fa463;transition:width .5s cubic-bezier(.2,.7,.2,1)}
 .bar i.hot{background:var(--gold)}.bar i.full{background:var(--bad)}
 .hosts{display:flex;gap:6px;flex-wrap:wrap}
-.host{display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:999px;background:var(--panel2);font-size:12.5px;color:var(--text);overflow-wrap:anywhere;max-width:100%}
-.host.thr{background:var(--warn-bg);color:var(--warn)}
-.host.none{color:var(--bad);background:var(--bad-bg)}
+.host{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:5px;background:var(--paper);border:1px solid var(--line);font:12px/1 var(--mono);overflow-wrap:anywhere;max-width:100%}
+.host.thr{background:var(--wait-bg);border-color:#f3e2a8;color:var(--wait)}
+.host.none{color:var(--bad);background:var(--bad-bg);border-color:#f6c7c2}
 .decs{display:flex;gap:6px;flex-wrap:wrap}
-.sub2{margin-top:22px;padding-top:18px;border-top:1px solid var(--line)}
-#audit{max-height:420px;overflow:auto;overscroll-behavior:contain}
-#audit li{grid-template-columns:34px minmax(0,1fr) auto;grid-template-areas:"i w s" "i w n";gap:2px 12px;align-items:start;font-size:14px}
-#audit li .ico{grid-area:i;width:32px;height:32px}
-#audit li .ico svg{width:15px;height:15px}
+#audit{max-height:400px;overflow:auto;overscroll-behavior:contain;margin-top:8px}
+#audit li{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"w s" "w n";gap:2px 12px;align-items:start;font-size:13.5px;padding:10px 0}
+#audit li .code{display:none}
 #audit li .what{grid-area:w}
-#audit li .st{grid-area:s;justify-self:end;height:24px;padding:0 9px;font-size:12px}
-#audit li .when{grid-area:n;text-align:right;font-size:12px}
-.note{color:var(--muted);font-size:13px;margin-top:12px;line-height:1.5}
-.demo-note{margin-top:10px;padding:9px 12px;border-radius:12px;background:var(--warn-bg);color:var(--warn);font-size:13px;line-height:1.45}
-.demo-note b{font-weight:600}
+#audit li .st{grid-area:s;justify-self:end}
+#audit li .when{grid-area:n;text-align:right}
+.note{color:var(--muted);font-size:12.5px;margin-top:10px;line-height:1.5}
 
-/* keys footer */
-.keys{margin-top:32px;padding-top:22px;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(2,minmax(0,1fr)) auto;gap:16px 28px;align-items:end}
-@media (max-width:760px){.keys{grid-template-columns:minmax(0,1fr)}}
-.keys .lbl{font-size:13px}
-.keys .val{margin-top:4px;color:var(--text)}
-.keys .tag{color:var(--faint);font-size:13px;text-align:right}
-@media (max-width:760px){.keys .tag{text-align:left}}
+/* keys */
+.keys{margin-top:34px;padding-top:18px;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(2,minmax(0,1fr)) auto;gap:14px 28px;align-items:end}
+.keys .val{margin-top:4px}
+.keys .tag{color:var(--faint);font:12px/1.4 var(--mono);text-align:right}
 
-/* responsive frame */
-@media (max-width:900px){.nav{order:3;flex-basis:100%;justify-content:flex-start;overflow-x:auto;scrollbar-width:none;margin:0 -6px}.nav::-webkit-scrollbar{display:none}.right{margin-left:auto}}
-@media (max-width:640px){
-  body{padding:8px}
-  .frame{border-radius:28px;padding:18px 16px 22px}
-  .top{gap:12px}
+@media (max-width:1100px){.split{grid-template-columns:minmax(0,1fr)}.req{border-right:0;border-bottom:1px solid var(--line)}.metrics{grid-template-columns:repeat(3,minmax(0,1fr))}.metric:first-child{grid-column:1/-1;border-right:0;border-bottom:1px solid var(--line)}.guard{grid-template-columns:minmax(0,1fr)}.guard>div:first-child{border-right:0;border-bottom:1px solid var(--line)}}
+@media (max-width:860px){
+  .shell{grid-template-columns:minmax(0,1fr);background:var(--paper)}
+  .side{position:sticky;top:0;z-index:20;height:auto;flex-direction:row;align-items:center;gap:14px;padding:10px 16px;border-right:0;border-bottom:1px solid var(--line);background:rgba(250,250,247,.96);backdrop-filter:blur(8px)}
+  .side .grp,.envs{display:none}
+  .navwrap{min-width:0;flex:1}
+  .nav{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+  .nav::-webkit-scrollbar{display:none}
+  .nav a{border-left:0;border-bottom:2px solid transparent;border-radius:0;padding:8px 9px;white-space:nowrap}
+  .nav a.on{border-bottom-color:var(--gold);background:none}
   .brand small{display:none}
-  .netpill{height:36px;padding:0 13px;font-size:13px}
-  .top .btn{display:none}
-  .card{padding:18px;border-radius:24px}
-  .main{margin-top:20px;gap:24px}
-  h1{font-size:26px}
-  .duo span{width:38px;height:38px}
-  .tile{padding:16px;border-radius:20px}
-  .tile .v{font-size:24px}
+  .main{padding:20px 16px 36px}
+  .keys{grid-template-columns:minmax(0,1fr)}.keys .tag{text-align:left}
 }
-@media (prefers-reduced-motion:reduce){
-  *,*::before,*::after{animation:none!important;transition:none!important}
-  html{scroll-behavior:auto}
+@media (max-width:560px){
+  .head h1{font-size:25px}
+  .metrics{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .metric{border-bottom:1px solid var(--line)}
+  .metric:nth-child(3){border-right:0}
+  .metric:last-child{grid-column:1/-1;border-bottom:0}
+  .big{font-size:30px}
+  .challenge{padding:14px}
+  .req{padding:16px}
 }
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
-<div class="frame">
-  <header class="top">
-    <a class="brand" href="#overview" aria-label="Kage dashboard">
-      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#f4b728"/><path d="M9 21l7-11 7 11" fill="none" stroke="#0c0c0d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      Kage<small lang="ja">影</small>
+<div class="shell">
+  <aside class="side" aria-label="Console">
+    <a class="brand" href="#pay" aria-label="Kage merchant console">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#0c0c0d"/><path d="M8 23V9M8 16l9-7M11.5 13.3L18 23" fill="none" stroke="#f4b728" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="23.5" cy="20.5" r="2.5" fill="#f4b728"/></svg>
+      Kage <small lang="ja">影</small>
     </a>
-    <nav class="nav" aria-label="Sections">
-      <a href="#overview">Overview</a>
-      <a href="#activity">Activity</a>
-      <a href="#pay">Pay</a>
-      <a href="#spendguard">Spendguard</a>
-      <a href="#keys">Keys</a>
-    </nav>
-    <div class="right">
-      <span class="netpill" id="net">Zcash testnet</span>
-      <a class="btn" href="#pay">Try a 402 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8"/></svg></a>
+    <div class="navwrap">
+      <p class="grp">Console</p>
+      <nav class="nav" aria-label="Sections">
+        <a href="#pay">Try a 402</a>
+        <a href="#overview">Totals</a>
+        <a href="#activity">Payment feed</a>
+        <a href="#spendguard">Spendguard</a>
+        <a href="#keys">Keys</a>
+      </nav>
     </div>
-  </header>
+    <div class="envs" aria-label="Environment">
+      <div class="env"><span>network</span><b class="dot gold" id="net">zcash-testnet</b></div>
+      <div class="env"><span>facilitator</span><b class="dot" id="facState">checking…</b></div>
+      <div class="env"><span>scheme</span><b>zcash-shielded</b></div>
+      <div class="env"><span>x402</span><b>v1</b></div>
+    </div>
+  </aside>
 
-  <div id="banners" aria-live="polite"></div>
+  <main class="main">
+    <header class="head">
+      <div>
+        <span class="crumb">x402z-server / merchant console</span>
+        <h1>Merchant console</h1>
+        <p>Paid API on Zcash testnet. Payments are found with the merchant's incoming viewing key, never a spend key.</p>
+      </div>
+      <span class="pill">GET /api/quote</span>
+    </header>
 
-  <div class="main">
-    <div class="col">
-      <section id="overview" aria-labelledby="ovh">
-        <div class="head">
-          <div class="duo" aria-hidden="true">
-            <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-8 6 8"/></svg></span>
-            <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6z"/></svg></span>
-          </div>
-          <h1 id="ovh">Agent spend / TAZ</h1>
-        </div>
-        <div class="balrow">
-          <div style="min-width:0">
-            <div class="lbl">Spent today, all agents (UTC day)</div>
-            <p class="big" id="spent" aria-live="off"><span class="sk" style="width:220px;height:56px;border-radius:16px"></span></p>
-          </div>
-          <span class="chip" id="capChip">Reading agent ledger…</span>
-        </div>
-        <div class="capbar" aria-hidden="true"><i id="capBar"></i></div>
-        <div class="capnote"><span id="capNote">Daily cap from spendguard policy</span><span id="capPct"></span></div>
-        <div class="stats">
-          <div class="tile">
-            <div class="lbl">Settled to merchant</div>
-            <div class="v" id="paidTotal">0<span class="unit">TAZ</span></div>
-            <div class="s"><span id="paidCount">0</span> verified payments</div>
-          </div>
-          <div class="tile">
-            <div class="lbl">402 challenges</div>
-            <div class="v" id="chCount">0</div>
-            <div class="s">issued by this server</div>
-          </div>
-          <div class="tile">
-            <div class="lbl">Refused</div>
-            <div class="v" id="rejCount">0</div>
-            <div class="s">receipts or requests</div>
-          </div>
-        </div>
-      </section>
+    <div id="banners" aria-live="polite"></div>
 
-      <section id="activity" aria-labelledby="acth">
-        <div class="sechead">
-          <h2 id="acth">Live payment feed</h2>
-          <span class="lbl">Updates every 1.5s</span>
+    <section class="sec" id="pay" aria-labelledby="payh">
+      <div class="sechead"><h2 id="payh">Try a paid request</h2><span class="lbl">Live against this server</span></div>
+      <div class="split">
+        <div class="req">
+          <span class="path">request</span>
+          <div class="line"><span class="verb">GET</span><span>/api/quote</span><span class="price" id="price">…</span></div>
+          <p>An agent gets <b>HTTP 402</b>, pays with a shielded transaction (memo = nonce), and retries with <code>X-PAYMENT</code> naming the txid. Any Zcash wallet can pay the same challenge from its ZIP 321 QR. The chain shows neither amount nor address.</p>
+          <button class="btn" id="try">Send request <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+          <ol class="steps" id="steps" aria-label="Request progress">
+            <li class="step" data-s="0">GET /api/quote</li>
+            <li class="step" data-s="1">402 challenge</li>
+            <li class="step" data-s="2">shielded payment</li>
+            <li class="step" data-s="3">settlement pending</li>
+            <li class="step" data-s="4">200 + X-PAYMENT-RESPONSE</li>
+          </ol>
         </div>
-        <div class="thead" aria-hidden="true"><span></span><span>Event</span><span>Amount</span><span>Status</span><span>When</span></div>
+        <div class="res">
+          <div class="resbar"><span>response</span><span>x402 v1 · accepts[0]</span></div>
+          <div class="challenge" id="challenge" aria-live="polite"><div class="empty"><span class="ei">no response yet</span><b>Send the request</b><span>A live 402 challenge from this server appears here, with its QR code and a box to paste a txid.</span></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="sec" id="overview" aria-labelledby="ovh">
+      <div class="sechead"><h2 id="ovh">Totals</h2><span class="lbl">Since this server started; spend per UTC day</span></div>
+      <div class="metrics">
+        <div class="metric">
+          <div class="spendrow"><span class="lbl">Agent spend today, all agents</span><span class="chip" id="capChip">Reading agent ledger…</span></div>
+          <p class="big" id="spent" aria-live="off"><span class="sk" style="width:180px;height:34px"></span></p>
+          <div class="capbar" aria-hidden="true"><i id="capBar"></i></div>
+          <div class="capnote"><span id="capNote">Daily cap from spendguard policy</span><span id="capPct"></span></div>
+        </div>
+        <div class="metric"><div class="lbl">Settled to merchant</div><div class="v" id="paidTotal">0<span class="unit">TAZ</span></div><div class="s"><span id="paidCount">0</span> verified payments</div></div>
+        <div class="metric"><div class="lbl">402 challenges</div><div class="v" id="chCount">0</div><div class="s">issued here</div></div>
+        <div class="metric"><div class="lbl">Refused</div><div class="v" id="rejCount">0</div><div class="s">payments or requests</div></div>
+      </div>
+    </section>
+
+    <section class="sec" id="activity" aria-labelledby="acth">
+      <div class="sechead"><h2 id="acth">Payment feed</h2><span class="lbl">Polls every 1.5 s</span></div>
+      <div class="log">
+        <div class="thead" aria-hidden="true"><span>Kind</span><span>Event</span><span>Amount</span><span>Status</span><span>When</span></div>
         <ul class="feed" id="feed"></ul>
-        <div class="empty" id="feedEmpty">
-          <span class="ei"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h4l2 5 4-10 2 5h4"/></svg></span>
-          <b>No requests yet</b>
-          <span>Press “Request paid data” or point an agent at <code>/api/quote</code>. Challenges, payments and refusals land here.</span>
-        </div>
-      </section>
-    </div>
+        <div class="empty" id="feedEmpty"><span class="ei">empty</span><b>No requests yet</b><span>Send the request above or point an agent at <code>/api/quote</code>. Challenges, payments and refusals land here.</span></div>
+      </div>
+    </section>
 
-    <div class="col">
-      <section class="card" id="pay" aria-labelledby="payh">
-        <div class="cardtop">
-          <h2 id="payh">Pay per request</h2>
-          <span class="price" id="price">…</span>
+    <section class="sec" id="spendguard" aria-labelledby="sgh">
+      <div class="sechead"><h2 id="sgh">Spendguard</h2><span class="chip">caps reset 00:00 UTC</span></div>
+      <div class="guard">
+        <div>
+          <p class="demo-note"><b>Local demo.</b> Payer and merchant run on one machine, so this panel can read the agent's own ledger file. A real merchant never sees it.</p>
+          <span class="path">checked before the wallet, first denial wins</span>
+          <ol class="rules"><li>host allowlist</li><li>amount &gt; 0</li><li>daily cap</li><li>approval threshold</li></ol>
+          <div id="agents"><div class="agent"><span class="sk" style="width:40%"></span><span class="sk" style="width:100%;height:6px;margin:12px 0"></span><span class="sk" style="width:60%"></span><span class="sr">Waiting for agent ledger…</span></div></div>
         </div>
-        <p>An AI agent calls a paid API, gets <b>HTTP 402</b>, pays with a shielded Zcash testnet transaction (memo = nonce), and retries with an <code>X-PAYMENT</code> header naming the txid. Any Zcash wallet can pay the same challenge by scanning its ZIP 321 QR code. The merchant sees the payment only through its incoming viewing key. The chain shows neither amount nor address.</p>
-        <div class="btn-row"><button class="btn lg" id="try">Request paid data <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
-        <div class="steps" id="steps" aria-label="Request progress">
-          <span class="step" data-s="0">GET /api/quote</span>
-          <span class="step" data-s="1">402 challenge</span>
-          <span class="step" data-s="2">shielded pay</span>
-          <span class="step" data-s="3">settle</span>
-          <span class="step" data-s="4">200</span>
-        </div>
-        <div class="challenge" id="challenge" aria-live="polite"><div class="empty"><span class="ei"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg></span><b>No challenge yet</b><span>Press the button: a live 402 challenge from this server appears here.</span></div></div>
-      </section>
-
-      <section class="card" id="spendguard" aria-labelledby="sgh">
-        <div class="cardtop">
-          <h2 id="sgh">Spendguard</h2>
-          <span class="chip">Caps reset 00:00 UTC</span>
-        </div>
-        <p>Checked before the wallet: host allowlist, daily cap, approval threshold.</p>
-        <p class="demo-note"><b>Local demo:</b> payer and merchant on one machine. This panel reads the agent's own ledger file; a real merchant never sees it.</p>
-        <div id="agents"><div class="agent"><span class="sk" style="width:40%"></span><span class="sk" style="width:100%;height:6px;margin:14px 0"></span><span class="sk" style="width:60%"></span><span class="sr">Waiting for agent ledger…</span></div></div>
-        <div class="sub2">
-          <div class="cardtop">
-            <h3>Decisions</h3>
-            <div class="decs" id="decCounts"></div>
-          </div>
+        <div>
+          <div class="sechead" style="margin:0"><h3 style="font-size:15px">Decisions</h3><div class="decs" id="decCounts"></div></div>
           <ul class="feed" id="audit"></ul>
           <div class="note">Every spendguard decision, including denials. A denied payment never reaches the wallet, so nothing is broadcast.</div>
         </div>
-      </section>
-    </div>
-  </div>
+      </div>
+    </section>
 
-  <footer class="keys" id="keys">
-    <div><div class="lbl">Merchant unified address (shielded)</div><div class="val m" id="ua">…</div></div>
-    <div><div class="lbl">Receipt key (ed25519, facilitator)</div><div class="val m" id="rk">…</div></div>
-    <div class="tag">Kage · shielded x402 · testnet only</div>
-  </footer>
+    <footer class="keys" id="keys">
+      <div><div class="lbl">Merchant unified address (shielded)</div><div class="val m" id="ua">…</div></div>
+      <div><div class="lbl">Receipt key (ed25519, facilitator)</div><div class="val m" id="rk">…</div></div>
+      <div class="tag">Kage · shielded x402 · testnet only</div>
+    </footer>
+  </main>
 </div>
 <script>
 const $ = s => document.querySelector(s);
@@ -383,18 +370,13 @@ const txLink = id => `<a href="${EXPLORER}${encodeURIComponent(id)}" target="_bl
 // Balance-style figure: leading zeros faded, significant digits bright, unit muted.
 const bigZat = n => { const s = (n / 1e8).toLocaleString(undefined, {maximumFractionDigits: 8}); const i = s.search(/[1-9]/);
   return (i > 0 ? `<span class="fade">${esc(s.slice(0, i))}</span>${esc(s.slice(i))}` : esc(s)) + '<span class="unit">TAZ</span>'; };
-const P = d => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
-const ICON = {
-  paid: P('<path d="M5 12.5l4.5 4.5L19 7.5"/>'), allowed: P('<path d="M5 12.5l4.5 4.5L19 7.5"/>'),
-  rejected: P('<path d="M7 7l10 10M17 7L7 17"/>'), denied: P('<path d="M7 7l10 10M17 7L7 17"/>'),
-  challenge: P('<circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2"/>'), pending: P('<circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2"/>'), needs_approval: P('<path d="M12 7v6M12 16.5v.5"/>'),
-};
-const FEED_LABEL = {challenge: "402 · open", paid: "paid", rejected: "refused", pending: "confirming"};
+const CODE = {challenge: "402", paid: "200", rejected: "402", pending: "402", allowed: "ok", denied: "deny", needs_approval: "ask"};
+const FEED_LABEL = {challenge: "open", paid: "paid", rejected: "refused", pending: "confirming"};
 const DEC_LABEL = {allowed: "allowed", denied: "denied", needs_approval: "needs approval"};
 const counts = {challenge: 0, paid: 0, rejected: 0, paidZat: 0};
 
 function banner(msgs){
-  $("#banners").innerHTML = msgs.map(m => `<div class="banner" role="alert"><span class="bi" aria-hidden="true">!</span><div><b>${esc(m.split(" ")[0])}</b> ${esc(m.split(" ").slice(1).join(" "))}</div></div>`).join("");
+  $("#banners").innerHTML = msgs.map(m => `<div class="banner" role="alert"><span class="bi" aria-hidden="true">ERR</span><div><b>${esc(m.split(" ")[0])}</b> ${esc(m.split(" ").slice(1).join(" "))}</div></div>`).join("");
 }
 function steps(n){
   document.querySelectorAll(".step").forEach(el => { const s = +el.dataset.s; el.className = "step" + (s < n ? " done" : s === n ? " on" : ""); });
@@ -404,12 +386,14 @@ async function status(){
   const errs = [];
   try {
     const r = await fetch("/api/status"); const s = await r.json();
-    $("#price").textContent = zat(s.priceZat) + " / request";
+    $("#price").textContent = zat(s.priceZat);
     $("#ua").textContent = short(s.merchantUa); $("#rk").textContent = short(s.receiptKey);
     $("#ua").title = s.merchantUa || ""; $("#rk").title = s.receiptKey || "";
-    if (s.facilitator && !s.facilitator.reachable) errs.push(s.facilitator.error);
+    const up = !(s.facilitator && !s.facilitator.reachable);
+    $("#facState").textContent = up ? "reachable" : "unreachable"; $("#facState").className = "dot " + (up ? "ok" : "bad");
+    if (!up) errs.push(s.facilitator.error);
     if (s.ledger.error) { errs.push(s.ledger.error); renderLedger(null); } else renderLedger(s.ledger.data);
-  } catch (e) { errs.push("x402z-server unreachable: " + e.message); }
+  } catch (e) { errs.push("x402z-server unreachable: " + e.message); $("#facState").textContent = "unknown"; $("#facState").className = "dot bad"; }
   banner(errs);
 }
 
@@ -433,7 +417,7 @@ function renderTotals(agents){
 function renderLedger(l){
   if (!l) {
     renderTotals(null);
-    $("#agents").innerHTML = '<div class="empty setup"><span class="ei"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5M12 16.5v.5"/><circle cx="12" cy="12" r="9"/></svg></span><b>Setup required</b><span>No agent ledger. Start x402z-agent with <code>X402Z_AGENT_LEDGER</code> set.</span></div>';
+    $("#agents").innerHTML = '<div class="empty setup"><span class="ei">Setup required</span><b>No agent ledger</b><span>Start x402z-agent with <code>X402Z_AGENT_LEDGER</code> set.</span></div>';
     $("#audit").innerHTML = ""; $("#decCounts").innerHTML = ""; return;
   }
   const agents = l.agents || [];
@@ -445,13 +429,13 @@ function renderLedger(l){
     return `<div class="agent"><div class="row"><span class="name">${esc(a.agent)}</span><span class="fig"><b>${zat(a.spentTodayZat)}</b> / ${zat(a.dailyCapZat)}</span></div>
       <div class="bar" role="progressbar" aria-label="${esc(a.agent)} daily cap used" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(pct)}"><i class="${cls}" style="width:${pct}%"></i></div>
       <div class="hosts">${hosts}${a.approvalThresholdZat ? `<span class="host thr">approval ≥ ${zat(a.approvalThresholdZat)}</span>` : ""}</div></div>`;
-  }).join("") : '<div class="empty"><span class="ei"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6z"/></svg></span><b>Ledger has no agents.</b><span>Run x402z-agent once to register its policy.</span></div>';
+  }).join("") : '<div class="empty"><span class="ei">empty</span><b>Ledger has no agents.</b><span>Run x402z-agent once to register its policy.</span></div>';
   const all = l.audit || [];
   const dc = {};
   all.forEach(e => { dc[e.decision] = (dc[e.decision] || 0) + 1; });
   $("#decCounts").innerHTML = Object.keys(dc).map(k => `<span class="st k-${esc(k)}">${dc[k]} ${esc(DEC_LABEL[k] || String(k).replace("_"," "))}</span>`).join("");
   const audit = all.slice(-50).reverse();
-  $("#audit").innerHTML = audit.length ? audit.map(e => `<li><span class="ico k-${esc(e.decision)}">${ICON[e.decision] || ""}</span>
+  $("#audit").innerHTML = audit.length ? audit.map(e => `<li><span class="code k-${esc(e.decision)}">${esc(CODE[e.decision] || "")}</span>
     <div class="what"><div class="t">${esc(e.agent)} → ${esc(e.host)}</div><div class="d">${zat(e.amountZat)}${e.reason ? " · " + esc(e.reason) : ""}${e.txid ? " · " + txLink(e.txid) : ""}</div></div>
     <span class="st k-${esc(e.decision)}">${esc(DEC_LABEL[e.decision] || String(e.decision).replace("_"," "))}</span><span class="when">${ago(e.ts)}</span></li>`).join("")
     : '<li style="display:block;border:0"><div class="empty"><b>No decisions yet</b><span>The agent records one per payment attempt, including denials.</span></div></li>';
@@ -474,7 +458,7 @@ async function poll(){
       if (e.kind === "paid" && e.amountZat) counts.paidZat += e.amountZat;
       const li = document.createElement("li"); li.className = "new";
       const ref = e.txid ? txLink(e.txid) : e.memoNonce ? `memo <span class="m">${esc(e.memoNonce)}</span>` : "";
-      li.innerHTML = `<span class="ico k-${esc(e.kind)}">${ICON[e.kind] || ""}</span>
+      li.innerHTML = `<span class="code k-${esc(e.kind)}">${esc(CODE[e.kind] || e.kind)}</span>
         <div class="what"><div class="t">${esc(e.detail)}</div>${ref ? `<div class="d">${ref}</div>` : ""}</div>
         <span class="amt${e.amountZat ? "" : " none"}">${e.amountZat ? zat(e.amountZat) : "—"}</span>
         <span class="st k-${esc(e.kind)}">${esc(FEED_LABEL[e.kind] || e.kind)}</span>
@@ -488,7 +472,7 @@ async function poll(){
   } catch (_) {}
 }
 
-function copyBtn(v){ return `<button class="ghost copy" data-v="${esc(v)}">copy</button>`; }
+function copyBtn(v){ return `<button class="copy" type="button" data-v="${esc(v)}">copy</button>`; }
 document.addEventListener("click", e => { const v = e.target.dataset && e.target.dataset.v; if (v) { navigator.clipboard?.writeText(v); e.target.textContent = "copied"; setTimeout(() => e.target.textContent = "copy", 1200); } });
 
 let redeemTimer;
@@ -519,16 +503,16 @@ $("#try").onclick = async () => {
   steps(0);
   try {
     const r = await fetch("/api/quote"); const res = await r.json();
-    if (r.status !== 402) { $("#challenge").innerHTML = `<pre class="sub">${esc(JSON.stringify(res, null, 2))}</pre>`; steps(5); return; }
+    if (r.status !== 402) { $("#challenge").innerHTML = `<pre>${esc(JSON.stringify(res, null, 2))}</pre>`; steps(5); return; }
     // x402 v1 body: {x402Version, accepts: [PaymentRequirements], error}
     const a = (res.accepts || []).find(x => x.scheme === "zcash-shielded") || {};
     const x = a.extra || {};
     const body = {scheme: a.scheme, network: a.network, payTo: a.payTo, amountZat: Number(a.maxAmountRequired), memoNonce: x.memoNonce, expiresAt: x.expiresAt, uri: x.paymentUri || ""};
     steps(1); expiry = body.expiresAt; clearTimeout(redeemTimer);
     const qr = "/api/challenge/" + encodeURIComponent(body.memoNonce) + "/qr.svg";
-    $("#challenge").innerHTML = `<div class="status402"><span>HTTP 402 Payment Required</span><span id="ttl"></span></div>
+    $("#challenge").innerHTML = `<div class="status402"><span>402 Payment Required</span><span id="ttl"></span></div>
       <div class="payany">
-        <img class="qr" src="${esc(qr)}" width="132" height="132" alt="QR code of the ZIP 321 payment request for this challenge">
+        <img class="qr" src="${esc(qr)}" width="140" height="140" alt="QR code of the ZIP 321 payment request for this challenge">
         <dl class="kv">
           <dt>scheme</dt><dd>${esc(body.scheme)} · ${esc(body.network)}</dd><span></span>
           <dt>payTo</dt><dd class="m" title="${esc(body.payTo)}">${esc(short(body.payTo))}</dd>${copyBtn(body.payTo)}
@@ -543,7 +527,7 @@ $("#try").onclick = async () => {
         <button type="submit">Redeem</button>
       </form>
       <div class="rout" id="redeemOut" aria-live="polite"></div>
-      <div class="note">Scan the QR with any shielded testnet wallet (ZIP 321: address, amount and memo filled in), or send exactly this amount with the nonce as the memo. The facilitator spots it with the merchant's incoming viewing key; the agent path does the same with <code>X-PAYMENT</code>.</div>`;
+      <div class="note">Scan the QR with any shielded testnet wallet (ZIP 321 fills in address, amount and memo), or send exactly this amount with the nonce as the memo. The facilitator finds it with the merchant's incoming viewing key; an agent does the same with <code>X-PAYMENT</code>.</div>`;
     $("#redeemForm").onsubmit = ev => { ev.preventDefault(); redeem(body.memoNonce, $("#txid").value.trim()); };
     clearInterval(timer);
     timer = setInterval(() => { const t = expiry - Math.floor(Date.now()/1000); const el = $("#ttl"); if (el) el.textContent = t > 0 ? `expires in ${Math.floor(t/60)}:${String(t%60).padStart(2,"0")}` : "expired"; }, 1000);
@@ -551,6 +535,16 @@ $("#try").onclick = async () => {
     poll();
   } catch (e) { banner(["x402z-server unreachable: " + e.message]); }
 };
+
+// Sidebar: highlight the section in view.
+const navLinks = [...document.querySelectorAll(".nav a")];
+const secs = navLinks.map(a => document.querySelector(a.getAttribute("href")));
+let spyQueued = false;
+function spy(){ spyQueued = false; let cur = 0; secs.forEach((s, i) => { if (s && s.getBoundingClientRect().top < 140) cur = i; });
+  if (innerHeight + scrollY >= document.documentElement.scrollHeight - 4) cur = secs.length - 1;
+  navLinks.forEach((a, i) => a.classList.toggle("on", i === cur)); }
+addEventListener("scroll", () => { if (!spyQueued) { spyQueued = true; requestAnimationFrame(spy); } }, {passive: true});
+spy();
 
 status(); poll();
 setInterval(poll, 1500); setInterval(status, 5000);
