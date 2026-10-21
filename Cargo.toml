@@ -6,6 +6,7 @@ members = [
     "crates/x402z-server",
     "crates/x402z-facilitator",
     "crates/x402z-agent",
+    "crates/x402z-mcp",
 ]
 
 [workspace.package]
