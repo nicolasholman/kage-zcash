@@ -13,7 +13,7 @@
   - a Kage Tab buying 5 tokens, then 5 instant calls and a refused replay;
   - an MCP spendguard refusal.
   The non-paying parts (`check_uivk` on the eight txids, the `live_testnet` tests, MCP refusals) need no wallet.
-- **Working demo URL: NICK DECIDES.** The form asks for one. The cheapest honest option is to serve the static `landing/index.html` with GitHub Pages after the push (Settings → Pages → branch `main`, folder `/`), which gives `https://nickthelegend.github.io/zec-shielded-x402/landing/`. It is docs and recorded output, not a hosted paywall. Nothing is hosted today.
+- **Working demo URL: Demo URL after push: https://nickthelegend.github.io/zec-shielded-x402/** `.github/workflows/pages.yml` publishes `landing/` to GitHub Pages on every push to `main` that touches `landing/` (or by hand from the Actions tab). One-time setup before the push: Settings → Pages → Source "GitHub Actions", or `gh api -X POST repos/nickthelegend/zec-shielded-x402/pages -f build_type=workflow`. The page is one self-contained `index.html` (anchor links and absolute links only), checked locally under the `/zec-shielded-x402/` sub-path. It is docs and recorded output, not a hosted paywall. Nothing is live until Nick pushes and the Pages job goes green.
 
 ## Description (paste-ready, 1636 of 2,000 characters)
 
