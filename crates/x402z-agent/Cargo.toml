@@ -35,3 +35,5 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 rand = "0.10"
 hex = "0.4"
+# Kage Tab client: the same RFC 9474 crate the server signs with.
+blind-rsa-signatures = "0.18"

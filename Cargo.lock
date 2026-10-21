@@ -3879,6 +3879,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "bip0039",
+ "blind-rsa-signatures",
  "hex",
  "rand 0.10.3",
  "reqwest",

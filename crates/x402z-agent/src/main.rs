@@ -6,6 +6,13 @@
 //!
 //! Other commands: `new-wallet` (create a seed + wallet), `address`, `balance`.
 //!
+//! Kage Tab (one payment, N unlinkable requests):
+//! - `tab-buy <n>`: buy n tokens from X402Z_TARGET_URL's server, paid from the agent's wallet;
+//! - `tab-buy <n> --external`: spendguard-check n tokens and print the ZIP 321 request for any
+//!   wallet to pay, then `tab-redeem <txid> [memoNonce]` to collect the tokens;
+//! - `tab-fetch [url]`: GET the URL (default X402Z_TARGET_URL) spending one token;
+//! - `tab-status`: tokens left per origin and pending purchases.
+//!
 //! Exit codes: 0 paid/served, 1 runtime failure (network, server, facilitator), 2 missing or
 //! invalid config, 3 refused by spendguard (nothing built or broadcast), 4 wallet not usable
 //! (no seed, or not enough testnet ZEC), 5 the server/facilitator rejected the payment.
@@ -18,7 +25,7 @@ use std::{
 
 use x402z_agent::{
     pay::{self, AgentConfig},
-    wallet,
+    tab, wallet,
 };
 use x402z_facilitator::lwd;
 use zcash_protocol::consensus::BlockHeight;
@@ -140,13 +147,96 @@ async fn cmd_pay() {
     }
 }
 
+fn print_bought(b: &tab::Bought) {
+    println!(
+        "{}",
+        serde_json::json!({
+            "tab": { "tokens": b.n, "keyId": b.key_id, "amountZat": b.amount_zat, "txid": b.txid, "memoNonce": b.memo_nonce,
+                     "issueWaitSecs": b.issue_wait_secs, "explorer": format!("https://testnet.zecblock.com/tx/{}", b.txid) }
+        })
+    );
+}
+
+async fn cmd_tab_buy(args: &[String]) {
+    let n: u32 = args.first().and_then(|a| a.parse().ok()).unwrap_or_else(|| die(2, "usage: x402z-agent tab-buy <n> [--external]"));
+    let target = require("X402Z_TARGET_URL");
+    let cfg = config();
+    if args.iter().any(|a| a == "--external") {
+        let p = tab::start_external(&cfg, &target, n, &ask_approval).await.unwrap_or_else(|e| die(e.exit_code(), e));
+        println!(
+            "{}",
+            serde_json::json!({
+                "pending": { "tokens": p.n, "amountZat": p.amount_zat, "payTo": p.pay_to, "memoNonce": p.memo_nonce,
+                             "expiresAt": p.expires_at, "paymentUri": p.payment_uri, "keyId": p.offer.key_id }
+            })
+        );
+        eprintln!(
+            "pay {} zat to the URI above from any wallet (memo {}), then run `x402z-agent tab-redeem <txid>`",
+            p.amount_zat, p.memo_nonce
+        );
+        return;
+    }
+    let b = tab::buy(&cfg, &target, n, &ask_approval).await.unwrap_or_else(|e| die(e.exit_code(), e));
+    print_bought(&b);
+}
+
+async fn cmd_tab_redeem(args: &[String]) {
+    let txid = args.first().unwrap_or_else(|| die(2, "usage: x402z-agent tab-redeem <txid> [memoNonce]"));
+    let cfg = config();
+    let b = tab::finish_external(&cfg, txid, args.get(1).map(String::as_str)).await.unwrap_or_else(|e| die(e.exit_code(), e));
+    print_bought(&b);
+}
+
+async fn cmd_tab_fetch(args: &[String]) {
+    let url = args.first().cloned().unwrap_or_else(|| require("X402Z_TARGET_URL"));
+    let cfg = config();
+    match tab::fetch(&cfg, &url).await {
+        Ok(Some(f)) => {
+            println!("{}", f.body);
+            if let Some(s) = f.settlement {
+                eprintln!("X-PAYMENT-RESPONSE: success={} transaction={}", s.success, s.transaction);
+            }
+            eprintln!("served {} in {} ms with a tab token; {} token(s) left", f.status, f.elapsed_ms, f.remaining);
+        }
+        Ok(None) => die(4, format!("no tab tokens for {url}; buy some with `x402z-agent tab-buy <n>`")),
+        Err(e) => die(e.exit_code(), e),
+    }
+}
+
+fn cmd_tab_status() {
+    let cfg = config();
+    let path = tab::tab_path(&cfg).unwrap_or_else(|e| die(e.exit_code(), e));
+    let f = tab::TabFile::open(&path).unwrap_or_else(|e| die(e.exit_code(), e));
+    let now = pay::now();
+    let mut origins: Vec<&str> = f.state.tokens.iter().map(|t| t.origin.as_str()).collect();
+    origins.sort();
+    origins.dedup();
+    let tokens: serde_json::Map<String, serde_json::Value> = origins.iter().map(|o| (o.to_string(), f.count(o, now).into())).collect();
+    let pending: Vec<_> = f
+        .state
+        .pending
+        .iter()
+        .map(|p| serde_json::json!({ "memoNonce": p.memo_nonce, "tokens": p.n, "amountZat": p.amount_zat, "expiresAt": p.expires_at }))
+        .collect();
+    println!("{}", serde_json::json!({ "file": path.display().to_string(), "tokens": tokens, "pending": pending }));
+}
+
 #[tokio::main]
 async fn main() {
-    match std::env::args().nth(1).as_deref() {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let rest = args.get(1..).unwrap_or_default();
+    match args.first().map(String::as_str) {
         None | Some("pay") => cmd_pay().await,
         Some("new-wallet") => cmd_new_wallet().await,
         Some("address") => cmd_address().await,
         Some("balance") => cmd_balance().await,
-        Some(other) => die(2, format!("unknown command '{other}' (usage: x402z-agent [pay|new-wallet|address|balance])")),
+        Some("tab-buy") => cmd_tab_buy(rest).await,
+        Some("tab-redeem") => cmd_tab_redeem(rest).await,
+        Some("tab-fetch") => cmd_tab_fetch(rest).await,
+        Some("tab-status") => cmd_tab_status(),
+        Some(other) => die(
+            2,
+            format!("unknown command '{other}' (usage: x402z-agent [pay|new-wallet|address|balance|tab-buy|tab-redeem|tab-fetch|tab-status])"),
+        ),
     }
 }
