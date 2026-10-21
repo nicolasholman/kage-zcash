@@ -109,7 +109,7 @@ h3{font-size:17px;letter-spacing:-.025em}
 .ico svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .ico.k-paid,.ico.k-allowed{background:var(--gold);color:var(--ink)}
 .ico.k-rejected,.ico.k-denied{background:var(--bad-bg);color:var(--bad)}
-.ico.k-challenge,.ico.k-needs_approval{background:var(--warn-bg);color:var(--warn)}
+.ico.k-challenge,.ico.k-needs_approval,.ico.k-pending{background:var(--warn-bg);color:var(--warn)}
 .what{min-width:0}
 .what .t{font-weight:500;overflow-wrap:anywhere}
 .what .d{color:var(--muted);font-size:13px;margin-top:2px;overflow-wrap:anywhere}
@@ -121,7 +121,7 @@ h3{font-size:17px;letter-spacing:-.025em}
 .st{justify-self:start;display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:999px;font-size:13px;font-weight:500;white-space:nowrap;background:var(--panel3);color:var(--muted)}
 .st.k-paid,.st.k-allowed{background:var(--ok-bg);color:var(--ok)}
 .st.k-rejected,.st.k-denied{background:var(--bad-bg);color:var(--bad)}
-.st.k-challenge,.st.k-needs_approval{background:var(--warn-bg);color:var(--warn)}
+.st.k-challenge,.st.k-needs_approval,.st.k-pending{background:var(--warn-bg);color:var(--warn)}
 .when{color:var(--muted);font-size:13px;white-space:nowrap;font-variant-numeric:tabular-nums}
 @media (max-width:760px){
   .thead{display:none}
@@ -173,6 +173,25 @@ h3{font-size:17px;letter-spacing:-.025em}
 .copy{font:500 12px/1 var(--font);height:28px;padding:0 11px;border-radius:999px;border:0;cursor:pointer;background:var(--ink);color:var(--butter);transition:transform .15s}
 .copy:active{transform:scale(.95)}
 .challenge .note{color:#6b6250;font-size:13px;margin-top:14px;padding-top:12px;border-top:1px solid rgba(12,12,13,.1)}
+/* any wallet: ZIP 321 QR + URI + paste txid */
+.payany{display:grid;grid-template-columns:132px minmax(0,1fr);gap:16px;align-items:start;margin-top:14px}
+.payany .kv{margin:0;grid-template-columns:56px minmax(0,1fr) auto}
+.qr{display:block;width:132px;height:132px;border-radius:14px;background:#fff;padding:4px}
+.uri{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:14px}
+.uri code{flex:1 1 220px;min-width:0;overflow-wrap:anywhere;font:12px/1.45 var(--mono);background:rgba(12,12,13,.06);padding:8px 10px;border-radius:10px;color:var(--ink)}
+.uri .open{display:inline-flex;align-items:center;font:500 12px/1 var(--font);height:28px;padding:0 11px;border-radius:999px;background:var(--gold);color:var(--gold-ink);text-decoration:none}
+.redeem{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.redeem label{flex-basis:100%;font-size:13px;color:#6b6250}
+.redeem input{flex:1 1 220px;min-width:0;height:36px;border-radius:999px;border:1px solid rgba(12,12,13,.18);padding:0 14px;font:12.5px var(--mono);background:#fff;color:var(--ink)}
+.redeem input:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
+.redeem button{font:500 13px/1 var(--font);height:36px;padding:0 16px;border-radius:999px;border:0;cursor:pointer;background:var(--ink);color:var(--butter)}
+.redeem button:disabled{opacity:.5;cursor:default}
+.rout{margin-top:10px;font-size:13px;color:#6b6250;overflow-wrap:anywhere}
+.rout:empty{display:none}
+.rout b{color:var(--ink)}.rout.ok b{color:#1d6b3a}.rout.bad b{color:#a3261f}
+.rout a{color:var(--ink)}
+.rout pre{max-height:220px;overflow:auto;margin-top:8px}
+@media (max-width:440px){.payany{grid-template-columns:minmax(0,1fr)}.qr{justify-self:center;width:176px;height:176px}}
 
 /* spendguard */
 .agent{padding:14px 0;border-bottom:1px solid var(--line)}
@@ -310,13 +329,13 @@ h3{font-size:17px;letter-spacing:-.025em}
           <h2 id="payh">Pay per request</h2>
           <span class="price" id="price">…</span>
         </div>
-        <p>An AI agent calls a paid API, gets <b>HTTP 402</b>, pays with a shielded Zcash testnet transaction (memo = nonce), and retries with a signed receipt. The merchant sees the payment only through its viewing key. The chain shows neither amount nor address.</p>
+        <p>An AI agent calls a paid API, gets <b>HTTP 402</b>, pays with a shielded Zcash testnet transaction (memo = nonce), and retries with an <code>X-PAYMENT</code> header naming the txid. Any Zcash wallet can pay the same challenge by scanning its ZIP 321 QR code. The merchant sees the payment only through its incoming viewing key. The chain shows neither amount nor address.</p>
         <div class="btn-row"><button class="btn lg" id="try">Request paid data <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
         <div class="steps" id="steps" aria-label="Request progress">
           <span class="step" data-s="0">GET /api/quote</span>
           <span class="step" data-s="1">402 challenge</span>
           <span class="step" data-s="2">shielded pay</span>
-          <span class="step" data-s="3">receipt</span>
+          <span class="step" data-s="3">settle</span>
           <span class="step" data-s="4">200</span>
         </div>
         <div class="challenge" id="challenge" aria-live="polite"><div class="empty"><span class="ei"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg></span><b>No challenge yet</b><span>Press the button: a live 402 challenge from this server appears here.</span></div></div>
@@ -365,9 +384,9 @@ const P = d => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
 const ICON = {
   paid: P('<path d="M5 12.5l4.5 4.5L19 7.5"/>'), allowed: P('<path d="M5 12.5l4.5 4.5L19 7.5"/>'),
   rejected: P('<path d="M7 7l10 10M17 7L7 17"/>'), denied: P('<path d="M7 7l10 10M17 7L7 17"/>'),
-  challenge: P('<circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2"/>'), needs_approval: P('<path d="M12 7v6M12 16.5v.5"/>'),
+  challenge: P('<circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2"/>'), pending: P('<circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2"/>'), needs_approval: P('<path d="M12 7v6M12 16.5v.5"/>'),
 };
-const FEED_LABEL = {challenge: "402 · pending", paid: "paid", rejected: "refused"};
+const FEED_LABEL = {challenge: "402 · open", paid: "paid", rejected: "refused", pending: "confirming"};
 const DEC_LABEL = {allowed: "allowed", denied: "denied", needs_approval: "needs approval"};
 const counts = {challenge: 0, paid: 0, rejected: 0, paidZat: 0};
 
@@ -469,6 +488,30 @@ async function poll(){
 function copyBtn(v){ return `<button class="ghost copy" data-v="${esc(v)}">copy</button>`; }
 document.addEventListener("click", e => { const v = e.target.dataset && e.target.dataset.v; if (v) { navigator.clipboard?.writeText(v); e.target.textContent = "copied"; setTimeout(() => e.target.textContent = "copy", 1200); } });
 
+let redeemTimer;
+async function redeem(nonce, txid){
+  const out = $("#redeemOut"), btn = $("#redeemForm button");
+  clearTimeout(redeemTimer);
+  if (!/^[0-9a-fA-F]{64}$/.test(txid)) { out.className = "rout bad"; out.innerHTML = "<b>Not a txid.</b> Paste the 64-character transaction id your wallet shows."; return; }
+  out.className = "rout"; out.textContent = "Checking with the facilitator…"; if (btn) btn.disabled = true;
+  try {
+    const r = await fetch("/api/redeem", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({memoNonce: nonce, txid})});
+    const v = await r.json().catch(() => ({}));
+    if (v.status === "paid") {
+      out.className = "rout ok"; out.innerHTML = `<b>Paid · unlocked.</b> ${txLink(txid)}<pre>${esc(JSON.stringify(v.content, null, 2))}</pre>`;
+      steps(5); clearInterval(timer); const t = $("#ttl"); if (t) t.textContent = "paid"; poll(); return;
+    }
+    if (v.status === "pending") {
+      out.className = "rout"; out.innerHTML = `<b>Found, confirming.</b> ${esc(v.message || "")} Checking again in 15 s.`;
+      steps(3); redeemTimer = setTimeout(() => redeem(nonce, txid), 15000); poll(); return;
+    }
+    out.className = "rout bad";
+    const head = v.status === "error" ? "Facilitator unavailable." : r.status === 429 ? "Slow down." : "Refused.";
+    out.innerHTML = `<b>${head}</b> ${esc(v.message || v.error || ("HTTP " + r.status))}`; poll();
+  } catch (e) { out.className = "rout bad"; out.innerHTML = `<b>Server unreachable.</b> ${esc(e.message)}`; }
+  finally { if (btn) btn.disabled = false; }
+}
+
 $("#try").onclick = async () => {
   steps(0);
   try {
@@ -477,16 +520,28 @@ $("#try").onclick = async () => {
     // x402 v1 body: {x402Version, accepts: [PaymentRequirements], error}
     const a = (res.accepts || []).find(x => x.scheme === "zcash-shielded") || {};
     const x = a.extra || {};
-    const body = {scheme: a.scheme, network: a.network, payTo: a.payTo, amountZat: Number(a.maxAmountRequired), memoNonce: x.memoNonce, expiresAt: x.expiresAt};
-    steps(1); expiry = body.expiresAt;
+    const body = {scheme: a.scheme, network: a.network, payTo: a.payTo, amountZat: Number(a.maxAmountRequired), memoNonce: x.memoNonce, expiresAt: x.expiresAt, uri: x.paymentUri || ""};
+    steps(1); expiry = body.expiresAt; clearTimeout(redeemTimer);
+    const qr = "/api/challenge/" + encodeURIComponent(body.memoNonce) + "/qr.svg";
     $("#challenge").innerHTML = `<div class="status402"><span>HTTP 402 Payment Required</span><span id="ttl"></span></div>
-      <dl class="kv">
-        <dt>scheme</dt><dd>${esc(body.scheme)} · ${esc(body.network)}</dd><span></span>
-        <dt>payTo</dt><dd class="m" title="${esc(body.payTo)}">${esc(short(body.payTo))}</dd>${copyBtn(body.payTo)}
-        <dt>amount</dt><dd>${zat(body.amountZat)} <span class="sub">(${body.amountZat} zat)</span></dd>${copyBtn(String(body.amountZat / 1e8))}
-        <dt>memo</dt><dd class="m">${esc(body.memoNonce)}</dd>${copyBtn(body.memoNonce)}
-      </dl>
-      <div class="note">Send exactly this from a shielded testnet wallet with the nonce as the memo. The facilitator spots it with the merchant viewing key and signs a receipt.</div>`;
+      <div class="payany">
+        <img class="qr" src="${esc(qr)}" width="132" height="132" alt="QR code of the ZIP 321 payment request for this challenge">
+        <dl class="kv">
+          <dt>scheme</dt><dd>${esc(body.scheme)} · ${esc(body.network)}</dd><span></span>
+          <dt>payTo</dt><dd class="m" title="${esc(body.payTo)}">${esc(short(body.payTo))}</dd>${copyBtn(body.payTo)}
+          <dt>amount</dt><dd>${zat(body.amountZat)} <span class="sub">(${body.amountZat} zat)</span></dd>${copyBtn(String(body.amountZat / 1e8))}
+          <dt>memo</dt><dd class="m">${esc(body.memoNonce)}</dd>${copyBtn(body.memoNonce)}
+        </dl>
+      </div>
+      ${body.uri ? `<div class="uri"><code>${esc(body.uri)}</code>${copyBtn(body.uri)}<a class="open" href="${esc(body.uri)}">Open in wallet</a></div>` : ""}
+      <form class="redeem" id="redeemForm" autocomplete="off">
+        <label for="txid">Paid from another wallet? Paste the transaction id.</label>
+        <input id="txid" name="txid" inputmode="latin" spellcheck="false" placeholder="64-character txid" pattern="[0-9a-fA-F]{64}" required>
+        <button type="submit">Redeem</button>
+      </form>
+      <div class="rout" id="redeemOut" aria-live="polite"></div>
+      <div class="note">Scan the QR with any shielded testnet wallet (ZIP 321: address, amount and memo filled in), or send exactly this amount with the nonce as the memo. The facilitator spots it with the merchant's incoming viewing key; the agent path does the same with <code>X-PAYMENT</code>.</div>`;
+    $("#redeemForm").onsubmit = ev => { ev.preventDefault(); redeem(body.memoNonce, $("#txid").value.trim()); };
     clearInterval(timer);
     timer = setInterval(() => { const t = expiry - Math.floor(Date.now()/1000); const el = $("#ttl"); if (el) el.textContent = t > 0 ? `expires in ${Math.floor(t/60)}:${String(t%60).padStart(2,"0")}` : "expired"; }, 1000);
     setTimeout(() => steps(2), 900);

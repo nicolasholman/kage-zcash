@@ -27,7 +27,7 @@ use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use x402z_protocol::{
-    decode_header, encode_header, paid_in_time, reason, FacilitatorRequest, Network, PaymentPayload, PaymentRequired,
+    challenge_uri, decode_header, encode_header, paid_in_time, reason, FacilitatorRequest, Network, PaymentPayload, PaymentRequired,
     PaymentRequiredResponse, PaymentRequirements, ReceiptClaims, SettleResponse, SettlementResponse, VerifyStatus,
     DEFAULT_EXPIRY_GRACE_SECS, PAYMENT_HEADER, PAYMENT_RESPONSE_HEADER, RECEIPT_HEADER, SCHEME, SETTLE_PATH, X402_VERSION,
 };
@@ -278,9 +278,14 @@ fn resource_url(headers: &HeaderMap) -> String {
     }
 }
 
-/// The x402 `accepts` entry for a challenge.
+/// The x402 `accepts` entry for a challenge, with a ZIP 321 URI any Zcash wallet can pay.
 fn requirements(ch: &PaymentRequired, resource: &str) -> PaymentRequirements {
-    PaymentRequirements::from_challenge(ch, resource, DESCRIPTION, MIME, CHALLENGE_TTL_SECS)
+    let mut r = PaymentRequirements::from_challenge(ch, resource, DESCRIPTION, MIME, CHALLENGE_TTL_SECS);
+    if let Ok(mut extra) = r.zcash_extra() {
+        extra.payment_uri = Some(challenge_uri(ch));
+        r.set_zcash_extra(&extra);
+    }
+    r
 }
 
 fn with_header(mut resp: Response, name: &'static str, value: &str) -> Response {
@@ -493,6 +498,87 @@ async fn quote(State(app): State<Arc<App>>, ConnectInfo(peer): ConnectInfo<Socke
     }
 }
 
+/// `POST /api/redeem` body: a challenge paid from any wallet, identified by its nonce.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RedeemRequest {
+    memo_nonce: String,
+    txid: String,
+}
+
+/// `POST /api/redeem`: the dashboard's "paste txid" path for payments made from any Zcash wallet
+/// (for example by scanning the ZIP 321 QR). Same checks as `X-PAYMENT`, JSON answers:
+/// 200 paid (with the content), 202 pending (retry the same txid), 422 rejected, 502 facilitator
+/// down, 429 rate limited. Attempts share the per-IP challenge budget.
+async fn redeem_api(
+    State(app): State<Arc<App>>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    body: axum::body::Bytes,
+) -> Response {
+    let req: RedeemRequest = match serde_json::from_slice(&body) {
+        Ok(r) => r,
+        Err(e) => {
+            return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "status": "rejected", "reason": reason::INVALID_PAYLOAD, "message": format!("body must be {{memoNonce, txid}}: {e}") })))
+                .into_response()
+        }
+    };
+    let txid = req.txid.trim().to_ascii_lowercase();
+    if txid.len() != 64 || !txid.chars().all(|c| c.is_ascii_hexdigit()) {
+        return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "status": "rejected", "reason": reason::INVALID_PAYLOAD, "message": "txid must be 64 hex characters" })))
+            .into_response();
+    }
+    if let Err(wait) = app.limiter.lock().unwrap().try_acquire(peer.ip(), Instant::now()) {
+        return too_many_challenges(wait);
+    }
+    let resource = resource_url(&headers);
+    match redeem(&app, req.memo_nonce.trim(), &txid, &resource).await {
+        Redeem::Paid(c) => {
+            record_paid(&app, &c, "pasted txid");
+            let content = paid_response(&c);
+            let bytes = axum::body::to_bytes(content.into_body(), 1 << 20).await.unwrap_or_default();
+            let content: serde_json::Value = serde_json::from_slice(&bytes).unwrap_or_default();
+            Json(serde_json::json!({ "status": "paid", "settlement": SettlementResponse::ok(&c.txid), "content": content })).into_response()
+        }
+        Redeem::Pending { challenge, message } => {
+            app.book.lock().unwrap().push("pending", Some(&challenge.memo_nonce), Some(challenge.amount_zat), Some(&txid), message.clone());
+            (StatusCode::ACCEPTED, Json(serde_json::json!({ "status": "pending", "reason": reason::PENDING, "message": message }))).into_response()
+        }
+        Redeem::Refused { reason: why, message } => {
+            app.book.lock().unwrap().push("rejected", Some(req.memo_nonce.trim()), None, Some(&txid), message.clone());
+            (StatusCode::UNPROCESSABLE_ENTITY, Json(serde_json::json!({ "status": "rejected", "reason": why, "message": message }))).into_response()
+        }
+        Redeem::Unavailable(message) => {
+            (StatusCode::BAD_GATEWAY, Json(serde_json::json!({ "status": "error", "reason": reason::FACILITATOR_ERROR, "message": message }))).into_response()
+        }
+    }
+}
+
+/// `GET /api/challenge/{nonce}/qr.svg`: QR code of the challenge's ZIP 321 URI, rendered here
+/// (no external service sees the address, amount or nonce).
+async fn challenge_qr(State(app): State<Arc<App>>, axum::extract::Path(nonce): axum::extract::Path<String>) -> Response {
+    let row = match app.store.get(&nonce) {
+        Ok(Some(r)) => r,
+        Ok(None) => return (StatusCode::NOT_FOUND, "unknown challenge").into_response(),
+        Err(e) => return storage_error(e),
+    };
+    match qr_svg(&challenge_uri(&row.challenge)) {
+        Ok(svg) => ([("content-type", "image/svg+xml"), ("cache-control", "no-store")], svg).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
+    }
+}
+
+fn qr_svg(data: &str) -> Result<String, String> {
+    let code = qrcode::QrCode::with_error_correction_level(data.as_bytes(), qrcode::EcLevel::M).map_err(|e| e.to_string())?;
+    Ok(code
+        .render::<qrcode::render::svg::Color>()
+        .min_dimensions(240, 240)
+        .quiet_zone(true)
+        .dark_color(qrcode::render::svg::Color("#0c0c0d"))
+        .light_color(qrcode::render::svg::Color("#ffffff"))
+        .build())
+}
+
 #[derive(Deserialize)]
 struct Since {
     since: Option<u64>,
@@ -559,6 +645,8 @@ fn router(app: Arc<App>) -> Router {
     Router::new()
         .route("/", get(|| async { Html(DASHBOARD) }))
         .route(QUOTE_PATH, get(quote))
+        .route("/api/redeem", axum::routing::post(redeem_api))
+        .route("/api/challenge/{nonce}/qr.svg", get(challenge_qr))
         .route("/api/events", get(events))
         .route("/api/status", get(status))
         .with_state(app)
@@ -1139,5 +1227,72 @@ mod tests {
         assert_eq!(settlement_of(&r).error_reason.as_deref(), Some(reason::FACILITATOR_ERROR));
         assert!(body_json(r).await["error"].as_str().unwrap().contains("facilitator unreachable"));
         assert_eq!(open_nonces(&app), vec![nonce]);
+    }
+
+    // -- any wallet: ZIP 321 + QR + paste txid -------------------------------------------------
+
+    async fn call(app: Arc<App>, req: axum::http::Request<axum::body::Body>) -> Response {
+        use axum::extract::connect_info::MockConnectInfo;
+        use tower::ServiceExt;
+        router(app).layer(MockConnectInfo(SocketAddr::from(([10, 0, 0, 1], 40000)))).oneshot(req).await.unwrap()
+    }
+
+    async fn post_redeem(app: Arc<App>, body: serde_json::Value) -> Response {
+        let req = axum::http::Request::post("/api/redeem")
+            .header("content-type", "application/json")
+            .header("host", "kage.test")
+            .body(axum::body::Body::from(body.to_string()))
+            .unwrap();
+        call(app, req).await
+    }
+
+    #[tokio::test]
+    async fn the_402_carries_a_zip321_uri_and_a_local_qr() {
+        let app = test_app(5);
+        let v = body_json(get_quote(app.clone(), [10, 0, 0, 1], None).await).await;
+        let extra = &v["accepts"][0]["extra"];
+        let nonce = extra["memoNonce"].as_str().unwrap();
+        let memo_b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(nonce);
+        assert_eq!(extra["paymentUri"], format!("zcash:{UA}?amount=0.001&memo={memo_b64}"));
+
+        let r = call(app.clone(), axum::http::Request::get(format!("/api/challenge/{nonce}/qr.svg")).body(axum::body::Body::empty()).unwrap()).await;
+        assert_eq!(r.status(), StatusCode::OK);
+        assert_eq!(r.headers().get("content-type").unwrap(), "image/svg+xml");
+        let svg = axum::body::to_bytes(r.into_body(), 1 << 20).await.unwrap();
+        assert!(svg.starts_with(b"<?xml") || svg.starts_with(b"<svg"), "{:?}", &svg[..20]);
+        let r = call(app, axum::http::Request::get("/api/challenge/x402z-nope/qr.svg").body(axum::body::Body::empty()).unwrap()).await;
+        assert_eq!(r.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn redeem_api_settles_a_pasted_txid() {
+        let app = app_with_stand_in().await;
+        let v = body_json(get_quote(app.clone(), [10, 0, 0, 1], None).await).await;
+        let nonce = v["accepts"][0]["extra"]["memoNonce"].as_str().unwrap().to_string();
+
+        let r = post_redeem(app.clone(), serde_json::json!({"memoNonce": nonce, "txid": TX_PENDING})).await;
+        assert_eq!(r.status(), StatusCode::ACCEPTED);
+        assert_eq!(body_json(r).await["status"], "pending");
+
+        let r = post_redeem(app.clone(), serde_json::json!({"memoNonce": nonce, "txid": TX_UNDERPAID})).await;
+        assert_eq!(r.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(body_json(r).await["reason"], reason::INVALID_PAYMENT);
+
+        // uppercase / padded txid from a wallet's copy button is normalised
+        let r = post_redeem(app.clone(), serde_json::json!({"memoNonce": nonce, "txid": format!(" {} ", TX_OK.to_uppercase())})).await;
+        assert_eq!(r.status(), StatusCode::OK);
+        let v = body_json(r).await;
+        assert_eq!(v["status"], "paid");
+        assert_eq!(v["settlement"]["transaction"], TX_OK);
+        assert_eq!(v["content"]["settlement"]["memoNonce"], nonce);
+
+        let r = post_redeem(app.clone(), serde_json::json!({"memoNonce": nonce, "txid": TX_OK})).await;
+        assert_eq!(r.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(body_json(r).await["reason"], reason::NONCE_USED);
+
+        let r = post_redeem(app.clone(), serde_json::json!({"memoNonce": nonce, "txid": "zz"})).await;
+        assert_eq!(r.status(), StatusCode::BAD_REQUEST);
+        let r = post_redeem(app.clone(), serde_json::json!({"txid": TX_OK})).await;
+        assert_eq!(r.status(), StatusCode::BAD_REQUEST);
     }
 }
