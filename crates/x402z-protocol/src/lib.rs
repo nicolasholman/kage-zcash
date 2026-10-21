@@ -1,5 +1,5 @@
 //! Wire types for the 402 challenge returned by a paywalled endpoint.
-//! Field names follow CLAUDE.md: `{scheme, network, payTo, amountZat, memoNonce, expiresAt}`.
+//! Field names: `{scheme, network, payTo, amountZat, memoNonce, expiresAt}`.
 
 use serde::{Deserialize, Serialize};
 

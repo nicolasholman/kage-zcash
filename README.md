@@ -2,8 +2,6 @@
 
 HTTP 402 payments for AI agents, settled as **Zcash shielded** testnet transactions. The merchant's facilitator verifies a payment with a viewing key alone (it holds no spend key). Before the agent builds any transaction, **spendguard** checks it against a daily cap, a host allowlist and an approval threshold.
 
-> Context: the ecosystem asked for a "Shielded x402" grant (ZCG, $42K). It was **rejected** on Sep 28 2026, so nobody funded it. This repo is our own independent implementation of the idea and does not reuse that proposal's code.
-
 ```
 agent -> GET /api/quote -> 402 {scheme, network, payTo, amountZat, memoNonce, expiresAt}
       -> spendguard.check() -> shielded tx (memo = nonce)
@@ -19,9 +17,9 @@ agent -> GET /api/quote -> 402 {scheme, network, payTo, amountZat, memoNonce, ex
 | `crates/x402z-protocol`: 402 challenge type and validation | **Done.** 4 tests |
 | `crates/x402z-server`: paywalled `/api/quote`, receipt verification, dashboard, per-IP 402 rate limit | **Done.** 10 tests (ed25519 receipt, replay, underpaid, expired, wrong address, 429 + Retry-After) |
 | `crates/x402z-facilitator`: lightwalletd gRPC, UFVK trial decryption (Sapling, Orchard, Ironwood), receipt signing | **Done.** 5 integration tests on real shielded transactions (real keys, real Halo2 proofs, real ed25519). Verified live against testnet.zec.rocks |
-| `crates/x402z-agent`: 402 → spendguard → `zcash_client_sqlite` wallet → pay → receipt → retry, ledger writer | **Done.** 4 ledger tests. Paid live on testnet (see "Live testnet run") |
+| `crates/x402z-agent`: 402 → spendguard → `zcash_client_sqlite` wallet → pay → receipt → retry, ledger writer | **Done.** 4 ledger tests. Paid live on testnet |
 | Encrypted audit log (only the owner's viewing key can read it) | Not started. The ledger is plain JSON |
-| A paid end-to-end run on testnet | **Done.** txid [`030c3cbf78ce8460553bba4e82c0ba813f039bd3ecf4d7f2e81c59837dc28351`](https://testnet.zecblock.com/tx/030c3cbf78ce8460553bba4e82c0ba813f039bd3ecf4d7f2e81c59837dc28351), mined in block 4521112 (see "Live testnet run") |
+| Paid end-to-end runs on testnet | **Done.** [`030c3cbf…8351`](https://testnet.zecblock.com/tx/030c3cbf78ce8460553bba4e82c0ba813f039bd3ecf4d7f2e81c59837dc28351) (block 4521112) and the demo-video run [`cd64980a…916d`](https://testnet.zecblock.com/tx/cd64980a5247881a727aa916476a3ba757e59794263c2ff1bcde467654a0916d) (block 4521440); see [Verified testnet runs](#verified-testnet-runs) |
 
 Nothing is mocked. If a binary is missing a key, a wallet or funds, it stops with an error and a non-zero exit code. It never fakes a payment.
 
@@ -92,20 +90,11 @@ These are checked in order. The first denial wins, so a payment that would be de
 
 Testnet blocks arrive about every 75 s. By default, both the facilitator and the server require 1 confirmation (`X402Z_MIN_CONFIRMATIONS`). Below that, the facilitator answers `202 pending`. The agent polls every 15 s, for up to `X402Z_AGENT_CONFIRM_TIMEOUT_SECS` (default 900). Setting `X402Z_MIN_CONFIRMATIONS=0` on both accepts mempool-only payments; that is weaker, and the server logs a warning.
 
-## Live testnet run
+## Running a paid payment yourself
 
-**What ran on 2026-10-20** against `https://testnet.zec.rocks:443` (ECC LightWalletD v0.5.4, chain `test`):
+Earlier unfunded runs (health, rejections of foreign txs, exit codes 3/4) are logged in [docs/build-notes.md](docs/build-notes.md).
 
-- **Facilitator health.** `GET /health` returned `chainTip 4520789`, and `4520801` on a later run.
-- **Real transactions.** I sent `POST /verify` the txids of real mined NU7 Ironwood transactions (blocks 4520784–4520789). The facilitator fetched, parsed, txid-checked and trial-decrypted them. It answered `422 rejected: no output in this transaction decrypts to the merchant viewing key`, which is correct: they don't pay us.
-- **Unknown txid.** It answered `404 not_found`.
-- **Agent.** It got the 402 and spendguard allowed the payment:
-  - With no seed, it exited 4.
-  - With a fresh real wallet (`new-wallet`, birthday 4520790), it synced to the tip, reported `spendable 0 zat`, printed the address to fund, and exited 4.
-  - With the cap or the allowlist violated, it exited 3 without touching the wallet.
-- **No payment was made in this run**, because the wallet had no testnet ZEC yet. A later funded run paid end to end; see [Verified testnet run](#verified-testnet-run).
-
-**What a paid run needs** (all three were in place for the [Verified testnet run](#verified-testnet-run)):
+**What a paid run needs** (all three were in place for the [verified runs](#verified-testnet-runs)):
 
 1. **A funded testnet wallet for the agent.** Put its 24-word BIP 39 phrase in `X402Z_AGENT_SEED` and its birthday height in `X402Z_AGENT_BIRTHDAY`. It needs at least 0.0011 TAZ spendable (price plus fee); more allows repeated runs. Alternatively, run `x402z-agent new-wallet` and send TAZ to the address it prints.
 2. **A merchant UA and UFVK.** Any testnet wallet's UFVK works, as long as the UA is derived from it. Or run `new-wallet` into a second directory; you only need its seed later, to spend the income.
@@ -123,11 +112,17 @@ X402Z_AGENT_DAILY_CAP_ZAT=1 target/debug/x402z-agent   # cap demo: exit 3, nothi
 ```
 The first payment downloads the Sapling proving parameters to the default Zcash params folder (about 50 MB, once).
 
-## Verified testnet run
+## Verified testnet runs
 
-**Paid end to end on 2026-10-20** (11:14 IST) against `https://testnet.zec.rocks:443`, with nothing mocked:
+Two payments went end to end on 2026-10-20 against `https://testnet.zec.rocks:443`, with nothing mocked. Both pay 100,000 zat as an Ironwood note to the same demo merchant wallet:
 
-- **Payment txid:** [`030c3cbf78ce8460553bba4e82c0ba813f039bd3ecf4d7f2e81c59837dc28351`](https://testnet.zecblock.com/tx/030c3cbf78ce8460553bba4e82c0ba813f039bd3ecf4d7f2e81c59837dc28351) (testnet explorer; mined in block 4521112).
+| Txid | Block | Memo nonce | Notes |
+|---|---|---|---|
+| [`030c3cbf78ce8460553bba4e82c0ba813f039bd3ecf4d7f2e81c59837dc28351`](https://testnet.zecblock.com/tx/030c3cbf78ce8460553bba4e82c0ba813f039bd3ecf4d7f2e81c59837dc28351) | 4521112 | `x402z-f19a63da20cbc0749ea800b3` | first paid run, details below |
+| [`cd64980a5247881a727aa916476a3ba757e59794263c2ff1bcde467654a0916d`](https://testnet.zecblock.com/tx/cd64980a5247881a727aa916476a3ba757e59794263c2ff1bcde467654a0916d) | 4521440 | `x402z-af06b1d50af81616075f0cb3` | the run shown in the demo video |
+
+First run (11:14 IST):
+
 - **Price:** 100,000 zat (0.001 TAZ), plus a 10,000 zat network fee. The agent's spendable balance went from 12,500,000 to 12,390,000 zat.
 - **Facilitator:** `CONFIRMED 100000 zat via [Ironwood], 2 conf (tip 4521113); receipt issued`.
 - **Server:** `GET /api/quote` answered `200 OK` with the paid content and this settlement block:
@@ -166,21 +161,10 @@ incoming 100000 zat via Ironwood, memo text "x402z-f19a63da20cbc0749ea800b3"
 total to merchant with memo "x402z-f19a63da20cbc0749ea800b3": 100000 zat
 ```
 
-With a different memo nonce it prints `0 zat` and exits 2. If no output decrypts, it exits 1.
+The demo-video payment checks the same way (`cd64980a5247881a727aa916476a3ba757e59794263c2ff1bcde467654a0916d x402z-af06b1d50af81616075f0cb3` → 100,000 zat). With a different memo nonce it prints `0 zat` and exits 2. If no output decrypts, it exits 1.
 
-**Gotcha: Sapling params.** The first attempt failed with `sapling-spend.params failed validation` because the ~50 MB download was cut off (only 5,982,770 of 47,958,396 bytes arrived), so the hash check rejected it and no payment was sent. Fix: delete the partial `sapling-spend.params` from the Zcash params folder and download it again; the retry above then went through.
+## Known limits
 
-## Blockers / open checks
-
-- **NU7 is live on testnet.** It activated at height 4465026, with branch id `0x77190AD9`.
-  - The stable crates (`zcash_protocol` 0.10.6, `zcash_primitives` 0.30, `zcash_client_backend` 0.24) reject every current testnet transaction with `invalid consensus branch id 0x77190ad9`.
-  - So we pin the **pre-release** line: `zcash_protocol 0.11.0-pre.1`, `zcash_primitives 0.31.0-pre.2`, `zcash_client_backend 0.25.0-pre.2`, `zcash_client_sqlite 0.23.0-pre.2` and `zcash_keys 0.17.0-pre.2`.
-  - Check crates.io for stable releases before the freeze.
-- **Toolchain.** These crates need Rust 1.88 or later, so `rust-toolchain.toml` is now `1.89.0` (it was 1.85).
-
-- **Leash port.** I couldn't read `../leash/packages/core` because the Loom sandbox blocks paths outside the project. spendguard here was written from the CLAUDE.md spec. It needs to be compared against leash once access is granted.
-- **Shielded pool.** Settled. The crates trial-decrypt Ironwood bundles with the Orchard viewing key, and a UA's Orchard receiver also receives in Ironwood. The agent sends change to Ironwood. The facilitator accepts Sapling, Orchard and Ironwood outputs.
-- **lightwalletd.** `testnet.zec.rocks:443` is reachable, but no official doc listing it was found.
-- **Faucet.** `testnet.zecfaucet.com` does **not resolve** (DNS failure, 2026-10-20). The [Valar testnet faucet](https://faucet.testnet.valargroup.dev/) works: it gives 0.125 TAZ per IP per day, and it funded the agent wallet for the verified run.
-- **Funds.** Settled. The agent wallet was funded with 0.125 TAZ from the Valar faucet, and a paid run succeeded (see [Verified testnet run](#verified-testnet-run)). The tools create the merchant keys, the receipt key and the agent wallet themselves (see above). `zingo-cli` is not installed and isn't needed: the agent uses `zcash_client_sqlite` directly.
+- **Pre-release Zcash crates.** NU7 is live on testnet and only the pre-release librustzcash line parses its transactions; see [docs/build-notes.md](docs/build-notes.md) for the pinned versions and toolchain.
 - **Encrypted audit log.** Not built. `X402Z_AGENT_LEDGER` is plaintext JSON.
+- **First payment downloads the Sapling params** (~50 MB). A truncated download fails the hash check before anything is sent; delete the partial file and retry ([build notes](docs/build-notes.md#gotcha-truncated-sapling-params)).

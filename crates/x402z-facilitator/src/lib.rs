@@ -11,5 +11,5 @@ pub mod lwd;
 pub mod receipt;
 pub mod verify;
 
-/// The facilitator is testnet-only (CLAUDE.md: no mainnet without explicit OK).
+/// The facilitator is testnet-only (no mainnet).
 pub const NETWORK: zcash_protocol::consensus::Network = zcash_protocol::consensus::Network::TestNetwork;
