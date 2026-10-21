@@ -252,6 +252,7 @@ fn receipt_round_trip_uses_server_wire_format() {
         txid: "ab".repeat(32),
         confirmations: 1,
         issued_at: 1_800_000_000,
+        mined_at: Some(1_799_999_900),
     };
     let r = receipt::sign(&sk, &claims);
     assert_eq!(receipt::verify(&sk.verifying_key(), &r).unwrap(), claims);
@@ -260,7 +261,7 @@ fn receipt_round_trip_uses_server_wire_format() {
     use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
     let (c, s) = r.split_once('.').unwrap();
     let json: serde_json::Value = serde_json::from_slice(&URL_SAFE_NO_PAD.decode(c).unwrap()).unwrap();
-    for k in ["memoNonce", "amountZat", "payTo", "txid", "confirmations", "issuedAt"] {
+    for k in ["memoNonce", "amountZat", "payTo", "txid", "confirmations", "issuedAt", "minedAt"] {
         assert!(json.get(k).is_some(), "missing {k}");
     }
     assert_eq!(URL_SAFE_NO_PAD.decode(s).unwrap().len(), 64);

@@ -7,15 +7,20 @@
 //! but logs a warning: a full viewing key also reveals the merchant's outgoing payments and
 //! change, which the facilitator never needs. Only its incoming part is kept in memory.
 //!
+//! Expiry is judged by the header time of the block that mined the payment (`minedAt` in the
+//! receipt), with `X402Z_EXPIRY_GRACE_SECS` of slack, so a payment broadcast before expiry is
+//! not lost because its block came late or the payer asked for the receipt later.
+//! Nonce -> txid bindings persist in SQLite (`X402Z_FACILITATOR_DB`).
+//!
 //! `GET /health`  live lightwalletd round-trip; 200 with the chain tip, 503 if it fails.
 //! `POST /verify` `{challenge, txid}` -> `VerifyResponse` (see x402z_protocol).
 //!
 //! `x402z-facilitator keygen` prints a fresh receipt key pair for `.env`.
 //! `x402z-facilitator derive-uivk` prints the UIVK for the UFVK in `X402Z_MERCHANT_UFVK`.
 use std::{
-    collections::HashMap,
+    path::PathBuf,
     process::exit,
-    sync::{Arc, Mutex},
+    sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -31,10 +36,14 @@ use ed25519_dalek::SigningKey;
 use x402z_facilitator::{
     lwd::{self, FetchedTx, TxLocation},
     receipt,
+    store::IssuedStore,
     verify::{self, MerchantKey, VerifyError},
     NETWORK,
 };
-use x402z_protocol::{ReceiptClaims, VerifyRequest, VerifyResponse, VerifyStatus, HEALTH_PATH, VERIFY_PATH};
+use x402z_protocol::{
+    paid_in_time, ReceiptClaims, VerifyRequest, VerifyResponse, VerifyStatus, DEFAULT_EXPIRY_GRACE_SECS, HEALTH_PATH,
+    VERIFY_PATH,
+};
 
 fn require(var: &str) -> String {
     match std::env::var(var) {
@@ -62,8 +71,9 @@ struct App {
     /// When set, challenges for any other `payTo` are refused outright.
     merchant_ua: Option<String>,
     min_confirmations: u32,
+    expiry_grace_secs: u64,
     /// memo nonce -> txid it was receipted for, so one nonce can't be receipted for two txs.
-    issued: Mutex<HashMap<String, String>>,
+    issued: IssuedStore,
 }
 
 fn reply(code: StatusCode, r: VerifyResponse) -> Response {
@@ -91,7 +101,8 @@ async fn verify_handler(State(app): State<Arc<App>>, body: Bytes) -> Response {
         Err(e) => return fail(StatusCode::BAD_REQUEST, VerifyStatus::Rejected, format!("bad request body: {e}")),
     };
     let ch = &req.challenge;
-    if let Err(e) = ch.validate(now()) {
+    // Expiry is checked against the mined block's time below, not against "now".
+    if let Err(e) = ch.validate_shape() {
         return fail(StatusCode::BAD_REQUEST, VerifyStatus::Rejected, format!("invalid challenge: {e:?}"));
     }
     if let Some(ua) = &app.merchant_ua {
@@ -103,8 +114,12 @@ async fn verify_handler(State(app): State<Arc<App>>, body: Bytes) -> Response {
         return fail(StatusCode::BAD_REQUEST, VerifyStatus::Rejected, "txid must be 64 hex chars".into());
     };
     let txid_hex = txid.to_string();
-    if let Some(prev) = app.issued.lock().unwrap().get(&ch.memo_nonce) {
-        if prev != &txid_hex {
+    let prev = match app.issued.txid_for(&ch.memo_nonce) {
+        Ok(p) => p,
+        Err(e) => return fail(StatusCode::SERVICE_UNAVAILABLE, VerifyStatus::Error, e),
+    };
+    if let Some(prev) = prev {
+        if prev != txid_hex {
             return fail(
                 StatusCode::UNPROCESSABLE_ENTITY,
                 VerifyStatus::Rejected,
@@ -151,6 +166,26 @@ async fn verify_handler(State(app): State<Arc<App>>, body: Bytes) -> Response {
         }
     };
     let tip_u64 = u64::from(u32::from(tip));
+    let mined_at = match mined {
+        Some(h) => match lwd::block_time(&mut client, h).await {
+            Ok(t) => Some(t),
+            Err(e) => return fail(StatusCode::BAD_GATEWAY, VerifyStatus::Error, format!("block {h} time: {e} ({})", app.lwd_url)),
+        },
+        None => None,
+    };
+    let paid_at = mined_at.unwrap_or_else(now);
+    if !paid_in_time(ch.expires_at, paid_at, app.expiry_grace_secs) {
+        let when = if mined_at.is_some() { "was mined" } else { "is still unmined" };
+        eprintln!("verify {} tx {txid_hex}: rejected: paid after expiry ({when} at {paid_at}, expired {})", ch.memo_nonce, ch.expires_at);
+        return fail(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            VerifyStatus::Rejected,
+            format!(
+                "payment {when} at {paid_at}, after the challenge expired at {} plus {} s grace",
+                ch.expires_at, app.expiry_grace_secs
+            ),
+        );
+    }
     if payment.confirmations < app.min_confirmations {
         eprintln!(
             "verify {} tx {txid_hex}: pending ({} of {} confirmations, tip {tip})",
@@ -180,9 +215,20 @@ async fn verify_handler(State(app): State<Arc<App>>, body: Bytes) -> Response {
         txid: txid_hex.clone(),
         confirmations: payment.confirmations,
         issued_at: now(),
+        mined_at,
     };
+    match app.issued.bind(&ch.memo_nonce, &txid_hex, now()) {
+        Ok(bound) if bound == txid_hex => {}
+        Ok(bound) => {
+            return fail(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                VerifyStatus::Rejected,
+                format!("memo nonce already receipted for tx {bound}"),
+            )
+        }
+        Err(e) => return fail(StatusCode::SERVICE_UNAVAILABLE, VerifyStatus::Error, e),
+    }
     let signed = receipt::sign(&app.signing_key, &claims);
-    app.issued.lock().unwrap().insert(ch.memo_nonce.clone(), txid_hex.clone());
     eprintln!(
         "verify {} tx {txid_hex}: CONFIRMED {} zat via {:?}, {} conf (tip {tip}); receipt issued",
         ch.memo_nonce, payment.amount_zat, payment.pools, payment.confirmations
@@ -303,6 +349,19 @@ async fn main() {
         }
     };
     let merchant_ua = optional("X402Z_MERCHANT_UA");
+    let expiry_grace_secs = match optional("X402Z_EXPIRY_GRACE_SECS").map(|s| s.parse::<u64>()) {
+        None => DEFAULT_EXPIRY_GRACE_SECS,
+        Some(Ok(n)) => n,
+        Some(Err(_)) => {
+            eprintln!("error: X402Z_EXPIRY_GRACE_SECS must be a non-negative integer (seconds)");
+            exit(2);
+        }
+    };
+    let db_path = PathBuf::from(optional("X402Z_FACILITATOR_DB").unwrap_or_else(|| "x402z-facilitator.sqlite".into()));
+    let issued = IssuedStore::open(&db_path).unwrap_or_else(|e| {
+        eprintln!("error: {e}");
+        exit(2);
+    });
     let bind = optional("X402Z_FACILITATOR_BIND").unwrap_or_else(|| "127.0.0.1:4021".into());
 
     let mut client = lwd::connect(&lwd_url).await.unwrap_or_else(|e| {
@@ -334,7 +393,8 @@ async fn main() {
         signing_key,
         merchant_ua,
         min_confirmations,
-        issued: Mutex::new(HashMap::new()),
+        expiry_grace_secs,
+        issued,
     });
     let router = Router::new()
         .route(HEALTH_PATH, get(health))

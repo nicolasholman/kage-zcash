@@ -33,6 +33,7 @@ ed25519-dalek = { version = "2", features = ["rand_core"] }
 hex = "0.4"
 base64 = "0.22"
 rand = "0.8"
+rusqlite = { version = "0.37", features = ["bundled"] }
 
 [dev-dependencies]
 # Integration tests build real shielded transactions (real Halo2 proofs for the Orchard-family

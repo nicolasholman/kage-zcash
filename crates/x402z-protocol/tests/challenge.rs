@@ -63,3 +63,33 @@ fn rejects_expired_mainnet_wrong_scheme_bad_nonce() {
     a.pay_to = "zs1notaunifiedaddress0000000".into();
     assert_eq!(a.validate(0), Err(InvalidChallenge::BadAddress));
 }
+
+#[test]
+fn shape_validation_ignores_expiry_and_paid_in_time_uses_grace() {
+    let c = sample();
+    // expired by the clock, but still a well-formed challenge
+    assert!(c.validate(2_100_000_000).is_err());
+    c.validate_shape().unwrap();
+    let mut bad = sample();
+    bad.memo_nonce = "has space".into();
+    assert_eq!(bad.validate_shape(), Err(InvalidChallenge::BadNonce));
+
+    use x402z_protocol::paid_in_time;
+    assert!(paid_in_time(100, 99, 0));
+    assert!(paid_in_time(100, 100, 0));
+    assert!(!paid_in_time(100, 101, 0));
+    assert!(paid_in_time(100, 160, 60));
+    assert!(!paid_in_time(100, 161, 60));
+    assert!(paid_in_time(u64::MAX, u64::MAX, 60)); // no overflow
+}
+
+#[test]
+fn receipt_claims_mined_at_is_optional_for_old_receipts() {
+    use x402z_protocol::ReceiptClaims;
+    let old = r#"{"memoNonce":"n","amountZat":1,"payTo":"utest1x","txid":"ab","confirmations":1,"issuedAt":5}"#;
+    let c: ReceiptClaims = serde_json::from_str(old).unwrap();
+    assert_eq!(c.mined_at, None);
+    assert!(!serde_json::to_string(&c).unwrap().contains("minedAt"));
+    let new = old.replace("\"issuedAt\":5", "\"issuedAt\":5,\"minedAt\":4");
+    assert_eq!(serde_json::from_str::<ReceiptClaims>(&new).unwrap().mined_at, Some(4));
+}

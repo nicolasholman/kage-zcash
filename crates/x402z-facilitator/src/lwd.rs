@@ -121,3 +121,13 @@ fn is_not_found(s: &tonic::Status) -> bool {
 pub fn parse_txid(s: &str) -> Option<TxId> {
     TxId::from_hex(s.trim())
 }
+
+/// Header time (Unix seconds) of the main-chain block at `height`, via `GetBlock`.
+pub async fn block_time(client: &mut Client, height: BlockHeight) -> Result<u64, LwdError> {
+    let b = client
+        .get_block(zcash_client_backend::proto::service::BlockId { height: u64::from(u32::from(height)), hash: vec![] })
+        .await
+        .map_err(LwdError::Rpc)?
+        .into_inner();
+    Ok(u64::from(b.time))
+}

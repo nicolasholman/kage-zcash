@@ -43,6 +43,17 @@ impl PaymentRequired {
     /// Address check is a prefix sanity check only (testnet UAs start `utest1`);
     /// full UA decoding happens in the agent with `zcash_keys`.
     pub fn validate(&self, now_unix: u64) -> Result<(), InvalidChallenge> {
+        self.validate_shape()?;
+        if self.expires_at <= now_unix {
+            return Err(InvalidChallenge::Expired { expires_at: self.expires_at, now: now_unix });
+        }
+        Ok(())
+    }
+
+    /// Everything [`validate`](Self::validate) checks except expiry. The facilitator uses this:
+    /// whether a payment was in time is decided by the time of the block that mined it, not by
+    /// when the payer asks for a receipt.
+    pub fn validate_shape(&self) -> Result<(), InvalidChallenge> {
         if self.scheme != SCHEME {
             return Err(InvalidChallenge::WrongScheme(self.scheme.clone()));
         }
@@ -59,12 +70,21 @@ impl PaymentRequired {
         if n.is_empty() || n.len() > MAX_NONCE_LEN || !n.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
             return Err(InvalidChallenge::BadNonce);
         }
-        if self.expires_at <= now_unix {
-            return Err(InvalidChallenge::Expired { expires_at: self.expires_at, now: now_unix });
-        }
         Ok(())
     }
 }
+
+/// Was a payment made in time? `paid_at` is the mined block's time (or, for a mempool-only
+/// payment, the time it was seen). A payment counts if it landed no later than
+/// `expires_at + grace_secs`: the grace absorbs block-time jitter and slow blocks, so a payer
+/// who broadcast before expiry does not lose the money because the block came late.
+pub fn paid_in_time(expires_at: u64, paid_at: u64, grace_secs: u64) -> bool {
+    paid_at <= expires_at.saturating_add(grace_secs)
+}
+
+/// Default for `X402Z_EXPIRY_GRACE_SECS` (facilitator and server): 20 minutes, about 16
+/// testnet blocks.
+pub const DEFAULT_EXPIRY_GRACE_SECS: u64 = 20 * 60;
 
 /// Claims the facilitator signs once it has seen the payment with the merchant UFVK.
 /// Wire format of `X-PAYMENT-RECEIPT`: `base64url(claims_json) "." base64url(ed25519_sig)`
@@ -79,6 +99,10 @@ pub struct ReceiptClaims {
     /// 0 = seen in the mempool only.
     pub confirmations: u32,
     pub issued_at: u64,
+    /// Unix time of the block that mined the payment (block header time). Absent for a
+    /// mempool-only payment and in receipts from older facilitators.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mined_at: Option<u64>,
 }
 
 /// Facilitator endpoint the payer posts its txid to, and the liveness probe.
