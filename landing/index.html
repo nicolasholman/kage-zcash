@@ -255,8 +255,8 @@
             <button class="copy" type="button" data-copy="#clone">Copy</button>
           </div>
           <div class="facts">
-            <div><b>4</b><span>paid testnet txs, verifiable with a published UIVK</span></div>
-            <div><b>75</b><span>tests, 3 against live testnet</span></div>
+            <div><b>8</b><span>paid testnet txs, verifiable with a published UIVK</span></div>
+            <div><b>80</b><span>tests, 3 against live testnet</span></div>
             <div><b>0</b><span>spend keys on the merchant side</span></div>
           </div>
         </div>
@@ -494,6 +494,7 @@ cargo test -p x402z-facilitator                                <span class="c">#
             <thead><tr><th>Tool</th><th>Does</th></tr></thead>
             <tbody>
               <tr><td><code>paid_fetch {url}</code></td><td>The agent's x402 flow. Refusals, wallet errors, rejected payments and missing config come back as <code>isError</code> results.</td></tr>
+              <tr><td><code>tab_fetch {url, buy?}</code></td><td>Spends one <a href="#tab">Kage Tab</a> token. With none left, it buys a tab of <code>buy</code> tokens from the agent's wallet inside spendguard first.</td></tr>
               <tr><td><code>spend_status {}</code></td><td>Spent today against the cap, the allowlist and the threshold.</td></tr>
               <tr><td><code>ledger_tail {n}</code></td><td>The last n spendguard decisions.</td></tr>
             </tbody>
@@ -511,7 +512,22 @@ cargo test -p x402z-facilitator                                <span class="c">#
           <span class="path">surfaces / batching</span>
           <h2 id="h-tab">Kage Tab<a class="anchor" href="#tab" aria-label="Link to Kage Tab">#</a></h2>
           <p>One shielded payment buys N tokens, each spent on one later request with <code>X-PAYMENT</code> scheme <code>zcash-shielded-tab</code>. The server can't link a token to the payment or to its siblings: RFC 9474 blind RSA (RSABSSA-SHA384-PSS-Randomized, RSA-2048), with a SQLite spent set.</p>
-          <div class="callout plain"><b>Server tests only.</b> Double spend, forged, moved, re-randomized and self-signed tokens, another key epoch, reissue on the same nonce and underpaid N are all refused in tests. There is no live testnet run and no agent or MCP client for the tab yet. A token hides among the tokens issued under the same key (7-day epochs by default), and spending them in a burst links them by time.</div>
+          <p>The agent side: <code>x402z-agent tab-buy &lt;n&gt;</code> pays from the agent's wallet, or <code>tab-buy &lt;n&gt; --external</code> prints a ZIP 321 request for any wallet followed by <code>tab-redeem &lt;txid&gt;</code>. Then <code>tab-fetch</code> spends one token per request, and the MCP tool <code>tab_fetch</code> does the same for LLM agents. Spendguard checks the whole tab price before anything is paid.</p>
+          <div class="term" role="group" aria-label="Kage Tab live run"><div class="bar"><span>x402z-agent · testnet · 2026-10-21</span><span>1 tx → 5 calls</span></div>
+<pre><span class="ps">$ </span>x402z-agent tab-buy 5 --external
+<span class="o">spendguard: allowed 500000 zat (0 of 1000000 zat already spent today)</span>
+<span class="d"># zingo-cli pays the ZIP 321 request: tx fa011720…c3ad, block 4,526,095</span>
+<span class="ps">$ </span>x402z-agent tab-redeem fa01172015c63ce47a0285f7fae130a3efe5f821b938a8befa1ca547d00ac3ad
+<span class="o">{"tab":{"amountZat":500000,…,"keyId":"d3e83a274b8e8fc7",…,"tokens":5,…}}</span>
+<span class="ps">$ </span>x402z-agent tab-fetch   <span class="d"># ×5</span>
+<span class="ok">X-PAYMENT-RESPONSE: success=true transaction=tab:5ae308b4e401aac9</span>
+<span class="o">served 200 in 0 ms with a tab token; 4 token(s) left</span>
+<span class="d">  …</span>
+<span class="o">served 200 in 0 ms with a tab token; 0 token(s) left</span>
+<span class="d"># a copy of an already spent token, sent again</span>
+<span class="no">error: server refused the tab token (402 Payment Required, nonce_already_used): tab token already spent</span></pre></div>
+          <p>Lines excerpted from the <a href="https://github.com/nickthelegend/zec-shielded-x402/blob/main/docs/tab-live-run.txt">full transcript</a>, where … marks a cut. Each token call was a localhost round trip under 1 ms, about 18 ms per CLI process, with no new transaction. A second tab of 3 (tx <a href="https://testnet.zecblock.com/tx/d3bf0b49408fed118fe9e1241239d98319cbb83088c45a5ba357f68cd97bd00d"><code>d3bf0b49…d00d</code></a>) was spent through MCP <code>tab_fetch</code>. The fourth call found no token left, and spendguard refused a new tab over the daily cap.</p>
+          <div class="callout plain"><b>Limits.</b> A token hides only among the tokens issued under the same key (7-day epochs by default), and spending them in a burst links them by time. The live run used one machine: client and server on localhost, both tabs paid from a zingo-cli demo wallet through <code>--external</code>, not from the agent's own wallet. Tokens are bearer secrets kept in a plaintext local file.</div>
         </section>
 
         <section class="doc" id="leaks" aria-labelledby="h-leaks">
@@ -529,7 +545,7 @@ cargo test -p x402z-facilitator                                <span class="c">#
         <section class="doc" id="evidence" aria-labelledby="h-ev">
           <span class="path">trust / on-chain</span>
           <h2 id="h-ev">Live evidence<a class="anchor" href="#evidence" aria-label="Link to Live evidence">#</a></h2>
-          <p>Six payments went end to end against <code>testnet.zec.rocks</code>. Each pays 100,000 zat as an Ironwood note to the same demo merchant. The Oct 21 runs used the current code: x402 v1, a facilitator holding only the published UIVK, SQLite state.</p>
+          <p>Eight payments went end to end against <code>testnet.zec.rocks</code>, each an Ironwood note to the same demo merchant: six single payments of 100,000 zat and two Kage Tabs. The Oct 21 runs used the current code: x402 v1, a facilitator holding only the published UIVK, SQLite state.</p>
           <div class="tbl"><table>
             <thead><tr><th>Txid</th><th>Block</th><th>Date</th><th>Path</th></tr></thead>
             <tbody>
@@ -539,6 +555,8 @@ cargo test -p x402z-facilitator                                <span class="c">#
               <tr><td><a class="m" href="https://testnet.zecblock.com/tx/25a8b324bebee30220382113c6fb9cc3be1144b036117c34778bde3b1d8b689d">25a8b324…689d ↗</a></td><td class="num">4,524,602</td><td class="num">Oct 21</td><td><code>X-PAYMENT</code> → <code>settlement_pending</code> ×10 → 200 (the exchange above)</td></tr>
               <tr><td><a class="m" href="https://testnet.zecblock.com/tx/408aba269ac7ca946e3b0eaedcf4cadd582a01090679e98391b4e7c706d88dd0">408aba26…8dd0 ↗</a></td><td class="num">4,524,693</td><td class="num">Oct 21</td><td><code>X-PAYMENT</code> path, repeated</td></tr>
               <tr><td><a class="m" href="https://testnet.zecblock.com/tx/a7c3b0b2eaeb406ddcd02276cd71e69e4e618b22a1cab8977c959f2da3fc38bc">a7c3b0b2…38bc ↗</a></td><td class="num">4,524,694</td><td class="num">Oct 21</td><td>ZIP 321 + paste txid, repeated</td></tr>
+              <tr><td><a class="m" href="https://testnet.zecblock.com/tx/fa01172015c63ce47a0285f7fae130a3efe5f821b938a8befa1ca547d00ac3ad">fa011720…c3ad ↗</a></td><td class="num">4,526,095</td><td class="num">Oct 21</td><td>Kage Tab: 500,000 zat → 5 tokens → 5 calls (CLI)</td></tr>
+              <tr><td><a class="m" href="https://testnet.zecblock.com/tx/d3bf0b49408fed118fe9e1241239d98319cbb83088c45a5ba357f68cd97bd00d">d3bf0b49…d00d ↗</a></td><td class="num">4,526,113</td><td class="num">Oct 21</td><td>Kage Tab: 300,000 zat → 3 tokens → 3 MCP <code>tab_fetch</code> calls</td></tr>
             </tbody>
           </table></div>
           <p>Anyone can check them with the demo merchant's published incoming viewing key (in the README). It shows incoming payments to that demo wallet only; it can't spend and shows nothing about the payer.</p>
@@ -552,15 +570,15 @@ cargo test -p x402z-facilitator                                <span class="c">#
         <section class="doc" id="tests" aria-labelledby="h-tests">
           <span class="path">trust / tests</span>
           <h2 id="h-tests">Tests<a class="anchor" href="#tests" aria-label="Link to Tests">#</a></h2>
-          <p>75 tests. Six build in-process transactions with real keys, real note encryption and real Halo2 proofs for the Orchard/Ironwood parts (Sapling outputs use sapling-crypto's mock proof bytes); those are not broadcast. Three verify the six real payments live with only the UIVK. The full list is in <a href="https://github.com/nickthelegend/zec-shielded-x402/blob/main/TESTING.md">TESTING.md</a>.</p>
+          <p>80 tests. Six build in-process transactions with real keys, real note encryption and real Halo2 proofs for the Orchard/Ironwood parts (Sapling outputs use sapling-crypto's mock proof bytes); those are not broadcast. Three verify the eight real payments live with only the UIVK. The full list is in <a href="https://github.com/nickthelegend/zec-shielded-x402/blob/main/TESTING.md">TESTING.md</a>.</p>
           <div class="tbl"><table>
             <thead><tr><th>Crate</th><th>Tests</th><th>Runs against</th></tr></thead>
             <tbody>
               <tr><td><code>spendguard</code></td><td class="num">11</td><td>pure logic</td></tr>
               <tr><td><code>x402z-protocol</code></td><td class="num">14</td><td>the x402 spec's own examples, ZIP 321's memo example</td></tr>
               <tr><td><code>x402z-server</code></td><td class="num">26</td><td>in-process, incl. 5 Kage Tab attack tests</td></tr>
-              <tr><td><code>x402z-agent</code></td><td class="num">8</td><td>file-locked ledger, six concurrent runs</td></tr>
-              <tr><td><code>x402z-mcp</code></td><td class="num">3</td><td>the real binary over stdio</td></tr>
+              <tr><td><code>x402z-agent</code></td><td class="num">12</td><td>file-locked ledger, six concurrent runs, Tab client against a localhost RFC 9474 issuer</td></tr>
+              <tr><td><code>x402z-mcp</code></td><td class="num">4</td><td>the real binary over stdio</td></tr>
               <tr><td><code>x402z-facilitator</code></td><td class="num">13</td><td>6 Halo2 transactions in-process, <b>3 live on Zcash testnet</b></td></tr>
             </tbody>
           </table></div>

@@ -1,0 +1,150 @@
+Kage Tab live run, 2026-10-21 (Zcash testnet via testnet.zec.rocks). Raw output, unedited except where marked [note].
+
+Stack: x402z-facilitator holding only the published demo merchant UIVK and a fresh receipt key, x402z-server
+(tab key d3e83a274b8e8fc7, 20 tokens max, 100,000 zat a token), x402z-agent / x402z-mcp with spendguard
+(allowlist 127.0.0.1, daily cap 1,000,000 zat). No X402Z_AGENT_SEED was set: each tab was paid by a separate
+zingo-cli demo wallet from the ZIP 321 request the agent printed (tab-buy --external), and the agent then
+collected the tokens with tab-redeem. Debug builds, everything on one machine (localhost HTTP).
+
+================ Run 1: CLI, one payment -> 5 tokens -> 5 calls ================
+
+$ x402z-agent tab-buy 5 --external
+2026-10-21T16:27:33Z
+spendguard: allowed 500000 zat (0 of 1000000 zat already spent today)
+{"pending":{"amountZat":500000,"expiresAt":1792600956,"keyId":"d3e83a274b8e8fc7","memoNonce":"x402z-aed6ff1377cea1055b1163bd","payTo":"utest100fnpp4zd4lp0vmu093gwx6p6ujv8lusunnkvrsuxyaca9avmea5fqgt0ktkvm0sf2wnn8fw7ad034fy9lvsrq0x04vn0jqq7dvnyua5zk9s30v2lcys8pk3mm7xnkdt7fyf65xe0vtnv7sswdflaltg9uesty00c6x2kvgc25ygcrzs","paymentUri":"zcash:utest100fnpp4zd4lp0vmu093gwx6p6ujv8lusunnkvrsuxyaca9avmea5fqgt0ktkvm0sf2wnn8fw7ad034fy9lvsrq0x04vn0jqq7dvnyua5zk9s30v2lcys8pk3mm7xnkdt7fyf65xe0vtnv7sswdflaltg9uesty00c6x2kvgc25ygcrzs?amount=0.005&memo=eDQwMnotYWVkNmZmMTM3N2NlYTEwNTViMTE2M2Jk","tokens":5}}
+pay 500000 zat to the URI above from any wallet (memo x402z-aed6ff1377cea1055b1163bd), then run `x402z-agent tab-redeem <txid>`
+
+[note] zingo-cli quicksend of the URI's address, 500000 zat and memo exited 1 with
+Error: Send error.
+caused by: Transmission error.
+[note] but the transaction had reached the network; zingo-cli 'transactions' then listed it as confirmed:
+txid fa01172015c63ce47a0285f7fae130a3efe5f821b938a8befa1ca547d00ac3ad, blockheight 4526095, sent 500000, memo x402z-aed6ff1377cea1055b1163bd
+
+$ x402z-agent tab-redeem fa01172015c63ce47a0285f7fae130a3efe5f821b938a8befa1ca547d00ac3ad
+2026-10-21T16:30:32Z
+{"tab":{"amountZat":500000,"explorer":"https://testnet.zecblock.com/tx/fa01172015c63ce47a0285f7fae130a3efe5f821b938a8befa1ca547d00ac3ad","issueWaitSecs":0,"keyId":"d3e83a274b8e8fc7","memoNonce":"x402z-aed6ff1377cea1055b1163bd","tokens":5,"txid":"fa01172015c63ce47a0285f7fae130a3efe5f821b938a8befa1ca547d00ac3ad"}}
+exit 0
+2026-10-21T16:30:33Z
+
+$ x402z-agent tab-status; then x402z-agent tab-fetch six times (body cut at 200 chars by the shell loop)
+[note] the loop's 'exit' line printed the exit of 'head', not of the agent; the agent's own exit codes are in the next block.
+{"file":"/private/tmp/claude-501/-Volumes-Extreme-SSD-Projects-grokbot/56ca0ebc-f85c-4be5-a61f-c327d6a58412/scratchpad/kage-tab-live/ledger.tab.json","pending":[],"tokens":{"http://127.0.0.1:4020":5}}
+--- call 1
+X-PAYMENT-RESPONSE: success=true transaction=tab:5ae308b4e401aac9
+served 200 in 0 ms with a tab token; 4 token(s) left
+{"product":"Kage demo quote","quote":"Paid content unlocked by a blind-signed tab token. The server can't link this request to the shielded payment that bought the tab.","servedAt":1792600238,"settlem
+exit 0
+wall 19 ms
+--- call 2
+X-PAYMENT-RESPONSE: success=true transaction=tab:8ae9d54586851ca5
+served 200 in 0 ms with a tab token; 3 token(s) left
+{"product":"Kage demo quote","quote":"Paid content unlocked by a blind-signed tab token. The server can't link this request to the shielded payment that bought the tab.","servedAt":1792600238,"settlem
+exit 0
+wall 19 ms
+--- call 3
+X-PAYMENT-RESPONSE: success=true transaction=tab:21ce4e4b51ffecf0
+served 200 in 0 ms with a tab token; 2 token(s) left
+{"product":"Kage demo quote","quote":"Paid content unlocked by a blind-signed tab token. The server can't link this request to the shielded payment that bought the tab.","servedAt":1792600238,"settlem
+exit 0
+wall 18 ms
+--- call 4
+X-PAYMENT-RESPONSE: success=true transaction=tab:d9903c806b739fe2
+served 200 in 0 ms with a tab token; 1 token(s) left
+{"product":"Kage demo quote","quote":"Paid content unlocked by a blind-signed tab token. The server can't link this request to the shielded payment that bought the tab.","servedAt":1792600238,"settlem
+exit 0
+wall 19 ms
+--- call 5
+X-PAYMENT-RESPONSE: success=true transaction=tab:8a4068c781a6ee0b
+served 200 in 0 ms with a tab token; 0 token(s) left
+{"product":"Kage demo quote","quote":"Paid content unlocked by a blind-signed tab token. The server can't link this request to the shielded payment that bought the tab.","servedAt":1792600239,"settlem
+exit 0
+wall 18 ms
+--- call 6
+error: no tab tokens for http://127.0.0.1:4020/api/quote; buy some with `x402z-agent tab-buy <n>`
+
+exit 0
+wall 17 ms
+
+$ x402z-agent tab-fetch  (no token left) ; then the token file restored from a copy taken before spending, and tab-fetch again ; then tab-redeem of the same tx
+error: no tab tokens for http://127.0.0.1:4020/api/quote; buy some with `x402z-agent tab-buy <n>`
+exit 4
+--- replay of an already spent token
+error: server refused the tab token (402 Payment Required, nonce_already_used): tab token already spent
+exit 5
+--- second tab-redeem of the same tx
+error: no pending tab purchase; start one with `x402z-agent tab-buy <n> --external`
+exit 2
+
+$ curl -X POST /tab/issue  (same memoNonce + txid, a fresh blinded message: asking the server to issue again)
+{"message":"receipt already used","reason":"nonce_already_used","status":"rejected"}
+HTTP 422
+
+$ check_uivk <published uivk> fa011720... x402z-aed6ff1377cea1055b1163bd
+tx fa01172015c63ce47a0285f7fae130a3efe5f821b938a8befa1ca547d00ac3ad: mined at 4526095, 21 confirmation(s) (tip 4526115)
+incoming 500000 zat via Ironwood, memo text "x402z-aed6ff1377cea1055b1163bd"
+total to merchant with memo "x402z-aed6ff1377cea1055b1163bd": 500000 zat
+
+================ Run 2: MCP tab_fetch over stdio ================
+
+$ x402z-agent tab-buy 3 --external
+2026-10-21T16:36:08Z
+spendguard: allowed 300000 zat (500000 of 1000000 zat already spent today)
+{"pending":{"amountZat":300000,"expiresAt":1792601468,"keyId":"d3e83a274b8e8fc7","memoNonce":"x402z-58712c3f95459bb9ead9ce5b","payTo":"utest100fnpp4zd4lp0vmu093gwx6p6ujv8lusunnkvrsuxyaca9avmea5fqgt0ktkvm0sf2wnn8fw7ad034fy9lvsrq0x04vn0jqq7dvnyua5zk9s30v2lcys8pk3mm7xnkdt7fyf65xe0vtnv7sswdflaltg9uesty00c6x2kvgc25ygcrzs","paymentUri":"zcash:utest100fnpp4zd4lp0vmu093gwx6p6ujv8lusunnkvrsuxyaca9avmea5fqgt0ktkvm0sf2wnn8fw7ad034fy9lvsrq0x04vn0jqq7dvnyua5zk9s30v2lcys8pk3mm7xnkdt7fyf65xe0vtnv7sswdflaltg9uesty00c6x2kvgc25ygcrzs?amount=0.003&memo=eDQwMnotNTg3MTJjM2Y5NTQ1OWJiOWVhZDljZTVi","tokens":3}}
+pay 300000 zat to the URI above from any wallet (memo x402z-58712c3f95459bb9ead9ce5b), then run `x402z-agent tab-redeem <txid>`
+
+[note] zingo-cli quicksend of 300000 zat with that memo: exit 0, txid d3bf0b49408fed118fe9e1241239d98319cbb83088c45a5ba357f68cd97bd00d
+
+$ x402z-agent tab-redeem d3bf0b49408fed118fe9e1241239d98319cbb83088c45a5ba357f68cd97bd00d
+[note] first line below: how many 'tab issue: not yet (202 ...)' retries were printed while the tx confirmed
+4
+2026-10-21T16:36:52Z
+{"tab":{"amountZat":300000,"explorer":"https://testnet.zecblock.com/tx/d3bf0b49408fed118fe9e1241239d98319cbb83088c45a5ba357f68cd97bd00d","issueWaitSecs":62,"keyId":"d3e83a274b8e8fc7","memoNonce":"x402z-58712c3f95459bb9ead9ce5b","tokens":3,"txid":"d3bf0b49408fed118fe9e1241239d98319cbb83088c45a5ba357f68cd97bd00d"}}
+exit 0
+2026-10-21T16:37:55Z
+
+
+$ python3 mcp_tab.py target/debug/x402z-mcp   (JSON-RPC lines in full; '(n ms)' is the client's round trip)
+2026-10-21T16:38:41Z
+>>> {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "kage-tab-live", "version": "0"}}}
+<<< {"id":1,"jsonrpc":"2.0","result":{"capabilities":{"tools":{"listChanged":false}},"instructions":"Pay for HTTP APIs with shielded Zcash testnet payments. Call spend_status before paying; paid_fetch refuses anything spendguard denies.","protocolVersion":"2025-06-18","serverInfo":{"name":"x402z-mcp","title":"Kage shielded x402","version":"0.1.0"}}}
+    (25 ms)
+>>> {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}
+<<< {"id":2,"jsonrpc":"2.0","result":{"tools":[{"description":"GET an HTTP URL. If it answers HTTP 402 with an x402 zcash-shielded offer, pay it from the agent's own Zcash testnet wallet (memo = the challenge nonce) when spendguard allows it (daily cap, host allowlist, approval threshold), then retry with X-PAYMENT and return the paid response. Refusals are errors and nothing is paid. A payment waits for 1 block confirmation (about 75 s, sometimes several minutes).","inputSchema":{"additionalProperties":false,"properties":{"url":{"description":"http(s) URL of the paid resource","type":"string"}},"required":["url"],"type":"object"},"name":"paid_fetch","title":"Fetch a URL, paying its x402 402 with shielded Zcash (testnet)"},{"description":"GET an HTTP URL spending one prepaid Kage Tab token: an RFC 9474 blind-RSA token the server signed without seeing it, so it can't link this request to the shielded payment that bought it or to the other tokens. A token request needs no new transaction and returns in milliseconds. If no token is left for the URL's server, first buy a tab of `buy` tokens (default 5) with one shielded Zcash testnet payment from the agent's own wallet, inside spendguard (the whole tab price counts against the daily cap); that purchase waits for 1 block. Returns the response and how many tokens remain.","inputSchema":{"additionalProperties":false,"properties":{"buy":{"description":"tab size to buy when no token is left (default X402Z_AGENT_TAB_SIZE or 5)","maximum":100,"minimum":1,"type":"integer"},"url":{"description":"http(s) URL of the paid resource","type":"string"}},"required":["url"],"type":"object"},"name":"tab_fetch","title":"Fetch a URL with a Kage Tab token (one payment, N unlinkable requests)"},{"description":"The agent's spendguard state: spent today (UTC day, broadcast payments only), daily cap, remaining, allowed hosts and approval threshold. All amounts in zatoshi (1 TAZ = 100,000,000 zat).","inputSchema":{"additionalProperties":false,"properties":{},"type":"object"},"name":"spend_status","title":"Spend so far today vs the daily cap"},{"description":"The last n spendguard decisions from the agent ledger (allowed, denied, needs_approval), newest last, with host, amount, reason, memo nonce and txid when broadcast.","inputSchema":{"additionalProperties":false,"properties":{"n":{"description":"how many entries (default 10)","maximum":100,"minimum":1,"type":"integer"}},"type":"object"},"name":"ledger_tail","title":"Recent spendguard decisions"}]}}
+    (1 ms)
+tools: ['paid_fetch', 'tab_fetch', 'spend_status', 'ledger_tail']
+>>> {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "tab_fetch", "arguments": {"url": "http://127.0.0.1:4020/api/quote", "buy": 3}}}
+<<< {"id":3,"jsonrpc":"2.0","result":{"content":[{"text":"{\n  \"body\": {\n    \"product\": \"Kage demo quote\",\n    \"quote\": \"Paid content unlocked by a blind-signed tab token. The server can't link this request to the shielded payment that bought the tab.\",\n    \"servedAt\": 1792600721,\n    \"settlement\": {\n      \"tab\": true,\n      \"token\": \"247b5d16abbd5e865aa2a61915d92ab88914aa34c3c5d053246c4b107c0217cb\"\n    }\n  },\n  \"bought\": null,\n  \"elapsedMs\": 11,\n  \"paidWith\": \"tab_token\",\n  \"remainingTokens\": 2,\n  \"settlement\": {\n    \"network\": \"zcash-testnet\",\n    \"payer\": \"\",\n    \"success\": true,\n    \"transaction\": \"tab:247b5d16abbd5e86\"\n  },\n  \"status\": 200\n}","type":"text"}],"isError":false,"structuredContent":{"body":{"product":"Kage demo quote","quote":"Paid content unlocked by a blind-signed tab token. The server can't link this request to the shielded payment that bought the tab.","servedAt":1792600721,"settlement":{"tab":true,"token":"247b5d16abbd5e865aa2a61915d92ab88914aa34c3c5d053246c4b107c0217cb"}},"bought":null,"elapsedMs":11,"paidWith":"tab_token","remainingTokens":2,"settlement":{"network":"zcash-testnet","payer":"","success":true,"transaction":"tab:247b5d16abbd5e86"},"status":200}}}
+    (27 ms)
+call 1: isError=False {"status": 200, "elapsedMs": 11, "remainingTokens": 2, "error": null, "message": null}
+>>> {"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "tab_fetch", "arguments": {"url": "http://127.0.0.1:4020/api/quote", "buy": 3}}}
+<<< {"id":4,"jsonrpc":"2.0","result":{"content":[{"text":"{\n  \"body\": {\n    \"product\": \"Kage demo quote\",\n    \"quote\": \"Paid content unlocked by a blind-signed tab token. The server can't link this request to the shielded payment that bought the tab.\",\n    \"servedAt\": 1792600721,\n    \"settlement\": {\n      \"tab\": true,\n      \"token\": \"8c534af23a9befa05d142decac8fb36b0827d8c02e4e6e1a0418590c76e326a3\"\n    }\n  },\n  \"bought\": null,\n  \"elapsedMs\": 0,\n  \"paidWith\": \"tab_token\",\n  \"remainingTokens\": 1,\n  \"settlement\": {\n    \"network\": \"zcash-testnet\",\n    \"payer\": \"\",\n    \"success\": true,\n    \"transaction\": \"tab:8c534af23a9befa0\"\n  },\n  \"status\": 200\n}","type":"text"}],"isError":false,"structuredContent":{"body":{"product":"Kage demo quote","quote":"Paid content unlocked by a blind-signed tab token. The server can't link this request to the shielded payment that bought the tab.","servedAt":1792600721,"settlement":{"tab":true,"token":"8c534af23a9befa05d142decac8fb36b0827d8c02e4e6e1a0418590c76e326a3"}},"bought":null,"elapsedMs":0,"paidWith":"tab_token","remainingTokens":1,"settlement":{"network":"zcash-testnet","payer":"","success":true,"transaction":"tab:8c534af23a9befa0"},"status":200}}}
+    (1 ms)
+call 2: isError=False {"status": 200, "elapsedMs": 0, "remainingTokens": 1, "error": null, "message": null}
+>>> {"jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": {"name": "tab_fetch", "arguments": {"url": "http://127.0.0.1:4020/api/quote", "buy": 3}}}
+<<< {"id":5,"jsonrpc":"2.0","result":{"content":[{"text":"{\n  \"body\": {\n    \"product\": \"Kage demo quote\",\n    \"quote\": \"Paid content unlocked by a blind-signed tab token. The server can't link this request to the shielded payment that bought the tab.\",\n    \"servedAt\": 1792600721,\n    \"settlement\": {\n      \"tab\": true,\n      \"token\": \"eed84f4614feeb5df925b8ada14da90f82a13b4e41c4268ded0fdd189cdb1dd5\"\n    }\n  },\n  \"bought\": null,\n  \"elapsedMs\": 0,\n  \"paidWith\": \"tab_token\",\n  \"remainingTokens\": 0,\n  \"settlement\": {\n    \"network\": \"zcash-testnet\",\n    \"payer\": \"\",\n    \"success\": true,\n    \"transaction\": \"tab:eed84f4614feeb5d\"\n  },\n  \"status\": 200\n}","type":"text"}],"isError":false,"structuredContent":{"body":{"product":"Kage demo quote","quote":"Paid content unlocked by a blind-signed tab token. The server can't link this request to the shielded payment that bought the tab.","servedAt":1792600721,"settlement":{"tab":true,"token":"eed84f4614feeb5df925b8ada14da90f82a13b4e41c4268ded0fdd189cdb1dd5"}},"bought":null,"elapsedMs":0,"paidWith":"tab_token","remainingTokens":0,"settlement":{"network":"zcash-testnet","payer":"","success":true,"transaction":"tab:eed84f4614feeb5d"},"status":200}}}
+    (1 ms)
+call 3: isError=False {"status": 200, "elapsedMs": 0, "remainingTokens": 0, "error": null, "message": null}
+>>> {"jsonrpc": "2.0", "id": 6, "method": "tools/call", "params": {"name": "tab_fetch", "arguments": {"url": "http://127.0.0.1:4020/api/quote", "buy": 3}}}
+<<< {"id":6,"jsonrpc":"2.0","result":{"content":[{"text":"{\n  \"error\": \"spendguard_refused\",\n  \"message\": \"no tab token left, and buying a tab of 3 failed: spendguard refused the payment: daily cap exceeded: spent 800000 + requested 300000 > cap 1000000 zat. No transaction was built or broadcast.\"\n}","type":"text"}],"isError":true,"structuredContent":{"error":"spendguard_refused","message":"no tab token left, and buying a tab of 3 failed: spendguard refused the payment: daily cap exceeded: spent 800000 + requested 300000 > cap 1000000 zat. No transaction was built or broadcast."}}}
+    (2 ms)
+call 4: isError=True {"status": null, "elapsedMs": null, "remainingTokens": null, "error": "spendguard_refused", "message": "no tab token left, and buying a tab of 3 failed: spendguard refused the payment: daily cap exceeded: spent 800000 + requested 300000 > cap 1000000 zat. No transaction was built or broadcast."}
+>>> {"jsonrpc": "2.0", "id": 7, "method": "tools/call", "params": {"name": "ledger_tail", "arguments": {"n": 6}}}
+<<< {"id":7,"jsonrpc":"2.0","result":{"content":[{"text":"{\n  \"entries\": [\n    {\n      \"agent\": \"tab-agent\",\n      \"amountZat\": 500000,\n      \"decision\": \"allowed\",\n      \"host\": \"127.0.0.1:4020\",\n      \"memoNonce\": \"x402z-aed6ff1377cea1055b1163bd\",\n      \"reason\": \"allowed, but not paid: awaiting payment from an external wallet (ZIP 321)\",\n      \"ts\": 1792600056\n    },\n    {\n      \"agent\": \"tab-agent\",\n      \"amountZat\": 500000,\n      \"decision\": \"allowed\",\n      \"host\": \"127.0.0.1:4020\",\n      \"memoNonce\": \"x402z-aed6ff1377cea1055b1163bd\",\n      \"reason\": \"tab of 5 tokens, paid by an external wallet\",\n      \"ts\": 1792600232,\n      \"txid\": \"fa01172015c63ce47a0285f7fae130a3efe5f821b938a8befa1ca547d00ac3ad\"\n    },\n    {\n      \"agent\": \"tab-agent\",\n      \"amountZat\": 300000,\n      \"decision\": \"allowed\",\n      \"host\": \"127.0.0.1:4020\",\n      \"memoNonce\": \"x402z-58712c3f95459bb9ead9ce5b\",\n      \"reason\": \"allowed, but not paid: awaiting payment from an external wallet (ZIP 321)\",\n      \"ts\": 1792600568\n    },\n    {\n      \"agent\": \"tab-agent\",\n      \"amountZat\": 300000,\n      \"decision\": \"allowed\",\n      \"host\": \"127.0.0.1:4020\",\n      \"memoNonce\": \"x402z-58712c3f95459bb9ead9ce5b\",\n      \"reason\": \"tab of 3 tokens, paid by an external wallet\",\n      \"ts\": 1792600612,\n      \"txid\": \"d3bf0b49408fed118fe9e1241239d98319cbb83088c45a5ba357f68cd97bd00d\"\n    },\n    {\n      \"agent\": \"tab-agent\",\n      \"amountZat\": 300000,\n      \"decision\": \"denied\",\n      \"host\": \"127.0.0.1:4020\",\n      \"memoNonce\": \"x402z-d6f60c622cc6178026dcaf5d\",\n      \"reason\": \"daily cap exceeded: spent 800000 + requested 300000 > cap 1000000 zat; nothing broadcast\",\n      \"ts\": 1792600721\n    }\n  ],\n  \"total\": 5\n}","type":"text"}],"isError":false,"structuredContent":{"entries":[{"agent":"tab-agent","amountZat":500000,"decision":"allowed","host":"127.0.0.1:4020","memoNonce":"x402z-aed6ff1377cea1055b1163bd","reason":"allowed, but not paid: awaiting payment from an external wallet (ZIP 321)","ts":1792600056},{"agent":"tab-agent","amountZat":500000,"decision":"allowed","host":"127.0.0.1:4020","memoNonce":"x402z-aed6ff1377cea1055b1163bd","reason":"tab of 5 tokens, paid by an external wallet","ts":1792600232,"txid":"fa01172015c63ce47a0285f7fae130a3efe5f821b938a8befa1ca547d00ac3ad"},{"agent":"tab-agent","amountZat":300000,"decision":"allowed","host":"127.0.0.1:4020","memoNonce":"x402z-58712c3f95459bb9ead9ce5b","reason":"allowed, but not paid: awaiting payment from an external wallet (ZIP 321)","ts":1792600568},{"agent":"tab-agent","amountZat":300000,"decision":"allowed","host":"127.0.0.1:4020","memoNonce":"x402z-58712c3f95459bb9ead9ce5b","reason":"tab of 3 tokens, paid by an external wallet","ts":1792600612,"txid":"d3bf0b49408fed118fe9e1241239d98319cbb83088c45a5ba357f68cd97bd00d"},{"agent":"tab-agent","amountZat":300000,"decision":"denied","host":"127.0.0.1:4020","memoNonce":"x402z-d6f60c622cc6178026dcaf5d","reason":"daily cap exceeded: spent 800000 + requested 300000 > cap 1000000 zat; nothing broadcast","ts":1792600721}],"total":5}}}
+    (0 ms)
+
+x402z-mcp stderr:
+x402z-mcp: ready on stdio (tools: paid_fetch, tab_fetch, spend_status, ledger_tail)
+x402z-mcp: no tab token for http://127.0.0.1:4020/api/quote; buying a tab of 3
+tab offer: key d3e83a274b8e8fc7 at 100000 zat a token; buying 3 for 300000 zat (memo x402z-d6f60c622cc6178026dcaf5d)
+
+$ check_uivk <published uivk> d3bf0b49... x402z-58712c3f95459bb9ead9ce5b
+tx d3bf0b49408fed118fe9e1241239d98319cbb83088c45a5ba357f68cd97bd00d: mined at 4526113, 3 confirmation(s) (tip 4526115)
+incoming 300000 zat via Ironwood, memo text "x402z-58712c3f95459bb9ead9ce5b"
+total to merchant with memo "x402z-58712c3f95459bb9ead9ce5b": 300000 zat
+
+Agent ledger (X402Z_AGENT_LEDGER) audit entries after both runs:
+{"ts":1792600056,"agent":"tab-agent","host":"127.0.0.1:4020","amountZat":500000,"decision":"allowed","reason":"allowed, but not paid: awaiting payment from an external wallet (ZIP 321)","memoNonce":"x402z-aed6ff1377cea1055b1163bd"}
+{"ts":1792600232,"agent":"tab-agent","host":"127.0.0.1:4020","amountZat":500000,"decision":"allowed","reason":"tab of 5 tokens, paid by an external wallet","memoNonce":"x402z-aed6ff1377cea1055b1163bd","txid":"fa01172015c63ce47a0285f7fae130a3efe5f821b938a8befa1ca547d00ac3ad"}
+{"ts":1792600568,"agent":"tab-agent","host":"127.0.0.1:4020","amountZat":300000,"decision":"allowed","reason":"allowed, but not paid: awaiting payment from an external wallet (ZIP 321)","memoNonce":"x402z-58712c3f95459bb9ead9ce5b"}
+{"ts":1792600612,"agent":"tab-agent","host":"127.0.0.1:4020","amountZat":300000,"decision":"allowed","reason":"tab of 3 tokens, paid by an external wallet","memoNonce":"x402z-58712c3f95459bb9ead9ce5b","txid":"d3bf0b49408fed118fe9e1241239d98319cbb83088c45a5ba357f68cd97bd00d"}
+{"ts":1792600721,"agent":"tab-agent","host":"127.0.0.1:4020","amountZat":300000,"decision":"denied","reason":"daily cap exceeded: spent 800000 + requested 300000 > cap 1000000 zat; nothing broadcast","memoNonce":"x402z-d6f60c622cc6178026dcaf5d"}

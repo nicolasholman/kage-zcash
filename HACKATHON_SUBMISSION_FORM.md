@@ -12,8 +12,8 @@
 - **spendguard.** Daily cap, host allowlist and approval threshold are checked before the wallet is touched. A file lock stops two concurrent agent runs from both passing the cap.
 - **Any wallet can pay.** Each 402 carries a ZIP 321 URI and a locally rendered QR code. The dashboard redeems a pasted txid.
 - **No money lost on restarts or slow blocks.** Challenges, spent nonces and nonce→txid bindings live in SQLite. Expiry is judged by the block's `minedAt` plus a grace period.
-- **MCP server** (`x402z-mcp`) with `paid_fetch`, `spend_status` and `ledger_tail`. Spendguard refusals come back as tool errors.
-- **Kage Tab.** One shielded payment buys N unlinkable RFC 9474 blind-RSA tokens, each spendable once with `X-PAYMENT` scheme `zcash-shielded-tab`. There are attack tests, but no live run yet.
+- **MCP server** (`x402z-mcp`) with `paid_fetch`, `tab_fetch`, `spend_status` and `ledger_tail`. Spendguard refusals come back as tool errors.
+- **Kage Tab.** One shielded payment buys N unlinkable RFC 9474 blind-RSA tokens, each spendable once with `X-PAYMENT` scheme `zcash-shielded-tab`. The agent CLI (`tab-buy`, `tab-redeem`, `tab-fetch`) and the MCP tool `tab_fetch` are the clients. Live on testnet: one 500,000 zat payment bought 5 tokens, spent on 5 requests with no new transaction (each under 1 ms on localhost); a replayed token was refused.
 
 ## Proof it works (all on Zcash testnet)
 | Txid | Block | Path |
@@ -24,14 +24,16 @@
 | `25a8b324bebee30220382113c6fb9cc3be1144b036117c34778bde3b1d8b689d` | 4524602 | `X-PAYMENT` → `settlement_pending` → `200` + `X-PAYMENT-RESPONSE success` (Oct 21) |
 | `408aba269ac7ca946e3b0eaedcf4cadd582a01090679e98391b4e7c706d88dd0` | 4524693 | `X-PAYMENT` path, repeated (Oct 21) |
 | `a7c3b0b2eaeb406ddcd02276cd71e69e4e618b22a1cab8977c959f2da3fc38bc` | 4524694 | ZIP 321 + paste-txid path, repeated (Oct 21) |
+| `fa01172015c63ce47a0285f7fae130a3efe5f821b938a8befa1ca547d00ac3ad` | 4526095 | Kage Tab: 500,000 zat → 5 tokens → 5 CLI requests (Oct 21) |
+| `d3bf0b49408fed118fe9e1241239d98319cbb83088c45a5ba357f68cd97bd00d` | 4526113 | Kage Tab: 300,000 zat → 3 tokens → 3 MCP `tab_fetch` calls (Oct 21) |
 
-Anyone can check all six with the published demo merchant UIVK. See the README, "Verified testnet runs", and the `live_testnet` tests.
+Anyone can check all eight with the published demo merchant UIVK. See the README, "Verified testnet runs", and the `live_testnet` tests.
 
-75 tests, listed in TESTING.md:
+80 tests, listed in TESTING.md:
 - 6 build in-process transactions with real keys, note encryption and Halo2 proofs (not broadcast);
-- 3 verify the six real payments live against testnet.zec.rocks;
-- 3 drive the MCP binary over stdio;
-- 5 attack the Kage Tab.
+- 3 verify the eight real payments live against testnet.zec.rocks;
+- 4 drive the MCP binary over stdio;
+- 5 attack the Kage Tab on the server, and 1 runs the agent's Tab client against a localhost issuer with real blind RSA.
 
 ## Honest limits
 - Testnet only. Pre-release librustzcash crates, because NU7 is live on testnet.

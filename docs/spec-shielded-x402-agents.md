@@ -167,13 +167,17 @@ with an RSA-2048 key.
    `SHA-256(randomizer ‖ msg)` in a SQLite spent set. Success answers `200` with
    `transaction: "tab:<token id prefix>"`.
 
-Keys rotate every `X402Z_TAB_EPOCH_SECS` (default 7 days). Unspent tokens die with their epoch. The tab has
-server tests only. It has no live testnet run and no agent or MCP client yet.
+Keys rotate every `X402Z_TAB_EPOCH_SECS` (default 7 days). Unspent tokens die with their epoch.
+
+Clients: `x402z-agent tab-buy <n>` (agent wallet) or `tab-buy <n> --external` + `tab-redeem <txid>` (any
+wallet pays the printed ZIP 321 request), then `tab-fetch`; the MCP tool `tab_fetch`. Spendguard checks the
+whole `n × unitPriceZat` before anything is paid. Live on testnet on 2026-10-21: tx `fa011720…c3ad` bought
+5 tokens spent on 5 CLI requests, tx `d3bf0b49…d00d` bought 3 spent by MCP `tab_fetch` (README, "Kage Tab").
 
 ## 8. MCP surface
 
 `x402z-mcp` speaks MCP over stdio (newline-delimited JSON-RPC 2.0, protocol `2025-06-18`; `2025-03-26` and
-`2024-11-05` also accepted). Tools: `paid_fetch {url}`, `spend_status {}`, `ledger_tail {n}`. Spendguard
+`2024-11-05` also accepted). Tools: `paid_fetch {url}`, `tab_fetch {url, buy?}`, `spend_status {}`, `ledger_tail {n}`. Spendguard
 refusals, wallet errors, rejected payments and missing configuration come back as `isError: true` results.
 
 ## 9. What this does not hide

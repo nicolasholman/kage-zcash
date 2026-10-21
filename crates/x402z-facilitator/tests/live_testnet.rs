@@ -14,14 +14,17 @@ use zcash_protocol::{consensus::BlockHeight, ShieldedPool};
 /// Published in the README on purpose: incoming viewing key of the demo-only testnet merchant.
 const MERCHANT_UIVK: &str = "uivktest1ma9hgu9cmmmkv5f5npk7aktj8tradzqyxzwerez5trhku0xxgx7vsh0azzurz44pfdhmyrzxnur3n282f5t0glhje7kay4fw79njmg64g2wupcznmpfpy0gh6wngu0qw07ry404hnh6rq9vuj264gcjfxucylma4c8cuygxezqx2xwph5x66nckx4095pgvjzuq5rudsmr9dztnyv9f2w74unppttta6cu7fr3tx494zqstn2hv";
 
-/// (txid, mined height, memo nonce, block time where pinned)
-const PAYMENTS: [(&str, u32, &str, Option<u64>); 6] = [
-    ("030c3cbf78ce8460553bba4e82c0ba813f039bd3ecf4d7f2e81c59837dc28351", 4_521_112, "x402z-f19a63da20cbc0749ea800b3", None),
-    ("cd64980a5247881a727aa916476a3ba757e59794263c2ff1bcde467654a0916d", 4_521_440, "x402z-af06b1d50af81616075f0cb3", Some(1_792_482_929)),
-    ("ccb4214c6a1fdf183c086ae5b4f559d181ead4c1c61dc7e711fc4a08b95b0ed3", 4_524_586, "x402z-b7a15cc628bb7a06bf9a26cd", None),
-    ("25a8b324bebee30220382113c6fb9cc3be1144b036117c34778bde3b1d8b689d", 4_524_602, "x402z-696c58afd509cc0f8753f3b0", Some(1_792_562_282)),
-    ("408aba269ac7ca946e3b0eaedcf4cadd582a01090679e98391b4e7c706d88dd0", 4_524_693, "x402z-97c10778f360d18cc8289703", None),
-    ("a7c3b0b2eaeb406ddcd02276cd71e69e4e618b22a1cab8977c959f2da3fc38bc", 4_524_694, "x402z-10699970ecb69ff79eb66735", None),
+/// (txid, mined height, memo nonce, amount in zat, block time where pinned). The last two bought
+/// Kage Tabs of 5 and 3 tokens.
+const PAYMENTS: [(&str, u32, &str, u64, Option<u64>); 8] = [
+    ("030c3cbf78ce8460553bba4e82c0ba813f039bd3ecf4d7f2e81c59837dc28351", 4_521_112, "x402z-f19a63da20cbc0749ea800b3", 100_000, None),
+    ("cd64980a5247881a727aa916476a3ba757e59794263c2ff1bcde467654a0916d", 4_521_440, "x402z-af06b1d50af81616075f0cb3", 100_000, Some(1_792_482_929)),
+    ("ccb4214c6a1fdf183c086ae5b4f559d181ead4c1c61dc7e711fc4a08b95b0ed3", 4_524_586, "x402z-b7a15cc628bb7a06bf9a26cd", 100_000, None),
+    ("25a8b324bebee30220382113c6fb9cc3be1144b036117c34778bde3b1d8b689d", 4_524_602, "x402z-696c58afd509cc0f8753f3b0", 100_000, Some(1_792_562_282)),
+    ("408aba269ac7ca946e3b0eaedcf4cadd582a01090679e98391b4e7c706d88dd0", 4_524_693, "x402z-97c10778f360d18cc8289703", 100_000, None),
+    ("a7c3b0b2eaeb406ddcd02276cd71e69e4e618b22a1cab8977c959f2da3fc38bc", 4_524_694, "x402z-10699970ecb69ff79eb66735", 100_000, None),
+    ("fa01172015c63ce47a0285f7fae130a3efe5f821b938a8befa1ca547d00ac3ad", 4_526_095, "x402z-aed6ff1377cea1055b1163bd", 500_000, None),
+    ("d3bf0b49408fed118fe9e1241239d98319cbb83088c45a5ba357f68cd97bd00d", 4_526_113, "x402z-58712c3f95459bb9ead9ce5b", 300_000, None),
 ];
 
 fn merchant() -> (MerchantKey, String) {
@@ -56,11 +59,11 @@ async fn fetch(c: &mut lwd::Client, txid: &str, tip: BlockHeight) -> (zcash_prim
 async fn every_kage_payment_verifies_with_only_the_published_uivk() {
     let (key, ua) = merchant();
     let (mut c, tip) = client().await;
-    for (txid, height, nonce, time) in PAYMENTS {
+    for (txid, height, nonce, amount, time) in PAYMENTS {
         let (tx, h) = fetch(&mut c, txid, tip).await;
         assert_eq!(u32::from(h), height, "{txid}");
-        let p = verify::verify_payment(&NETWORK, &key, &challenge(&ua, nonce, 100_000), &tx, Some(h), tip).unwrap();
-        assert_eq!(p.amount_zat, 100_000, "{txid}");
+        let p = verify::verify_payment(&NETWORK, &key, &challenge(&ua, nonce, amount), &tx, Some(h), tip).unwrap();
+        assert_eq!(p.amount_zat, amount, "{txid}");
         assert_eq!(p.pools, vec![ShieldedPool::Ironwood], "{txid}");
         assert!(p.confirmations >= 1);
         let bt = lwd::block_time(&mut c, h).await.unwrap();
@@ -75,7 +78,7 @@ async fn every_kage_payment_verifies_with_only_the_published_uivk() {
 async fn real_payments_are_refused_for_the_wrong_nonce_amount_or_key() {
     let (key, ua) = merchant();
     let (mut c, tip) = client().await;
-    let (txid, _, nonce, _) = PAYMENTS[3];
+    let (txid, _, nonce, _, _) = PAYMENTS[3];
     let (tx, h) = fetch(&mut c, txid, tip).await;
     let check = |k: &MerchantKey, ch: &PaymentRequired| verify::verify_payment(&NETWORK, k, ch, &tx, Some(h), tip);
 
