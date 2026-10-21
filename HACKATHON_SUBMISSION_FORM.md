@@ -13,6 +13,7 @@
 - **Any wallet can pay.** Each 402 carries a ZIP 321 URI and a locally rendered QR code. The dashboard redeems a pasted txid.
 - **No money lost on restarts or slow blocks.** Challenges, spent nonces and nonce→txid bindings live in SQLite. Expiry is judged by the block's `minedAt` plus a grace period.
 - **MCP server** (`x402z-mcp`) with `paid_fetch`, `spend_status` and `ledger_tail`. Spendguard refusals come back as tool errors.
+- **Kage Tab.** One shielded payment buys N unlinkable RFC 9474 blind-RSA tokens, each spendable once with `X-PAYMENT` scheme `zcash-shielded-tab`. There are attack tests, but no live run yet.
 
 ## Proof it works (all on Zcash testnet)
 | Txid | Block | Path |
@@ -24,10 +25,11 @@
 
 Anyone can check all four with the published demo merchant UIVK. See the README, "Verified testnet runs", and the `live_testnet` tests.
 
-69 tests, listed in TESTING.md:
+75 tests, listed in TESTING.md:
 - 6 build in-process transactions with real keys, note encryption and Halo2 proofs (not broadcast);
 - 3 verify the four real payments live against testnet.zec.rocks;
-- 3 drive the MCP binary over stdio.
+- 3 drive the MCP binary over stdio;
+- 5 attack the Kage Tab.
 
 ## Honest limits
 - Testnet only. Pre-release librustzcash crates, because NU7 is live on testnet.
