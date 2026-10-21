@@ -30,7 +30,7 @@
 Anyone can check all eight with the published demo merchant UIVK. See the README, "Verified testnet runs", and the `live_testnet` tests.
 
 80 tests, listed in TESTING.md:
-- 6 build in-process transactions with real keys, note encryption and Halo2 proofs (not broadcast);
+- 6 build in-process transactions with real keys, real note encryption and real Halo2 proofs for the Orchard/Ironwood parts (Sapling outputs use sapling-crypto's mock proof bytes); these are not broadcast;
 - 3 verify the eight real payments live against testnet.zec.rocks;
 - 4 drive the MCP binary over stdio;
 - 5 attack the Kage Tab on the server, and 1 runs the agent's Tab client against a localhost issuer with real blind RSA.
@@ -40,7 +40,7 @@ Anyone can check all eight with the published demo merchant UIVK. See the README
 - **What still leaks:**
   - the client's IP reaches the merchant;
   - lightwalletd sees which txids are looked up;
-  - the agent ledger is plaintext JSON;
+  - the agent ledger and unspent Kage Tab tokens are plaintext local files;
   - 402 → block timing can link a request to its payment.
 - The merchant dashboard doesn't show the payer's spendguard ledger unless `X402Z_DEMO_AGENT_LEDGER` is set, which is for a one-machine demo only.
 - A live paying run from the *agent's own wallet* on the newest code is not in this round. The new code paths were proven live with a separate demo wallet (txids above).
