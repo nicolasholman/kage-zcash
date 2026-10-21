@@ -11,6 +11,11 @@
 //!
 //! prints the UIVK for the UFVK in `X402Z_MERCHANT_UFVK` (read from the environment, never
 //! from the command line).
+//!
+//!     cargo run -p x402z-facilitator --example check_uivk -- address <uivktest1...>
+//!
+//! prints the shielded-only payment address (Orchard + Sapling receivers, no transparent) that
+//! the UIVK can see, i.e. a valid `X402Z_MERCHANT_UA` for it.
 
 use x402z_facilitator::{lwd, verify, NETWORK};
 use zcash_keys::keys::{UnifiedFullViewingKey, UnifiedIncomingViewingKey};
@@ -37,8 +42,19 @@ async fn main() {
         println!("{}", ufvk.to_unified_incoming_viewing_key().encode(&NETWORK).unwrap_or_else(|e| die(format!("{e:?}"))));
         return;
     }
+    if let [cmd, uivk] = args.as_slice() {
+        if cmd == "address" {
+            use zcash_keys::keys::{ReceiverRequirement::{Omit, Require}, UnifiedAddressRequest};
+            let uivk = UnifiedIncomingViewingKey::decode(&NETWORK, uivk).unwrap_or_else(|e| die(e));
+            let (ua, _) = uivk
+                .default_address(UnifiedAddressRequest::unsafe_custom(Require, Require, Omit))
+                .unwrap_or_else(|e| die(format!("{e:?}")));
+            println!("{}", ua.encode(&NETWORK));
+            return;
+        }
+    }
     let [uivk, txid, rest @ ..] = args.as_slice() else {
-        die("usage: check_uivk <uivktest1...> <txid> [memoNonce]   |   check_uivk derive")
+        die("usage: check_uivk <uivktest1...> <txid> [memoNonce]   |   check_uivk derive   |   check_uivk address <uivktest1...>")
     };
     let uivk = UnifiedIncomingViewingKey::decode(&NETWORK, uivk).unwrap_or_else(|e| die(e));
     let id = lwd::parse_txid(txid).unwrap_or_else(|| die("bad txid"));
