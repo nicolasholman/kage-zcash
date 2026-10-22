@@ -504,8 +504,15 @@ async function redeem(nonce, txid){
 $("#try").onclick = async () => {
   steps(0);
   try {
-    const r = await fetch("/api/quote"); const res = await r.json();
-    if (r.status !== 402) { $("#challenge").innerHTML = `<pre>${esc(JSON.stringify(res, null, 2))}</pre>`; steps(5); return; }
+    const r = await fetch("/api/quote"); const res = await r.json().catch(() => ({}));
+    if (r.status === 200) { $("#challenge").innerHTML = `<pre>${esc(JSON.stringify(res, null, 2))}</pre>`; steps(5); return; }
+    if (r.status !== 402) {
+      // Not a challenge and not paid content (429 rate limit, server error): say so, claim no progress.
+      clearInterval(timer); clearTimeout(redeemTimer); steps(-1);
+      const wait = r.status === 429 ? (res.retryAfterSecs || r.headers.get("retry-after")) : null;
+      $("#challenge").innerHTML = `<div class="empty setup"><span class="ei">${esc(r.status + " " + r.statusText)}</span><b>${r.status === 429 ? "Slow down." : "Request failed."}</b><span>${esc(res.error || res.message || "x402z-server answered HTTP " + r.status)}${wait ? `. Retry in ${esc(wait)} s.` : ""}</span></div>`;
+      poll(); return;
+    }
     // x402 v1 body: {x402Version, accepts: [PaymentRequirements], error}
     const a = (res.accepts || []).find(x => x.scheme === "zcash-shielded") || {};
     const x = a.extra || {};
