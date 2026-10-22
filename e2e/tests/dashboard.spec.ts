@@ -270,6 +270,21 @@ test.describe('merchant dashboard', () => {
     await page.locator('#spendguard').screenshot({ path: test.info().outputPath('dash-spendguard.png') });
   });
 
+  test('DNS rebinding: under another host name the admin console answers 403; localhost still works', async ({ page, watch }) => {
+    // Chrome resolves *.localhost to 127.0.0.1, so this is a page on a foreign name reaching the
+    // loopback admin port, as a rebinding attack's page would.
+    watch.allow(/kage-rebind\.localhost:4120/, 403);
+    for (const path of ['', 'api/status', 'api/events?since=0']) {
+      const r = await page.goto(`http://kage-rebind.localhost:${SERVER}/${path}`);
+      expect(r?.status(), path).toBe(403);
+      await expect(page.locator('body')).toContainText('DNS rebinding protection');
+      await expect(page.locator('body')).not.toContainText('merchantUa');
+    }
+    await page.goto(`http://localhost:${SERVER}/`);
+    await expect(page.locator('#facState')).toHaveText('reachable');
+    await expectNoHorizontalScroll(page);
+  });
+
   test('rate limited: a 429 shows "slow down" and never claims a 200', async ({ page, watch }) => {
     watch.allow(/\/api\/quote$/, 402);
     watch.allow(/\/api\/quote$/, 429);
