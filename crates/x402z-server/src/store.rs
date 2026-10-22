@@ -40,6 +40,9 @@ impl Store {
                  spent_txid TEXT,
                  spent_at   INTEGER
              );
+             -- Open (unspent) challenges by expiry: pruning and the open count read only these
+             -- rows instead of scanning every challenge ever issued.
+             CREATE INDEX IF NOT EXISTS challenges_open ON challenges(expires_at) WHERE spent_txid IS NULL;
              -- Kage Tab: blind-RSA issuing keys (one active per epoch) and spent tokens.
              CREATE TABLE IF NOT EXISTS tab_keys (
                  key_id     TEXT PRIMARY KEY,

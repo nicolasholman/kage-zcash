@@ -241,7 +241,12 @@ struct App {
     tab: RwLock<Option<Arc<tab::TabKey>>>,
     book: Mutex<Book>,
     limiter: Mutex<ChallengeLimiter>,
+    /// When expired challenges were last pruned (unix seconds); see [`PRUNE_EVERY_SECS`].
+    last_prune: std::sync::atomic::AtomicU64,
 }
+
+/// Expired, unredeemed challenges are pruned at most this often, not on every 402.
+const PRUNE_EVERY_SECS: u64 = 60;
 
 fn too_many_challenges(retry_after: Duration) -> Response {
     let secs = retry_after.as_secs_f64().ceil().max(1.0) as u64;
@@ -333,8 +338,16 @@ fn check_receipt(ch: &PaymentRequired, merchant_ua: &str, c: &ReceiptClaims, now
 
 fn issue_challenge(app: &App) -> Result<PaymentRequired, String> {
     let now_unix = now();
-    let keep_after = app.cfg.expiry_grace_secs.saturating_add(app.cfg.redeem_window_secs);
-    app.store.prune_unspent_expired_before(now_unix.saturating_sub(keep_after))?;
+    let last = app.last_prune.load(std::sync::atomic::Ordering::Relaxed);
+    if now_unix >= last.saturating_add(PRUNE_EVERY_SECS)
+        && app
+            .last_prune
+            .compare_exchange(last, now_unix, std::sync::atomic::Ordering::Relaxed, std::sync::atomic::Ordering::Relaxed)
+            .is_ok()
+    {
+        let keep_after = app.cfg.expiry_grace_secs.saturating_add(app.cfg.redeem_window_secs);
+        app.store.prune_unspent_expired_before(now_unix.saturating_sub(keep_after))?;
+    }
     let mut raw = [0u8; 12];
     rand::thread_rng().fill_bytes(&mut raw);
     let ch = PaymentRequired {
@@ -462,12 +475,12 @@ fn mint(app: &App, client: IpAddr, budget: Budget, resource: &str, detail: &str,
             return resp;
         }
     }
-    let mut book = app.book.lock().unwrap();
+    // SQLite work happens outside the feed lock; only the push holds it.
     let ch = match issue_challenge(app) {
         Ok(ch) => ch,
         Err(e) => return storage_error(e),
     };
-    book.push("challenge", Some(&ch.memo_nonce), Some(ch.amount_zat), None, detail.into());
+    app.book.lock().unwrap().push("challenge", Some(&ch.memo_nonce), Some(ch.amount_zat), None, detail.into());
     payment_required(app, &ch, resource, error, settlement)
 }
 
@@ -1231,6 +1244,7 @@ async fn main() {
         tab: RwLock::new(None),
         book: Mutex::new(Book::default()),
         limiter: Mutex::new(ChallengeLimiter::new(rate)),
+        last_prune: std::sync::atomic::AtomicU64::new(0),
     });
     match tab_key(&app) {
         Ok(Some(k)) => eprintln!("tab: key {} ({} tokens max per payment)", k.key_id, app.cfg.tab_max_tokens),
@@ -1500,6 +1514,7 @@ mod tests {
             tab: RwLock::new(None),
             book: Mutex::new(Book::default()),
             limiter: Mutex::new(ChallengeLimiter::new(rate)),
+            last_prune: std::sync::atomic::AtomicU64::new(0),
         })
     }
 
@@ -2201,6 +2216,40 @@ mod tests {
         // the paid resource itself is on both
         assert_eq!(get_on(public_router(app.clone()), "/api/quote").await, StatusCode::PAYMENT_REQUIRED);
         assert_eq!(get_on(admin_router(app), "/api/quote").await, StatusCode::PAYMENT_REQUIRED);
+    }
+
+    #[test]
+    fn pruning_and_the_open_count_use_the_open_challenges_index() {
+        let s = mem_store();
+        let conn = s.conn_for_tests();
+        let plan = |sql: &str| -> String {
+            let mut q = conn.prepare(&format!("EXPLAIN QUERY PLAN {sql}")).unwrap();
+            q.query_map([], |r| r.get::<_, String>(3)).unwrap().map(Result::unwrap).collect::<Vec<_>>().join("; ")
+        };
+        for sql in [
+            "DELETE FROM challenges WHERE spent_txid IS NULL AND expires_at < 5",
+            "SELECT COUNT(*) FROM challenges WHERE spent_txid IS NULL AND expires_at > 5",
+        ] {
+            let p = plan(sql);
+            assert!(p.contains("challenges_open"), "{sql}: {p}");
+            assert!(!p.contains("SCAN challenges"), "{sql} scans the whole table: {p}");
+        }
+    }
+
+    #[tokio::test]
+    async fn expired_challenges_are_pruned_at_most_once_a_minute() {
+        let app = test_app(100);
+        let stale = PaymentRequired {
+            scheme: SCHEME.into(), network: Network::Testnet, pay_to: UA.into(),
+            amount_zat: 100_000, memo_nonce: "x402z-stale".into(), expires_at: 1,
+        };
+        get_quote(app.clone(), [10, 0, 0, 1], None).await; // first 402 prunes and starts the clock
+        app.store.insert(&stale).unwrap();
+        get_quote(app.clone(), [10, 0, 0, 1], None).await;
+        assert!(app.store.get("x402z-stale").unwrap().is_some(), "not pruned again within the minute");
+        app.last_prune.store(now() - PRUNE_EVERY_SECS, std::sync::atomic::Ordering::Relaxed);
+        get_quote(app.clone(), [10, 0, 0, 1], None).await;
+        assert!(app.store.get("x402z-stale").unwrap().is_none(), "pruned once the minute is over");
     }
 
     #[tokio::test]
