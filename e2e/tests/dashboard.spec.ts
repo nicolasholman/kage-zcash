@@ -1,5 +1,7 @@
 import { test, expect, expectNoHorizontalScroll, isMobile } from './fixtures';
-import type { Page } from '@playwright/test';
+import type { APIRequestContext, Page } from '@playwright/test';
+import { createPrivateKey, randomBytes, sign } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 
 const at = (port: number) => `http://127.0.0.1:${port}/`;
 // Dashboards live on each x402z-server's admin port; PUBLIC_API is the same server's public port.
@@ -8,6 +10,25 @@ const PUBLIC_API = 4020;
 // A real mined Kage payment (block 4,524,586) to the published demo merchant. Its memo is a
 // different, already-used nonce, so against a fresh challenge the honest answer is a refusal.
 const MINED_TXID = 'ccb4214c6a1fdf183c086ae5b4f559d181ead4c1c61dc7e711fc4a08b95b0ed3';
+
+/**
+ * Another client pays challenge `nonce`: it presents an X-PAYMENT-RECEIPT signed with this run's
+ * throwaway receipt key (stack.sh made it with `x402z-facilitator keygen`, 0600, never printed).
+ * That is the server's real legacy receipt path (signature, nonce, amount and payTo checked, the
+ * nonce burned). Returns the receipt's txid.
+ */
+async function anotherClientPays(request: APIRequestContext, port: number, nonce: string, payTo: string) {
+  const env = readFileSync(new URL('../.run/receipt.env', import.meta.url), 'utf8');
+  const seed = Buffer.from(/^X402Z_RECEIPT_SIGNING_KEY=([0-9a-f]{64})$/m.exec(env)![1], 'hex');
+  const key = createPrivateKey({ key: Buffer.concat([Buffer.from('302e020100300506032b657004220420', 'hex'), seed]), format: 'der', type: 'pkcs8' });
+  const txid = randomBytes(32).toString('hex');
+  const now = Math.floor(Date.now() / 1000);
+  const claims = Buffer.from(JSON.stringify({ memoNonce: nonce, amountZat: 100000, payTo, txid, confirmations: 1, issuedAt: now, minedAt: now }));
+  const receipt = `${claims.toString('base64url')}.${sign(null, claims, key).toString('base64url')}`;
+  const r = await request.get(at(port) + 'api/quote', { headers: { 'X-PAYMENT-RECEIPT': receipt } });
+  expect(r.status(), await r.text()).toBe(200);
+  return txid;
+}
 
 async function sendRequest(page: Page) {
   const quote = page.waitForResponse(r => r.url().endsWith('/api/quote'));
@@ -135,6 +156,37 @@ test.describe('merchant dashboard', () => {
     await expect(page.locator('.step[data-s="4"]')).not.toHaveClass(/\bdone\b/);
     await expect(page.locator('#feed li').filter({ hasText: nonce }).first()).toBeVisible();
     await page.locator('#pay').screenshot({ path: test.info().outputPath('dash-refused.png') });
+  });
+
+  test("another client's payment lands in the feed but never ticks the 402 card on screen", async ({ page, request }) => {
+    await page.goto(at(SERVER));
+    const mine = (await (await sendRequest(page)).json()).accepts[0];
+    await expect(page.locator('.step[data-s="2"]')).toHaveClass(/\bon\b/);
+    // Someone else (an agent on the public port) gets its own 402 and pays it.
+    const theirs = (await (await request.get(at(PUBLIC_API) + 'api/quote')).json()).accepts[0];
+    expect(theirs.extra.memoNonce).not.toBe(mine.extra.memoNonce);
+    const txid = await anotherClientPays(request, PUBLIC_API, theirs.extra.memoNonce, theirs.payTo);
+    const row = page.locator('#feed li').filter({ has: page.locator(`a[href$="${txid}"]`) });
+    await expect(row.locator('.st')).toHaveText('paid');
+    // My card still waits for my payment.
+    await page.waitForTimeout(2000); // more than one feed poll
+    await expect(page.locator('.step[data-s="4"]')).not.toHaveClass(/\bdone\b/);
+    await expect(page.locator('.step[data-s="2"]')).toHaveClass(/\bon\b/);
+    await expect(page.locator('#ttl')).toHaveText(/^expires in \d+:\d\d$/);
+    // A fresh page loads that paid event with the history and claims nothing either.
+    await page.reload();
+    await expect(page.locator('#feed li').filter({ has: page.locator(`a[href$="${txid}"]`) })).toBeVisible();
+    await page.waitForTimeout(2000);
+    for (const s of [0, 1, 2, 3, 4]) await expect(page.locator(`.step[data-s="${s}"]`)).not.toHaveClass(/\bdone\b/);
+  });
+
+  test("a payment for the card's own challenge ticks 200 and stops the countdown", async ({ page, request }) => {
+    await page.goto(at(SERVER));
+    const mine = (await (await sendRequest(page)).json()).accepts[0];
+    await expect(page.locator('#ttl')).toHaveText(/^expires in/);
+    await anotherClientPays(request, PUBLIC_API, mine.extra.memoNonce, mine.payTo); // e.g. the agent paid this card's nonce
+    await expect(page.locator('.step[data-s="4"]')).toHaveClass(/\bdone\b/);
+    await expect(page.locator('#ttl')).toHaveText('paid');
   });
 
   test('sidebar nav, including "Payment feed", jumps to each section and highlights it', async ({ page }) => {

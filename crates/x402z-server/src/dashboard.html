@@ -363,6 +363,9 @@ const ago = ts => { const d = Math.max(0, Math.floor(Date.now()/1000 - ts)); ret
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const short = s => s && s.length > 22 ? s.slice(0, 12) + "…" + s.slice(-8) : (s || "");
 let lastId = 0, expiry = 0, timer;
+// The challenge on the card. Only a paid event for this nonce, seen after the first (history)
+// load of the feed, may mark the card paid; other clients' payments only land in the feed.
+let cardNonce = null, historyLoaded = false;
 
 // Presentation helpers (display only; no extra requests).
 const EXPLORER = "https://testnet.zecblock.com/tx/";
@@ -380,6 +383,10 @@ function banner(msgs){
 }
 function steps(n){
   document.querySelectorAll(".step").forEach(el => { const s = +el.dataset.s; el.className = "step" + (s < n ? " done" : s === n ? " on" : ""); });
+}
+function markPaid(){
+  steps(5); clearInterval(timer); clearTimeout(redeemTimer);
+  const t = $("#ttl"); if (t) t.textContent = "paid";
 }
 
 async function status(){
@@ -466,8 +473,9 @@ async function poll(){
         <span class="st k-${esc(e.kind)}">${esc(FEED_LABEL[e.kind] || e.kind)}</span>
         <span class="when time" data-ts="${e.ts}">${ago(e.ts)}</span>`;
       $("#feed").prepend(li);
-      if (e.kind === "paid") steps(5);
+      if (e.kind === "paid" && historyLoaded && cardNonce && e.memoNonce === cardNonce) markPaid();
     }
+    historyLoaded = true;
     if (lastId) $("#feedEmpty").style.display = "none";
     renderCounts();
     document.querySelectorAll("#feed .time").forEach(t => t.textContent = ago(+t.dataset.ts));
@@ -488,7 +496,7 @@ async function redeem(nonce, txid){
     const v = await r.json().catch(() => ({}));
     if (v.status === "paid") {
       out.className = "rout ok"; out.innerHTML = `<b>Paid · unlocked.</b> ${txLink(txid)}<pre>${esc(JSON.stringify(v.content, null, 2))}</pre>`;
-      steps(5); clearInterval(timer); const t = $("#ttl"); if (t) t.textContent = "paid"; poll(); return;
+      markPaid(); poll(); return;
     }
     if (v.status === "pending") {
       out.className = "rout"; out.innerHTML = `<b>Found, confirming.</b> ${esc(v.message || "")} Checking again in 15 s.`;
@@ -502,7 +510,7 @@ async function redeem(nonce, txid){
 }
 
 $("#try").onclick = async () => {
-  steps(0);
+  steps(0); cardNonce = null;
   try {
     const r = await fetch("/api/quote"); const res = await r.json().catch(() => ({}));
     if (r.status === 200) { $("#challenge").innerHTML = `<pre>${esc(JSON.stringify(res, null, 2))}</pre>`; steps(5); return; }
@@ -517,7 +525,7 @@ $("#try").onclick = async () => {
     const a = (res.accepts || []).find(x => x.scheme === "zcash-shielded") || {};
     const x = a.extra || {};
     const body = {scheme: a.scheme, network: a.network, payTo: a.payTo, amountZat: Number(a.maxAmountRequired), memoNonce: x.memoNonce, expiresAt: x.expiresAt, uri: x.paymentUri || ""};
-    steps(1); expiry = body.expiresAt; clearTimeout(redeemTimer);
+    steps(1); expiry = body.expiresAt; clearTimeout(redeemTimer); cardNonce = body.memoNonce;
     const qr = "/api/challenge/" + encodeURIComponent(body.memoNonce) + "/qr.svg";
     $("#challenge").innerHTML = `<div class="status402"><span>402 Payment Required</span><span id="ttl"></span></div>
       <div class="payany">
