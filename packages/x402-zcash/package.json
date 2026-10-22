@@ -1,0 +1,14 @@
+{
+  "name": "@kage/x402-zcash",
+  "version": "0.1.0",
+  "description": "x402 v1 over Zcash shielded payments for TypeScript: parse a zcash-shielded 402, render its ZIP 321 URI, send X-PAYMENT, and a paywall middleware that settles through the Kage facilitator",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=22.18" },
+  "exports": { ".": "./src/index.ts" },
+  "files": ["src"],
+  "scripts": {
+    "test": "node --test test/*.test.ts"
+  }
+}

@@ -46,3 +46,18 @@ jobs:
       - run: rustup toolchain install 1.89.0 --profile minimal
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --locked -p x402z-facilitator --test live_testnet
+
+  ts-client:
+    name: TypeScript client and paywall (packages/x402-zcash) against the real binaries and testnet
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install 1.89.0 --profile minimal
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --locked -p x402z-server -p x402z-facilitator --bins --examples
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm test
+        working-directory: packages/x402-zcash
