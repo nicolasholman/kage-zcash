@@ -16,6 +16,10 @@ pub struct Row {
     pub challenge: PaymentRequired,
     /// Txid the nonce was redeemed with, once spent.
     pub spent_txid: Option<String>,
+    /// When it was spent (unix seconds).
+    pub spent_at: Option<u64>,
+    /// The nonce paid for a Kage Tab (it bought tokens, not this one request).
+    pub spent_for_tab: bool,
 }
 
 fn err(e: impl std::fmt::Display) -> String {
@@ -81,20 +85,23 @@ impl Store {
     }
 
     pub fn get(&self, nonce: &str) -> Result<Option<Row>, String> {
-        let row: Option<(String, Option<String>)> = self
+        let row: Option<(String, Option<String>, Option<i64>, bool)> = self
             .conn
             .lock()
             .unwrap()
-            .query_row("SELECT challenge, spent_txid FROM challenges WHERE nonce = ?1", params![nonce], |r| {
-                Ok((r.get(0)?, r.get(1)?))
-            })
+            .query_row(
+                "SELECT challenge, spent_txid, spent_at, EXISTS(SELECT 1 FROM tab_issued t WHERE t.nonce = c.nonce)
+                 FROM challenges c WHERE c.nonce = ?1",
+                params![nonce],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            )
             .optional()
             .map_err(err)?;
         match row {
             None => Ok(None),
-            Some((json, spent_txid)) => {
+            Some((json, spent_txid, spent_at, spent_for_tab)) => {
                 let challenge = serde_json::from_str(&json).map_err(err)?;
-                Ok(Some(Row { challenge, spent_txid }))
+                Ok(Some(Row { challenge, spent_txid, spent_at: spent_at.map(|t| t.max(0) as u64), spent_for_tab }))
             }
         }
     }

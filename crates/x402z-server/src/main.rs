@@ -58,6 +58,10 @@ const DEFAULT_REDEEM_WINDOW_SECS: u64 = 24 * 60 * 60;
 const DEFAULT_CHALLENGE_RATE_PER_MIN: u32 = 30;
 /// Forget idle buckets once the table grows past this many client IPs.
 const MAX_TRACKED_IPS: usize = 10_000;
+/// How long the payer may present the same (memoNonce, txid) again with `X-PAYMENT` and get the
+/// content once more (`X402Z_RESEND_WINDOW_SECS`, 0 = never): a 200 lost on the way back must not
+/// turn a settled payment into a refusal that makes the payer pay again.
+const DEFAULT_RESEND_WINDOW_SECS: u64 = 10 * 60;
 /// Default admin listener (dashboard, feed, status); loopback only unless configured otherwise.
 const DEFAULT_ADMIN_BIND: &str = "127.0.0.1:4029";
 /// Longest feed `detail` kept; anything a client sent is cut here.
@@ -109,6 +113,8 @@ struct Config {
     /// A payment mined up to this long after `expiresAt` still counts.
     expiry_grace_secs: u64,
     redeem_window_secs: u64,
+    /// See [`DEFAULT_RESEND_WINDOW_SECS`].
+    resend_window_secs: u64,
     /// Kage Tab: most tokens one payment may buy (0 turns the tab off) and the key epoch.
     tab_max_tokens: u32,
     tab_epoch_secs: u64,
@@ -501,6 +507,9 @@ fn tab_key_for(app: &App, key_id: &str) -> Result<Option<Arc<tab::TabKey>>, Stri
 #[derive(Debug)]
 enum Redeem {
     Paid(ReceiptClaims),
+    /// The same (memoNonce, txid) that already settled, presented again inside the resend window:
+    /// the facilitator confirmed it again, so the content is served again. Nothing new is burned.
+    Resent(ReceiptClaims),
     /// Found but not confirmed enough yet, or not visible to lightwalletd yet: retry the same txid.
     Pending { challenge: PaymentRequired, message: String },
     /// Definitively not a payment for this challenge (or the nonce is spent / unknown).
@@ -514,12 +523,17 @@ fn refused(reason: &str, message: impl Into<String>) -> Redeem {
 }
 
 /// Ask the facilitator to settle `txid` against the stored challenge `nonce`, check its signed
-/// receipt with the facilitator's public key, and burn the nonce.
-async fn redeem(app: &App, nonce: &str, txid: &str, resource: &str) -> Redeem {
-    let (_, c) = match confirmed_receipt(app, nonce, txid, resource).await {
+/// receipt with the facilitator's public key, and burn the nonce. With `resend`, the pair that
+/// already spent the nonce is answered [`Redeem::Resent`] inside the resend window.
+async fn redeem(app: &App, nonce: &str, txid: &str, resource: &str, resend: Resend) -> Redeem {
+    let (row, c) = match confirmed_receipt(app, nonce, txid, resource, resend).await {
         Ok(x) => x,
         Err(r) => return r,
     };
+    if row.spent_txid.is_some() {
+        // confirmed_receipt lets a spent row through only for its own txid inside the window
+        return Redeem::Resent(c);
+    }
     match settle(&app.store, &app.cfg.merchant_ua, &c, now(), app.cfg.expiry_grace_secs) {
         Ok(()) => Redeem::Paid(c),
         Err(e) => receipt_refusal(e),
@@ -535,14 +549,32 @@ fn receipt_refusal(e: ReceiptError) -> Redeem {
     }
 }
 
+/// Whether a spent nonce may be presented again with the txid that spent it.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Resend {
+    /// `X-PAYMENT`: yes, inside `X402Z_RESEND_WINDOW_SECS` of the first 200.
+    Allowed,
+    /// Paste-txid redeem and tab issuance: a spent nonce is always refused.
+    Refused,
+}
+
+/// Whether `row` (already spent) may be answered again for `txid` at `now_unix`. A nonce that
+/// bought a Kage Tab never is: its payment was for the tokens, not for this request.
+fn resend_ok(row: &store::Row, txid: &str, now_unix: u64, window_secs: u64) -> bool {
+    window_secs > 0
+        && !row.spent_for_tab
+        && row.spent_txid.as_deref().is_some_and(|t| t.eq_ignore_ascii_case(txid.trim()))
+        && row.spent_at.is_some_and(|at| now_unix <= at.saturating_add(window_secs))
+}
+
 /// The facilitator-confirmed, signature-checked receipt for (nonce, txid). Burns nothing.
-async fn confirmed_receipt(app: &App, nonce: &str, txid: &str, resource: &str) -> Result<(store::Row, ReceiptClaims), Redeem> {
+async fn confirmed_receipt(app: &App, nonce: &str, txid: &str, resource: &str, resend: Resend) -> Result<(store::Row, ReceiptClaims), Redeem> {
     let row = match app.store.get(nonce) {
         Err(e) => return Err(Redeem::Unavailable(e)),
         Ok(None) => return Err(refused(reason::UNKNOWN_CHALLENGE, ReceiptError::UnknownNonce.reason())),
         Ok(Some(r)) => r,
     };
-    if row.spent_txid.is_some() {
+    if row.spent_txid.is_some() && !(resend == Resend::Allowed && resend_ok(&row, txid, now(), app.cfg.resend_window_secs)) {
         return Err(refused(reason::NONCE_USED, ReceiptError::Replayed.reason()));
     }
     let url = format!("{}{SETTLE_PATH}", app.cfg.facilitator_url.trim_end_matches('/'));
@@ -654,9 +686,19 @@ async fn x_payment(app: &App, client: IpAddr, resource: &str, header: &str) -> R
     if let Err(resp) = charge(app, client, None, None) {
         return resp;
     }
-    match redeem(app, &p.memo_nonce, &p.txid, resource).await {
+    match redeem(app, &p.memo_nonce, &p.txid, resource, Resend::Allowed).await {
         Redeem::Paid(c) => {
             record_paid(app, &c, PAYMENT_HEADER);
+            paid_response(&c)
+        }
+        Redeem::Resent(c) => {
+            app.book.lock().unwrap().push(
+                "paid",
+                Some(&c.memo_nonce),
+                Some(c.amount_zat),
+                Some(&c.txid),
+                "served again: the same X-PAYMENT inside the resend window (nothing new burned)".into(),
+            );
             paid_response(&c)
         }
         Redeem::Pending { challenge, message } => {
@@ -773,14 +815,14 @@ async fn tab_issue(State(app): State<Arc<App>>, ConnectInfo(peer): ConnectInfo<S
         return too_many_challenges(wait);
     }
     let resource = resource_url(&headers);
-    let (row, c) = match confirmed_receipt(&app, nonce, &txid, &resource).await {
+    let (row, c) = match confirmed_receipt(&app, nonce, &txid, &resource, Resend::Refused).await {
         Ok(x) => x,
         Err(Redeem::Pending { message, .. }) => {
             return (StatusCode::ACCEPTED, Json(serde_json::json!({ "status": "pending", "reason": reason::PENDING, "message": message }))).into_response()
         }
         Err(Redeem::Refused { reason: why, message }) => return fail(StatusCode::UNPROCESSABLE_ENTITY, &why, message),
         Err(Redeem::Unavailable(m)) => return fail(StatusCode::BAD_GATEWAY, reason::FACILITATOR_ERROR, m),
-        Err(Redeem::Paid(_)) => unreachable!("confirmed_receipt never burns"),
+        Err(Redeem::Paid(_) | Redeem::Resent(_)) => unreachable!("confirmed_receipt never burns"),
     };
     if let Err(e) = check_receipt(&row.challenge, &app.cfg.merchant_ua, &c, now(), app.cfg.expiry_grace_secs) {
         return match receipt_refusal(e) {
@@ -875,7 +917,8 @@ async fn redeem_api(
         return too_many_challenges(wait);
     }
     let resource = resource_url(&headers);
-    match redeem(&app, &nonce, &txid, &resource).await {
+    match redeem(&app, &nonce, &txid, &resource, Resend::Refused).await {
+        Redeem::Resent(_) => unreachable!("the paste-txid redeem never resends"),
         Redeem::Paid(c) => {
             record_paid(&app, &c, "pasted txid");
             let content = paid_response(&c);
@@ -1108,6 +1151,7 @@ async fn main() {
         min_confirmations,
         expiry_grace_secs: nonneg("X402Z_EXPIRY_GRACE_SECS", DEFAULT_EXPIRY_GRACE_SECS),
         redeem_window_secs: nonneg("X402Z_REDEEM_WINDOW_SECS", DEFAULT_REDEEM_WINDOW_SECS),
+        resend_window_secs: nonneg("X402Z_RESEND_WINDOW_SECS", DEFAULT_RESEND_WINDOW_SECS),
         tab_max_tokens: u32::try_from(nonneg("X402Z_TAB_MAX_TOKENS", tab::DEFAULT_MAX_TOKENS as u64)).unwrap_or(u32::MAX),
         tab_epoch_secs: nonneg("X402Z_TAB_EPOCH_SECS", tab::DEFAULT_EPOCH_SECS).max(60),
         tab_grace_secs: nonneg("X402Z_TAB_GRACE_SECS", tab::DEFAULT_GRACE_SECS),
@@ -1391,6 +1435,7 @@ mod tests {
             min_confirmations: 1,
             expiry_grace_secs: GRACE,
             redeem_window_secs: DEFAULT_REDEEM_WINDOW_SECS,
+            resend_window_secs: DEFAULT_RESEND_WINDOW_SECS,
             tab_max_tokens: 5,
             tab_epoch_secs: tab::DEFAULT_EPOCH_SECS,
             // No grace by default here: the epoch tests assert a retired key is dead at once;
@@ -1645,6 +1690,66 @@ mod tests {
         assert_eq!(v["settlement"]["memoNonce"], nonce);
         assert_eq!(app.store.get(&nonce).unwrap().unwrap().spent_txid.as_deref(), Some(TX_OK));
 
+        // another txid on the spent nonce: refused with nonce_already_used and a fresh challenge
+        let other = x_payment_header(TX_PAID_3X, &nonce);
+        let r = get_quote_with(app.clone(), [10, 0, 0, 1], &[(PAYMENT_HEADER, &other)]).await;
+        assert_eq!(r.status(), StatusCode::PAYMENT_REQUIRED);
+        assert_eq!(settlement_of(&r).error_reason.as_deref(), Some(reason::NONCE_USED));
+        let v = body_json(r).await;
+        assert_ne!(v["accepts"][0]["extra"]["memoNonce"], nonce);
+        assert_eq!(v["error"], "receipt already used");
+
+        // the same X-PAYMENT once the resend window is over: refused the same way
+        app.store.conn_for_tests().execute("UPDATE challenges SET spent_at = spent_at - ?1", [DEFAULT_RESEND_WINDOW_SECS as i64 + 1]).unwrap();
+        let r = get_quote_with(app.clone(), [10, 0, 0, 1], &[(PAYMENT_HEADER, &h)]).await;
+        assert_eq!(r.status(), StatusCode::PAYMENT_REQUIRED);
+        assert_eq!(settlement_of(&r).error_reason.as_deref(), Some(reason::NONCE_USED));
+        let v = body_json(r).await;
+        assert_ne!(v["accepts"][0]["extra"]["memoNonce"], nonce);
+        assert_eq!(v["error"], "receipt already used");
+    }
+
+    #[tokio::test]
+    async fn a_lost_200_is_answered_again_for_the_same_payment_without_a_second_payment() {
+        let app = app_with_stand_in().await;
+        let nonce = {
+            let v = body_json(get_quote(app.clone(), [10, 0, 0, 1], None).await).await;
+            v["accepts"][0]["extra"]["memoNonce"].as_str().unwrap().to_string()
+        };
+        let h = x_payment_header(TX_OK, &nonce);
+        // first X-PAYMENT settles; its response is "lost" (dropped unread)
+        let first = get_quote_with(app.clone(), [10, 0, 0, 1], &[(PAYMENT_HEADER, &h)]).await;
+        assert_eq!(first.status(), StatusCode::OK);
+        let spent_at = app.store.get(&nonce).unwrap().unwrap().spent_at;
+        drop(first);
+        // the payer presents the same pair again: 200, the same settlement, nothing new burned
+        let again = get_quote_with(app.clone(), [10, 0, 0, 1], &[(PAYMENT_HEADER, &h)]).await;
+        assert_eq!(again.status(), StatusCode::OK);
+        assert_eq!(settlement_of(&again), SettlementResponse::ok(TX_OK));
+        let v = body_json(again).await;
+        assert_eq!(v["settlement"]["txid"], TX_OK);
+        assert_eq!(v["settlement"]["memoNonce"], nonce);
+        let row = app.store.get(&nonce).unwrap().unwrap();
+        assert_eq!((row.spent_txid.as_deref(), row.spent_at), (Some(TX_OK), spent_at), "the spent row is unchanged");
+        assert!(feed(&app).iter().any(|e| e.kind == "paid" && e.detail.starts_with("served again")));
+        // the paste-txid path still refuses a second redeem of the nonce
+        let r = post_redeem(app.clone(), serde_json::json!({ "memoNonce": nonce, "txid": TX_OK })).await;
+        assert_eq!(r.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(body_json(r).await["reason"], reason::NONCE_USED);
+    }
+
+    #[tokio::test]
+    async fn with_the_resend_window_off_a_replayed_x_payment_is_refused() {
+        let app = app_with_stand_in().await;
+        let mut a = Arc::try_unwrap(app).ok().unwrap();
+        a.cfg.resend_window_secs = 0;
+        let app = Arc::new(a);
+        let nonce = {
+            let v = body_json(get_quote(app.clone(), [10, 0, 0, 1], None).await).await;
+            v["accepts"][0]["extra"]["memoNonce"].as_str().unwrap().to_string()
+        };
+        let h = x_payment_header(TX_OK, &nonce);
+        assert_eq!(get_quote_with(app.clone(), [10, 0, 0, 1], &[(PAYMENT_HEADER, &h)]).await.status(), StatusCode::OK);
         // replaying the same X-PAYMENT: refused with nonce_already_used and a fresh challenge
         let r = get_quote_with(app.clone(), [10, 0, 0, 1], &[(PAYMENT_HEADER, &h)]).await;
         assert_eq!(r.status(), StatusCode::PAYMENT_REQUIRED);
