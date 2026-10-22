@@ -333,9 +333,71 @@ pub fn spendguard_gate(
     Ok(Gate { _lock: lock, ledger, audit, spent_before, agent: agent.to_string(), policy: policy.clone() })
 }
 
+/// Record what a broadcast came to, under the [`Gate`] that allowed it.
+///
+/// Once transactions are created the money may move, so anything short of a definite rejection
+/// counts against today's cap: an unknown outcome (transport error, timeout) is recorded with its
+/// txid and charged. `seen` (lightwalletd asked afterwards) can only upgrade an unknown outcome to
+/// paid; "not seen yet" doesn't prove the node never got it. A definite rejection is not charged.
+pub fn record_broadcast(gate: Gate, txid: &str, outcome: wallet::Broadcast, seen: Option<bool>) -> Result<String, PayError> {
+    match outcome {
+        wallet::Broadcast::Sent => {
+            gate.record_paid(txid, None)?;
+            Ok(txid.to_string())
+        }
+        wallet::Broadcast::Rejected(e) => {
+            gate.record_failure(&e);
+            Err(PayError::Runtime(format!("{e}. Nothing was paid.")))
+        }
+        wallet::Broadcast::Unknown(e) if seen == Some(true) => {
+            gate.record_paid(txid, Some(&format!("paid; the broadcast answer was lost ({e}) but lightwalletd has the tx")))?;
+            Ok(txid.to_string())
+        }
+        wallet::Broadcast::Unknown(e) => {
+            let lookup = match seen {
+                Some(false) => "lightwalletd does not show it yet",
+                _ => "lightwalletd could not be asked",
+            };
+            gate.record_paid(txid, Some(&format!("broadcast status unknown ({e}; {lookup}); counted against the cap")))?;
+            Err(PayError::Runtime(format!(
+                "broadcast of tx {txid} has an unknown outcome ({e}; {lookup}). It may still be mined, so it counts \
+                 against today's cap. Check https://testnet.zecblock.com/tx/{txid} before paying again."
+            )))
+        }
+    }
+}
+
+/// Everything before the money can move: lightwalletd, wallet, key, sync, balance, building and
+/// signing. Any failure here is recorded by the caller as "allowed, but not paid".
+async fn prepare_payment(
+    cfg: &AgentConfig,
+    seed: &SecretVec<u8>,
+    pay_to: &str,
+    amount_zat: u64,
+    memo: &str,
+) -> Result<(lwd::Client, Vec<(zcash_protocol::TxId, Vec<u8>)>), PayError> {
+    let (mut client, tip) = connect_lwd(&cfg.lwd_url).await?;
+    let (mut db, id) = open_wallet(cfg, &mut client, tip).await?;
+    let usk = wallet::spending_key(&db, id, seed).map_err(PayError::Config)?;
+    eprintln!("syncing wallet in {}...", cfg.wallet_dir.display());
+    wallet::sync(&mut db, &mut client).await.map_err(PayError::Runtime)?;
+    let bal = wallet::balance(&db, id).map_err(PayError::Runtime)?;
+    let need = amount_zat + wallet::MIN_FEE_ZAT;
+    if bal.spendable_zat < need {
+        let ua = wallet::ufvk(&db, id).and_then(|u| wallet::address(&u)).unwrap_or_default();
+        return Err(PayError::Wallet(format!(
+            "insufficient testnet balance: spendable {} zat (total {}, pending {}), need at least {} zat ({} + fee). \
+             Send TAZ to {ua} and wait for 1 confirmation. Not paying.",
+            bal.spendable_zat, bal.total_zat, bal.pending_zat, need, amount_zat
+        )));
+    }
+    let txs = wallet::create(&mut db, id, usk, pay_to, amount_zat, memo).map_err(PayError::Runtime)?;
+    Ok((client, txs))
+}
+
 /// Pay `amount_zat` to `pay_to` with text memo `memo` from the agent's own wallet
-/// (`X402Z_AGENT_SEED`), under an allowed [`Gate`], and record the outcome in the ledger.
-/// Returns the txid.
+/// (`X402Z_AGENT_SEED`), under an allowed [`Gate`], and record the outcome in the ledger: every
+/// allowed decision ends in exactly one audit line. Returns the txid.
 pub async fn pay_from_agent_wallet(cfg: &AgentConfig, gate: Gate, pay_to: &str, amount_zat: u64, memo: &str) -> Result<String, PayError> {
     let Some(seed) = cfg.seed.as_ref() else {
         gate.record_failure("X402Z_AGENT_SEED not configured");
@@ -346,36 +408,24 @@ pub async fn pay_from_agent_wallet(cfg: &AgentConfig, gate: Gate, pay_to: &str, 
             amount_zat + wallet::MIN_FEE_ZAT
         )));
     };
-    let (mut client, tip) = match connect_lwd(&cfg.lwd_url).await {
-        Ok(c) => c,
+    let (mut client, txs) = match prepare_payment(cfg, seed, pay_to, amount_zat, memo).await {
+        Ok(x) => x,
         Err(e) => {
             gate.record_failure(e.message());
             return Err(e);
         }
     };
-    let (mut db, id) = open_wallet(cfg, &mut client, tip).await?;
-    let usk = wallet::spending_key(&db, id, seed).map_err(PayError::Config)?;
-    eprintln!("syncing wallet in {}...", cfg.wallet_dir.display());
-    wallet::sync(&mut db, &mut client).await.map_err(PayError::Runtime)?;
-    let bal = wallet::balance(&db, id).map_err(PayError::Runtime)?;
-    let need = amount_zat + wallet::MIN_FEE_ZAT;
-    if bal.spendable_zat < need {
-        let ua = wallet::ufvk(&db, id).and_then(|u| wallet::address(&u)).unwrap_or_default();
-        gate.record_failure(&format!("insufficient balance ({} zat spendable)", bal.spendable_zat));
-        return Err(PayError::Wallet(format!(
-            "insufficient testnet balance: spendable {} zat (total {}, pending {}), need at least {} zat ({} + fee). \
-             Send TAZ to {ua} and wait for 1 confirmation. Not paying.",
-            bal.spendable_zat, bal.total_zat, bal.pending_zat, need, amount_zat
-        )));
-    }
-    let txid = match wallet::pay(&mut db, &mut client, id, usk, pay_to, amount_zat, memo).await {
-        Ok(t) => t.to_string(),
-        Err(e) => {
-            gate.record_failure(&e);
-            return Err(PayError::Runtime(e));
-        }
+    let Some((last, _)) = txs.last() else {
+        gate.record_failure("the proposal produced no transaction");
+        return Err(PayError::Runtime("the payment proposal produced no transaction".into()));
     };
-    gate.record_paid(&txid, None)?;
+    let (last, txid) = (*last, last.to_string());
+    let outcome = wallet::broadcast(&mut client, &txs).await;
+    let seen = match &outcome {
+        wallet::Broadcast::Unknown(_) => wallet::seen_by_lightwalletd(&mut client, &last).await,
+        _ => None,
+    };
+    let txid = record_broadcast(gate, &txid, outcome, seen)?;
     eprintln!("paid: tx {txid} ({amount_zat} zat, memo {memo})");
     Ok(txid)
 }
@@ -479,6 +529,64 @@ mod tests {
         assert_eq!(host_of("http://127.0.0.1:4020/api/quote").unwrap(), "127.0.0.1:4020");
         assert_eq!(host_of("https://api.example.com/x").unwrap(), "api.example.com");
         assert!(matches!(host_of("not a url"), Err(PayError::Config(_))));
+    }
+
+    fn gate_cfg(name: &str) -> AgentConfig {
+        let ledger = std::env::temp_dir().join(format!("x402z-pay-{}-{name}.json", std::process::id()));
+        let _ = std::fs::remove_file(&ledger);
+        AgentConfig {
+            ledger_path: Some(ledger),
+            wallet_dir: std::env::temp_dir(),
+            agent: "gate-test".into(),
+            policy: Policy { daily_cap_zat: 1_000_000, allowed_hosts: vec!["127.0.0.1:4020".into()], approval_threshold_zat: None },
+            seed: None,
+            birthday: None,
+            lwd_url: String::new(),
+            confirm_timeout_secs: 60,
+            poll_secs: 0,
+        }
+    }
+
+    fn spent_and_last(cfg: &AgentConfig) -> (u64, AuditEntry) {
+        let l = LedgerFile::load(cfg.ledger_path.as_ref().unwrap()).unwrap();
+        (l.guard(&cfg.agent, &cfg.policy, now()).spent_today(&cfg.agent, now()), l.data.audit.last().unwrap().clone())
+    }
+
+    #[test]
+    fn an_unknown_broadcast_outcome_is_charged_and_audited_with_its_txid() {
+        let cfg = gate_cfg("unknown");
+        let tx = "ab".repeat(32);
+        let gate = spendguard_gate(&cfg, "127.0.0.1:4020", 300_000, "x402z-n1", &|_, _, _| false).unwrap();
+        let e = record_broadcast(gate, &tx, wallet::Broadcast::Unknown("SendTransaction RPC timed out".into()), Some(false)).unwrap_err();
+        assert!(matches!(&e, PayError::Runtime(m) if m.contains(&tx) && m.contains("unknown outcome")), "{e:?}");
+        let (spent, last) = spent_and_last(&cfg);
+        assert_eq!(spent, 300_000, "the cap is charged: the money may have moved");
+        assert_eq!(last.txid.as_deref(), Some(tx.as_str()));
+        assert!(last.reason.as_deref().unwrap().contains("broadcast status unknown"), "{last:?}");
+
+        // a retry within the cap sees the earlier, unknown payment as spent
+        let gate = spendguard_gate(&cfg, "127.0.0.1:4020", 800_000, "x402z-n2", &|_, _, _| false);
+        assert!(matches!(gate, Err(PayError::Refused(m)) if m.contains("daily cap exceeded")));
+        let _ = std::fs::remove_file(cfg.ledger_path.as_ref().unwrap());
+    }
+
+    #[test]
+    fn a_lost_answer_for_a_tx_lightwalletd_has_is_paid_and_a_rejection_is_not_charged() {
+        let cfg = gate_cfg("seen");
+        let tx = "cd".repeat(32);
+        let gate = spendguard_gate(&cfg, "127.0.0.1:4020", 100_000, "x402z-n1", &|_, _, _| false).unwrap();
+        assert_eq!(record_broadcast(gate, &tx, wallet::Broadcast::Unknown("timeout".into()), Some(true)).unwrap(), tx);
+        let (spent, last) = spent_and_last(&cfg);
+        assert_eq!((spent, last.txid.as_deref()), (100_000, Some(tx.as_str())));
+
+        let gate = spendguard_gate(&cfg, "127.0.0.1:4020", 100_000, "x402z-n2", &|_, _, _| false).unwrap();
+        let e = record_broadcast(gate, "ef", wallet::Broadcast::Rejected("lightwalletd rejected tx ef: bad-txns (-26)".into()), None).unwrap_err();
+        assert!(matches!(&e, PayError::Runtime(m) if m.contains("Nothing was paid")), "{e:?}");
+        let (spent, last) = spent_and_last(&cfg);
+        assert_eq!(spent, 100_000, "a definite rejection is not charged");
+        assert_eq!(last.txid, None);
+        assert!(last.reason.as_deref().unwrap().starts_with("allowed, but not paid: lightwalletd rejected"), "{last:?}");
+        let _ = std::fs::remove_file(cfg.ledger_path.as_ref().unwrap());
     }
 
     #[test]

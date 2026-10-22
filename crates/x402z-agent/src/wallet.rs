@@ -158,17 +158,18 @@ fn sapling_prover() -> Result<zcash_proofs::prover::LocalTxProver, String> {
     Ok(zcash_proofs::prover::LocalTxProver::new(&paths.spend, &paths.output))
 }
 
-/// Build, prove, sign and broadcast a shielded payment of `amount_zat` to `to` with a text memo.
-/// Returns the txid that pays `to` (the last transaction of the proposal).
-pub async fn pay(
+/// Build, prove and sign a shielded payment of `amount_zat` to `to` with a text memo. The wallet
+/// database stores the signed transactions (and treats their inputs as spent) from here on, so
+/// money may move as soon as any of them is broadcast. Returns (txid, raw bytes) in proposal
+/// order; the last one pays `to`.
+pub fn create(
     db: &mut Db,
-    client: &mut lwd::Client,
     id: AccountUuid,
     usk: UnifiedSpendingKey,
     to: &str,
     amount_zat: u64,
     memo: &str,
-) -> Result<TxId, String> {
+) -> Result<Vec<(TxId, Vec<u8>)>, String> {
     let to = Address::decode(&NETWORK, to).ok_or_else(|| format!("cannot decode payTo address {to}"))?;
     let memo = MemoBytes::from(Memo::from_str(memo).map_err(|e| format!("memo: {e:?}"))?);
     let amount = Zatoshis::from_u64(amount_zat).map_err(|_| "amount out of range".to_string())?;
@@ -201,23 +202,51 @@ pub async fn pay(
         None,
     )
     .map_err(|e| format!("could not create the transaction: {e}"))?;
+    txids
+        .iter()
+        .map(|txid| {
+            let tx = db
+                .get_transaction(*txid)
+                .map_err(|e| e.to_string())?
+                .ok_or_else(|| format!("created tx {txid} missing from wallet db"))?;
+            let mut data = Vec::new();
+            tx.write(&mut data).map_err(|e| e.to_string())?;
+            Ok((*txid, data))
+        })
+        .collect()
+}
 
-    for txid in txids.iter() {
-        let tx = db
-            .get_transaction(*txid)
-            .map_err(|e| e.to_string())?
-            .ok_or_else(|| format!("created tx {txid} missing from wallet db"))?;
-        let mut data = Vec::new();
-        tx.write(&mut data).map_err(|e| e.to_string())?;
-        let resp = client
-            .send_transaction(RawTransaction { data, height: 0 })
-            .await
-            .map_err(|e| format!("SendTransaction RPC failed: {}", e.message()))?
-            .into_inner();
+/// What sending the created transactions to lightwalletd came to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Broadcast {
+    /// lightwalletd accepted every transaction.
+    Sent,
+    /// lightwalletd answered with a rejection: the node did not take the transaction.
+    Rejected(String),
+    /// The call failed without an answer (transport error, timeout): the node may have it.
+    Unknown(String),
+}
+
+/// Send `txs` in order. Stops at the first transaction that is not accepted.
+pub async fn broadcast(client: &mut lwd::Client, txs: &[(TxId, Vec<u8>)]) -> Broadcast {
+    for (txid, data) in txs {
+        let resp = match client.send_transaction(RawTransaction { data: data.clone(), height: 0 }).await {
+            Ok(r) => r.into_inner(),
+            Err(e) => return Broadcast::Unknown(format!("SendTransaction RPC for tx {txid} failed: {}", e.message())),
+        };
         if resp.error_code != 0 {
-            return Err(format!("lightwalletd rejected tx {txid}: {} ({})", resp.error_message, resp.error_code));
+            return Broadcast::Rejected(format!("lightwalletd rejected tx {txid}: {} ({})", resp.error_message, resp.error_code));
         }
         eprintln!("broadcast tx {txid}");
     }
-    Ok(*txids.last())
+    Broadcast::Sent
+}
+
+/// Does lightwalletd know `txid` (mempool or mined)? `None` if it can't be asked.
+pub async fn seen_by_lightwalletd(client: &mut lwd::Client, txid: &TxId) -> Option<bool> {
+    match lwd::get_transaction(client, txid).await {
+        Ok(lwd::FetchedTx::Found { .. }) => Some(true),
+        Ok(lwd::FetchedTx::NotFound) => Some(false),
+        Err(_) => None,
+    }
 }
