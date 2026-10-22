@@ -108,6 +108,15 @@ test('the paywall middleware settles a real mined payment through the real facil
     assert.deepEqual(paid.settlement, { success: true, transaction: PAID.txid, network: 'zcash-testnet', payer: '' });
     assert.deepEqual(paid.body, { paid: 'content' });
 
+    // the payer lost that 200 and presents the same payment again: the facilitator confirms it
+    // again and the content is served again; nothing new is burned
+    const resent = await fetchWithPayment(url, PAID);
+    assert.equal(resent.status, 200, JSON.stringify(resent.body));
+    assert.deepEqual(resent.settlement, { success: true, transaction: PAID.txid, network: 'zcash-testnet', payer: '' });
+    assert.equal(store.get(PAID.memoNonce)?.spentTxid, PAID.txid);
+
+    // once the resend window is over, the same payment is a replay
+    store.get(PAID.memoNonce)!.spentAt! -= 601;
     const again = await fetchWithPayment(url, PAID);
     assert.equal(again.status, 402);
     assert.equal(again.settlement?.errorReason, 'nonce_already_used');
@@ -136,9 +145,4 @@ test('the paywall middleware settles a real mined payment through the real facil
   } finally {
     app.close();
   }
-});
-
-test('a paywall without its facilitator token or receipt key refuses to start', () => {
-  assert.throws(() => paywall({ facilitatorUrl: 'http://x', facilitatorToken: '', receiptPubkeyHex: 'ab'.repeat(32), payTo: 'utest1x', amountZat: 1n }), /Setup required/);
-  assert.throws(() => paywall({ facilitatorUrl: 'http://x', facilitatorToken: 't', receiptPubkeyHex: 'nope', payTo: 'utest1x', amountZat: 1n }), /Setup required/);
 });

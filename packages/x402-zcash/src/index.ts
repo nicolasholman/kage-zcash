@@ -149,27 +149,73 @@ export interface StoredChallenge {
   expiresAt: number;
   /** Txid the nonce was redeemed with, once spent. */
   spentTxid?: string;
+  /** When it was spent (unix seconds). */
+  spentAt?: number;
 }
 
 /** Where issued challenges live. The default keeps them in memory (one process). */
 export interface ChallengeStore {
+  /** May throw (for example when the store is full); the paywall answers 503 and issues nothing. */
   add(c: StoredChallenge): void;
   get(nonce: string): StoredChallenge | undefined;
   /** Burn `nonce` for `txid`; false if it was already spent. */
   markSpent(nonce: string, txid: string): boolean;
 }
 
-export function memoryStore(): ChallengeStore {
+export interface MemoryStoreOptions {
+  /** Most challenges held at once (default 100,000); past it, `add` throws and the paywall answers 503. */
+  maxEntries?: number;
+  /** An unpaid challenge stays redeemable this long after expiresAt + grace (default 86,400 s, as x402z-server). */
+  redeemWindowSecs?: number;
+  /** Must match the paywall's `graceSecs` (default 1200). */
+  graceSecs?: number;
+  /** Must match the paywall's `resendWindowSecs` (default 600). */
+  resendWindowSecs?: number;
+  /** Clock in unix seconds (tests). */
+  now?: () => number;
+}
+
+export interface MemoryChallengeStore extends ChallengeStore {
+  size(): number;
+}
+
+/**
+ * Challenges in a `Map`, for one process: they are lost on restart (a payer who paid an open
+ * challenge then has to be refunded by hand) and not shared between processes. Use your own
+ * durable `ChallengeStore` for production. Expired entries are pruned as new ones arrive: an
+ * unpaid challenge once its redeem window is over, a spent one once its resend window is over
+ * (a pruned nonce is unknown and therefore refused, so pruning never re-opens one).
+ */
+export function memoryStore(o: MemoryStoreOptions = {}): MemoryChallengeStore {
   const m = new Map<string, StoredChallenge>();
+  const max = o.maxEntries ?? 100_000;
+  const keepOpen = (o.graceSecs ?? 1200) + (o.redeemWindowSecs ?? 86_400);
+  const keepSpent = o.resendWindowSecs ?? 600;
+  const now = o.now ?? (() => Math.floor(Date.now() / 1000));
+  let lastPrune = 0;
+  const prune = (t: number) => {
+    lastPrune = t;
+    for (const [n, c] of m) {
+      const dead = c.spentTxid ? (c.spentAt ?? 0) + keepSpent < t && c.expiresAt + keepOpen < t : c.expiresAt + keepOpen < t;
+      if (dead) m.delete(n);
+    }
+  };
   return {
-    add: c => { m.set(c.memoNonce, { ...c }); },
+    add: c => {
+      const t = now();
+      if (t !== lastPrune || m.size >= max) prune(t); // at most one sweep per second, or when full
+      if (m.size >= max) throw new X402ZcashError(`challenge store full (${max} open challenges); try again later`);
+      m.set(c.memoNonce, { ...c });
+    },
     get: n => m.get(n),
     markSpent: (n, txid) => {
       const c = m.get(n);
       if (!c || c.spentTxid) return false;
       c.spentTxid = txid;
+      c.spentAt = now();
       return true;
     },
+    size: () => m.size,
   };
 }
 
@@ -189,7 +235,41 @@ export interface PaywallOptions {
   /** A payment mined up to this long after expiresAt still counts (default 1200 s, as the facilitator). */
   graceSecs?: number;
   minConfirmations?: number;
+  /**
+   * The same `X-PAYMENT` (memoNonce, txid) presented again this long after it was settled is
+   * confirmed with the facilitator again and served again, so a lost 200 does not look like a
+   * refusal to the payer (default 600 s; 0 = a spent nonce is always refused).
+   */
+  resendWindowSecs?: number;
+  /** 402 challenges and `X-PAYMENT` attempts per minute per client (default 30, as x402z-server; 0 = no limit). */
+  ratePerMin?: number;
+  /** The rate limiter's key for a request (default: the TCP peer address). Behind a proxy, return the client's address. */
+  clientKey?: (req: IncomingMessage) => string;
+  /** Give up on the facilitator's `/settle` after this long (default 90,000 ms); the payer gets a 502 and nothing is burned. */
+  facilitatorTimeoutMs?: number;
   store?: ChallengeStore;
+}
+
+/** Per-client token bucket: `perMin` tokens, refilled at `perMin` a minute. */
+function limiter(perMin: number) {
+  const buckets = new Map<string, { tokens: number; at: number }>();
+  return (key: string): number => {
+    if (perMin <= 0) return 0;
+    const t = Date.now() / 1000;
+    const perSec = perMin / 60;
+    if (buckets.size >= 10_000 && !buckets.has(key)) {
+      for (const [k, b] of buckets) if (b.tokens + (t - b.at) * perSec >= perMin) buckets.delete(k);
+    }
+    const b = buckets.get(key) ?? { tokens: perMin, at: t };
+    b.tokens = Math.min(perMin, b.tokens + (t - b.at) * perSec);
+    b.at = t;
+    buckets.set(key, b);
+    if (b.tokens >= 1) {
+      b.tokens -= 1;
+      return 0;
+    }
+    return Math.max(1, Math.ceil((1 - b.tokens) / perSec));
+  };
 }
 
 type Req = IncomingMessage & { protocol?: string };
@@ -219,16 +299,22 @@ export function verifyReceipt(receipt: string, pubkeyHex: string): ReceiptClaims
  * Express / Node middleware: no `X-PAYMENT` => 402 with a fresh `zcash-shielded` challenge;
  * `X-PAYMENT` => settle it through the facilitator, then `next()` with `X-PAYMENT-RESPONSE` set.
  * Pending payments get the same challenge back with `settlement_pending`; refusals a fresh one.
+ * The same settled `X-PAYMENT` is served again inside `resendWindowSecs`. Every 402 and payment
+ * attempt costs one token of the client's `ratePerMin` budget (429 when it is spent).
  */
 export function paywall(opts: PaywallOptions) {
   if (!opts.facilitatorToken) throw new X402ZcashError('Setup required: facilitatorToken (X402Z_FACILITATOR_TOKEN) not configured');
   if (!/^[0-9a-f]{64}$/i.test(opts.receiptPubkeyHex)) throw new X402ZcashError('Setup required: receiptPubkeyHex must be 64 hex (X402Z_RECEIPT_PUBKEY)');
   if (!opts.payTo.startsWith('utest1')) throw new X402ZcashError('payTo must be a testnet unified address (utest1...)');
-  const store = opts.store ?? memoryStore();
   const ttl = opts.ttlSecs ?? 900;
   const grace = opts.graceSecs ?? 1200;
+  const resendWindow = opts.resendWindowSecs ?? 600;
+  const store = opts.store ?? memoryStore({ graceSecs: grace, resendWindowSecs: resendWindow });
   const minConf = opts.minConfirmations ?? 1;
   const settleUrl = `${opts.facilitatorUrl.replace(/\/$/, '')}/settle`;
+  const take = limiter(opts.ratePerMin ?? 30);
+  const clientKey = opts.clientKey ?? ((req: IncomingMessage) => req.socket?.remoteAddress ?? 'unknown');
+  const timeoutMs = opts.facilitatorTimeoutMs ?? 90_000;
 
   const resourceOf = (req: Req) => `http://${req.headers.host ?? 'localhost'}${req.url ?? '/'}`;
   const requirementsOf = (c: StoredChallenge, resource: string): PaymentRequirements => ({
@@ -249,24 +335,37 @@ export function paywall(opts: PaywallOptions) {
     store.add(c);
     return c;
   };
-  const challenge = (req: Req, res: ServerResponse, c: StoredChallenge, error: string, settlement?: SettlementResponse) =>
-    send(res, 402, { x402Version: X402_VERSION, accepts: [requirementsOf(c, resourceOf(req))], error }, settlement);
+  const challenge = (req: Req, res: ServerResponse, c: StoredChallenge | (() => StoredChallenge), error: string, settlement?: SettlementResponse) => {
+    let ch: StoredChallenge;
+    try { ch = typeof c === 'function' ? c() : c; } catch (e) {
+      return send(res, 503, { error: (e as Error).message }, settlement);
+    }
+    send(res, 402, { x402Version: X402_VERSION, accepts: [requirementsOf(ch, resourceOf(req))], error }, settlement);
+  };
 
   return async function x402ZcashPaywall(req: Req, res: ServerResponse, next: Next): Promise<void> {
     try {
+      // every 402 and every X-PAYMENT attempt costs one token of the client's budget
+      const wait = take(clientKey(req));
+      if (wait > 0) {
+        res.setHeader('retry-after', String(wait));
+        return send(res, 429, { error: `too many requests; retry in ${wait}s` });
+      }
       const header = req.headers['x-payment'];
-      if (typeof header !== 'string') return challenge(req, res, fresh(), `${PAYMENT_HEADER} header is required`);
+      if (typeof header !== 'string') return challenge(req, res, fresh, `${PAYMENT_HEADER} header is required`);
       let p: { x402Version?: number; scheme?: string; network?: string; payload?: { txid?: string; memoNonce?: string } };
-      try { p = decodeB64Json(header); } catch { return challenge(req, res, fresh(), `${PAYMENT_HEADER} is not base64 JSON`, failed('invalid_payload')); }
+      try { p = decodeB64Json(header); } catch { return challenge(req, res, fresh, `${PAYMENT_HEADER} is not base64 JSON`, failed('invalid_payload')); }
       if (p.x402Version !== X402_VERSION || p.scheme !== SCHEME || p.network !== NETWORK) {
-        return challenge(req, res, fresh(), `${PAYMENT_HEADER} must be x402Version 1, ${SCHEME}, ${NETWORK}`, failed('invalid_scheme'));
+        return challenge(req, res, fresh, `${PAYMENT_HEADER} must be x402Version 1, ${SCHEME}, ${NETWORK}`, failed('invalid_scheme'));
       }
       const txid = String(p.payload?.txid ?? '').trim().toLowerCase();
       const nonce = String(p.payload?.memoNonce ?? '').trim();
       if (!TXID_RE.test(txid) || !NONCE_RE.test(nonce)) return send(res, 400, { error: 'txid must be 64 hex and memoNonce 1-64 of [A-Za-z0-9_-]' }, failed('invalid_payload'));
       const c = store.get(nonce);
-      if (!c) return challenge(req, res, fresh(), 'memo nonce was never issued here', failed('unknown_challenge'));
-      if (c.spentTxid) return challenge(req, res, fresh(), 'receipt already used', failed('nonce_already_used'));
+      if (!c) return challenge(req, res, fresh, 'memo nonce was never issued here', failed('unknown_challenge'));
+      // A spent nonce is answered again only for the txid that spent it, inside the resend window.
+      const resend = !!c.spentTxid && resendWindow > 0 && c.spentTxid === txid && Math.floor(Date.now() / 1000) <= (c.spentAt ?? 0) + resendWindow;
+      if (c.spentTxid && !resend) return challenge(req, res, fresh, 'receipt already used', failed('nonce_already_used'));
       const reqs = requirementsOf(c, resourceOf(req));
       let s: { success?: boolean; errorReason?: string; status?: string; receipt?: string; error?: string };
       let code: number;
@@ -275,6 +374,7 @@ export function paywall(opts: PaywallOptions) {
           method: 'POST',
           headers: { 'content-type': 'application/json', authorization: `Bearer ${opts.facilitatorToken}` },
           body: JSON.stringify({ x402Version: X402_VERSION, paymentPayload: { x402Version: X402_VERSION, scheme: SCHEME, network: NETWORK, payload: { txid, memoNonce: nonce } }, paymentRequirements: reqs }),
+          signal: AbortSignal.timeout(timeoutMs),
         });
         code = r.status;
         s = await r.json() as typeof s;
@@ -283,19 +383,19 @@ export function paywall(opts: PaywallOptions) {
       }
       if (code === 401) return send(res, 502, { error: 'Setup required: the facilitator refused facilitatorToken (401)' }, failed('facilitator_error'));
       if (s.status === 'pending' || s.status === 'not_found') return challenge(req, res, c, s.error ?? 'payment not confirmed yet', failed('settlement_pending'));
-      if (s.status === 'rejected') return challenge(req, res, fresh(), s.error ?? 'payment refused', failed(s.errorReason ?? 'invalid_payment'));
+      if (s.status === 'rejected') return challenge(req, res, fresh, s.error ?? 'payment refused', failed(s.errorReason ?? 'invalid_payment'));
       if (s.status !== 'confirmed' || !s.receipt) return send(res, 502, { error: `facilitator: ${s.error ?? 'no receipt'}` }, failed('facilitator_error'));
       let claims: ReceiptClaims;
       try { claims = verifyReceipt(s.receipt, opts.receiptPubkeyHex); } catch (e) {
-        return challenge(req, res, fresh(), (e as Error).message, failed('invalid_payment'));
+        return challenge(req, res, fresh, (e as Error).message, failed('invalid_payment'));
       }
       if (claims.memoNonce !== nonce || claims.txid.toLowerCase() !== txid || claims.payTo !== c.payTo || BigInt(claims.amountZat) < c.amountZat) {
-        return challenge(req, res, fresh(), 'receipt does not match the payment that was presented', failed('invalid_payment'));
+        return challenge(req, res, fresh, 'receipt does not match the payment that was presented', failed('invalid_payment'));
       }
       if (claims.confirmations < minConf) return challenge(req, res, c, `payment has ${claims.confirmations} confirmation(s), need ${minConf}`, failed('settlement_pending'));
       const paidAt = claims.minedAt ?? Math.floor(Date.now() / 1000);
-      if (paidAt > c.expiresAt + grace) return challenge(req, res, fresh(), `payment landed at ${paidAt}, after the challenge expired`, failed('payment_expired'));
-      if (!store.markSpent(nonce, txid)) return challenge(req, res, fresh(), 'receipt already used', failed('nonce_already_used'));
+      if (paidAt > c.expiresAt + grace) return challenge(req, res, fresh, `payment landed at ${paidAt}, after the challenge expired`, failed('payment_expired'));
+      if (!resend && !store.markSpent(nonce, txid)) return challenge(req, res, fresh, 'receipt already used', failed('nonce_already_used'));
       res.setHeader(PAYMENT_RESPONSE_HEADER, Buffer.from(JSON.stringify({ success: true, transaction: txid, network: NETWORK, payer: '' })).toString('base64'));
       next();
     } catch (e) {
