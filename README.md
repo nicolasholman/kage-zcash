@@ -1,6 +1,6 @@
 # Kage — shielded x402: private machine payments for AI agents
 
-[![CI](https://github.com/nickthelegend/zec-shielded-x402/actions/workflows/ci.yml/badge.svg)](https://github.com/nickthelegend/zec-shielded-x402/actions/workflows/ci.yml) · **Docs and recorded evidence:** [nickthelegend.github.io/zec-shielded-x402](https://nickthelegend.github.io/zec-shielded-x402/) (a static page with recorded output, not a hosted paywall; run the stack yourself with one command, [below](#run-the-whole-stack-locally-one-command)) · [Testing](TESTING.md)
+[![CI](https://github.com/nickthelegend/zec-shielded-x402/actions/workflows/ci.yml/badge.svg)](https://github.com/nickthelegend/zec-shielded-x402/actions/workflows/ci.yml) · **Docs and recorded evidence:** [nickthelegend.github.io/zec-shielded-x402](https://nickthelegend.github.io/zec-shielded-x402/) (a static page with recorded output, not a hosted paywall; run the stack yourself with four commands, [below](#run-the-whole-stack-locally-four-commands)) · [Testing](TESTING.md). The CI badge and the Pages site go live once this `main` is pushed to GitHub and Pages is enabled
 
 HTTP 402 payments for AI agents, settled as **Zcash shielded** testnet transactions, in the **x402 v1 wire format**.
 - **Merchant side.** The facilitator verifies a payment with the merchant's **incoming viewing key** alone. It holds no spend key, and it can't see the merchant's own spends or change.
@@ -10,10 +10,11 @@ HTTP 402 payments for AI agents, settled as **Zcash shielded** testnet transacti
 
 ![The merchant dashboard's live 402 card: QR code, ZIP 321 URI, memo nonce, copy buttons and the paste-txid box](docs/img/dashboard-402.png)
 
-**Verify in about a minute.**
+**Verify in a few minutes.**
 1. Open [`f037d597…e22a`](https://testnet.zecblock.com/tx/f037d5978fec7817340ff118d328995288f0a575a1850b083ca05f7d71d4e22a) on the testnet explorer: a shielded transaction with no visible amount or address. An LLM paid it over MCP from the agent's own wallet.
-2. Decrypt it with the merchant's published incoming viewing key only: `check_uivk "$uivk" f037d5978fec7817340ff118d328995288f0a575a1850b083ca05f7d71d4e22a x402z-ca140754c5e37e36f106ed84` prints `incoming 100000 zat via Ironwood, memo text "x402z-ca140754c5e37e36f106ed84"` (command and key under [Verified testnet runs](#verified-testnet-runs); the first build compiles librustzcash and takes several minutes).
-3. `cargo test -p x402z-server`: 35 tests, about 2 minutes on a first build, no Zcash crates.
+2. Read what the LLM did: the [rendered transcript](docs/mcp-paid-run.txt) and the [unedited events](docs/mcp-paid-run.jsonl) (`paid_fetch` → `settlement_pending` → `redeem_payment` → `200`, `payer: ""`).
+3. Decrypt it with the merchant's published incoming viewing key only: `check_uivk "$uivk" f037d5978fec7817340ff118d328995288f0a575a1850b083ca05f7d71d4e22a x402z-ca140754c5e37e36f106ed84` prints `incoming 100000 zat via Ironwood, memo text "x402z-ca140754c5e37e36f106ed84"` (command and key under [Verified testnet runs](#verified-testnet-runs)). This one is slow the first time: building `check_uivk` compiles librustzcash, several minutes.
+4. `cargo test -p x402z-server`: 40 tests, about 2 minutes on a first build, no Zcash crates.
 
 ```
 agent -> GET /api/quote
@@ -30,15 +31,15 @@ agent -> GET /api/quote
 
 | Part | State |
 |---|---|
-| `crates/spendguard`: cap, allowlist, approval threshold; `sealed`, the at-rest format of the agent's ledger and tab file (XChaCha20-Poly1305) | **Done.** 14 unit tests |
+| `crates/spendguard`: cap, allowlist (an entry may pin a port and a scheme), approval threshold; `sealed`, the at-rest format of the agent's ledger and tab file (XChaCha20-Poly1305) | **Done.** 16 unit tests |
 | `crates/x402z-protocol`: x402 v1 types (`PaymentRequiredResponse`, `PaymentRequirements`, `X-PAYMENT`, `X-PAYMENT-RESPONSE`, `/settle`, `/supported`), challenge validation, ZIP 321 URIs | **Done.** 14 tests, including the x402 spec's own 402 and payload examples, and ZIP 321's memo example |
-| `crates/x402z-server`: paywalled `/api/quote`, `X-PAYMENT` settlement via the facilitator, `POST /api/redeem` (paste a txid), QR, per-client rate limit on challenges and payment attempts, Kage Tab (blind-RSA tokens, key grace period); dashboard, feed and status on a separate loopback admin port | **Done.** 35 tests, including 6 Kage Tab attack tests |
-| `crates/x402z-facilitator`: lightwalletd gRPC, UIVK trial decryption (Sapling, Orchard, Ironwood), mined-block-time expiry, SQLite bindings keyed by (nonce, payTo, amount), `/verify` `/settle` behind a bearer token, `/supported` | **Done.** 16 tests. 6 of them build transactions in-process with real keys, real note encryption and real Halo2 proofs for the Orchard/Ironwood parts (Sapling outputs use sapling-crypto's mock proof bytes); these are **not broadcast**. 3 verify the ten real Kage payments live against testnet.zec.rocks with only the published UIVK |
-| `crates/x402z-agent`: 402 → spendguard → `zcash_client_sqlite` wallet → pay → `X-PAYMENT`, no redirects followed, ledger sealed at rest and file-locked, an unknown broadcast outcome charged to the cap, a broadcast but unsettled payment resumed instead of paid twice; Kage Tab client (`tab-buy`, `tab-redeem`, `tab-fetch`, `tab-status`) that pins the merchant's key per epoch | **Done.** 24 tests. Paid live from its own wallet on Oct 20 (pre-x402-v1 code) and on Oct 22, both payments chosen by an LLM over MCP |
+| `crates/x402z-server`: paywalled `/api/quote`, `X-PAYMENT` settlement via the facilitator, `POST /api/redeem` (paste a txid), QR, per-client rate limit on challenges and payment attempts, Kage Tab (blind-RSA tokens, key grace period); the same `X-PAYMENT` answered again for 10 minutes so a lost 200 is not a refusal; dashboard, feed and status on a separate loopback admin port that checks `Host` (DNS rebinding); an index on open challenges, pruned once a minute | **Done.** 40 tests, including 6 Kage Tab attack tests |
+| `crates/x402z-facilitator`: lightwalletd gRPC, UIVK trial decryption (Sapling, Orchard, Ironwood), mined-block-time expiry, SQLite bindings keyed by (nonce, payTo, amount), `/verify` `/settle` behind a bearer token, `/supported`, `/health` cached for 5 s | **Done.** 17 tests. 6 of them build transactions in-process with real keys, real note encryption and real Halo2 proofs for the Orchard/Ironwood parts (Sapling outputs use sapling-crypto's mock proof bytes); these are **not broadcast**. 3 verify the ten real Kage payments live against testnet.zec.rocks with only the published UIVK |
+| `crates/x402z-agent`: 402 → spendguard → `zcash_client_sqlite` wallet → pay → `X-PAYMENT`, no redirects followed, allowlist and an https rule checked before the first request, bodies capped at 1 MiB, ledger sealed at rest and file-locked, an unknown broadcast outcome charged to the cap; a broadcast but unsettled payment is resumed instead of paid twice, also when two calls for the same URL or tab race (re-checked under the ledger lock) or the process stops mid-broadcast (the txid is in the ledger before the broadcast); a settled payment the server calls already redeemed stays settled (exit 6, "do not pay again"); Kage Tab client (`tab-buy`, `tab-redeem`, `tab-fetch`, `tab-status`) that pins the merchant's key per epoch | **Done.** 32 tests. Paid live from its own wallet: on Oct 20 by the CLI agent (pre-x402-v1 code), and on Oct 22 twice, each payment chosen by an LLM over MCP |
 | `crates/x402z-mcp`: MCP server over stdio, with tools `paid_fetch`, `redeem_payment`, `tab_fetch`, `spend_status`, `ledger_tail`; returns right after a broadcast instead of holding the call for a block | **Done.** 7 stdio tests. Live LLM runs via opencode: a spendguard refusal (Oct 21, [transcript](docs/mcp-live-run.txt)) and two payments from the agent's own wallet (Oct 22, [transcript](docs/mcp-paid-run.txt)) |
-| `packages/x402-zcash`: TypeScript client (parse the 402, ZIP 321, `X-PAYMENT`) and an Express/Node paywall middleware that settles through the facilitator | **Done.** 7 tests, 3 against the real binaries and testnet (the middleware settles real tx `ccb4214c` for its own nonce) |
+| `packages/x402-zcash`: TypeScript client (parse the 402, ZIP 321, `X-PAYMENT`) and an Express/Node paywall middleware that settles through the facilitator, with a per-client rate limit, a facilitator timeout, the resend window, and an in-memory challenge store that is pruned and capped (single process, not durable: pass your own store for production) | **Done.** 11 tests: 9 without a chain, 2 against the real binaries and testnet (the middleware settles real tx `ccb4214c` for its own nonce) |
 | Agent ledger and Kage Tab tokens encrypted at rest (XChaCha20-Poly1305 under `X402Z_AGENT_LEDGER_KEY` or a key derived from the agent seed) | **Done.** A wrong key or a changed byte is refused, never read as empty |
-| Paid end-to-end runs on testnet | **Done.** Ten txids; eight on x402 v1 code (four are Kage Tabs), two paid from the agent's own wallet by an LLM; see [Verified testnet runs](#verified-testnet-runs) |
+| Paid end-to-end runs on testnet | **Done.** Ten txids; eight on x402 v1 code (three are Kage Tabs), two paid from the agent's own wallet by an LLM; see [Verified testnet runs](#verified-testnet-runs) |
 
 Nothing is mocked. If a binary is missing a key, a wallet or funds, it stops with an error and a non-zero exit code. It never fakes a payment. Test counts and what each test does and doesn't prove are in [TESTING.md](TESTING.md).
 
@@ -47,7 +48,7 @@ Nothing is mocked. If a binary is missing a key, a wallet or funds, it stops wit
 Shielding hides the amount, the memo and both parties from the chain. It doesn't hide everything:
 - **The merchant sees the client's IP.** The paid request is ordinary HTTP. Use Tor or a proxy if that matters.
 - **lightwalletd sees which txid is looked up**, and when. The payer's wallet broadcasts through it, and the facilitator fetches the tx by id, so the operator can link the two lookups to the merchant's facilitator.
-- **`X-PAYMENT` is a bearer credential.** Whoever presents a paid (memoNonce, txid) first gets the content and burns the nonce. Keep the pair private until it is redeemed. Until Oct 22 the server's own feed (`/api/events`) was public on the API port and listed pending pairs and client IPs; it now lives on a loopback admin port, shows only a nonce prefix next to a txid, and never an IP.
+- **`X-PAYMENT` is a bearer credential.** Whoever presents a paid (memoNonce, txid) first gets the content and burns the nonce, and for 10 minutes after that (`X402Z_RESEND_WINDOW_SECS`) the same pair gets the content again, so a payer whose 200 was lost is not refused. Keep the pair private. Until Oct 22 the server's own feed (`/api/events`) was public on the API port and listed pending pairs and client IPs; it now lives on a loopback admin port, shows only a nonce prefix next to a txid, and never an IP.
 - **Kage Tab unlinkability assumes one key per epoch for everyone.** A dishonest merchant could hand each buyer a key of its own and link every token. The agent pins the key it saw for a server for that key's epoch and refuses a different one, so a merchant can't switch keys on it; it can't tell whether other buyers got the same key.
 - **On the payer's disk**, the agent ledger (hosts, amounts, nonces, txids) and unspent Kage Tab tokens are sealed with XChaCha20-Poly1305. Anyone holding `X402Z_AGENT_LEDGER_KEY` or the agent seed can read them.
 - **Timing.** A payment lands in the block after the 402 was issued, so someone watching both the HTTP traffic and the chain can correlate the two by time, even though the transaction itself reveals nothing.
@@ -55,7 +56,7 @@ Shielding hides the amount, the memo and both parties from the chain. It doesn't
 ## Prior art, and what Kage adds
 
 - **coinbase/x402 v1** defines the 402 body, `X-PAYMENT`, `X-PAYMENT-RESPONSE` and the facilitator's `/verify`, `/settle` and `/supported`, with EVM `exact` payments. Kage keeps that wire format and adds a `zcash-shielded` scheme.
-- **"Shielded x402"**, a Zcash Community Grants application (Zcash forum topic 57826), proposed private machine payments over x402 and was rejected on 2026-09-28. Kage's subtitle echoes its title. Kage is a separate build by this author and uses none of that application's code.
+- **"Shielded x402"**, a Zcash Community Grants application posted on 2026-09-25 by the forum user **baby-zack-agent** (Zcash forum topic 57826), proposed private machine payments over x402 and was rejected on 2026-09-28. That application is another applicant's, not Kage's author's. Kage's subtitle echoes its title, but Kage is a separate build by Nivesh Gajengi and shares none of that application's code.
 
 What Kage adds:
 - **A UIVK-only facilitator.** It verifies payments with the merchant's incoming viewing key alone; a test shows that key sees neither the merchant's change nor its outgoing payments.
@@ -68,13 +69,13 @@ What Kage adds:
 
 1. Run the fast tests one crate at a time (low-RAM friendly):
    ```sh
-   cargo test -p spendguard -p x402z-protocol -p x402z-server   # 14 + 14 + 35
-   cargo test -p x402z-agent                                      # 24 (Tab client and key rules against a localhost issuer, redirects)
+   cargo test -p spendguard -p x402z-protocol -p x402z-server   # 16 + 14 + 40
+   cargo test -p x402z-agent                                      # 32 (Tab client and key rules against a localhost issuer, redirects, races, allowlist before any request)
    cargo test -p x402z-mcp                                        # 7 (drives the binary over stdio)
-   cargo test -p x402z-facilitator                                # 16: 6 prove Halo2 bundles (~40 s), 3 hit testnet live
-   cd packages/x402-zcash && npm test                             # 7: TypeScript, 3 against the real binaries and testnet
+   cargo test -p x402z-facilitator                                # 17: 6 prove Halo2 bundles (~40 s), 3 hit testnet live
+   cd packages/x402-zcash && npm test                             # 11: TypeScript, 2 against the real binaries and testnet
    ```
-   That makes 110 Rust tests and 7 TypeScript tests (the facilitator's 3 live tests and the TypeScript live tests need network). The browser E2E suite is separate: see [Run the whole stack locally](#run-the-whole-stack-locally-one-command).
+   That makes 126 Rust tests and 11 TypeScript tests, 137 in all; 5 of them reach live testnet (the facilitator's 3 and the TypeScript package's 2, which need network). The browser E2E suite is separate: see [Run the whole stack locally](#run-the-whole-stack-locally-four-commands).
 2. Run `cargo run -p x402z-facilitator` with no `.env`. It prints `error: X402Z_MERCHANT_UIVK not configured` and exits with code 2. With the key but no `X402Z_FACILITATOR_TOKEN`, it prints `error: Setup required: X402Z_FACILITATOR_TOKEN not configured …` and exits 2.
    - If `ZCASH_LWD_URL` is unset, it says so and uses `https://testnet.zec.rocks:443`.
    - If lightwalletd is unreachable, it prints `error: cannot connect to lightwalletd: …` and exits with code 1.
@@ -128,7 +129,7 @@ The paste box calls `POST /api/redeem {memoNonce, txid}`. That runs the same che
 
 | Tool | Does |
 |---|---|
-| `paid_fetch {url}` | Runs the agent's x402 flow. It returns right after the broadcast with `status: "settlement_pending"`, the txid and the memo nonce, because a payment needs a block (about 75 s) and MCP clients time a call out at about 60 s. Calling it again for the same URL presents that payment again and never pays twice. Spendguard refusals (`spendguard_refused`), wallet problems (`wallet`), rejected payments (`payment_rejected`) and missing config (`setup_required`) come back as `isError: true` tool results with the reason. Payments at or above the approval threshold are always declined, because there's no operator to approve them over MCP |
+| `paid_fetch {url}` | Runs the agent's x402 flow. It returns right after the broadcast with `status: "settlement_pending"`, the txid and the memo nonce, because a payment needs a block (about 75 s) and MCP clients time a call out at about 60 s. Calling it again for the same URL presents that payment again and never pays twice. Spendguard refusals (`spendguard_refused`), wallet problems (`wallet`), rejected payments (`payment_rejected`), a payment the server already redeemed (`already_redeemed`: it settled earlier, do not pay again) and missing config (`setup_required`) come back as `isError: true` tool results with the reason. Payments at or above the approval threshold are always declined, because there's no operator to approve them over MCP |
 | `redeem_payment {url, txid, memoNonce}` | Presents an earlier payment with `X-PAYMENT`, once. Returns the paid response with `X-PAYMENT-RESPONSE`, or `settlement_pending`. Never pays |
 | `spend_status {}` | Spent today vs the daily cap, remaining budget, allowlist and threshold |
 | `tab_fetch {url, buy?}` | Spends one [Kage Tab](#kage-tab-one-payment-n-unlinkable-requests) token on a GET. With no token left for that server, it first buys a tab of `buy` tokens (default `X402Z_AGENT_TAB_SIZE`, 5) from the agent's wallet, inside spendguard, and answers `tab_pending` while that payment confirms; the next call collects the tokens without paying again. Returns the response, `elapsedMs` and `remainingTokens` |
@@ -173,7 +174,7 @@ Attack tests (server):
 - n larger than the payment covers;
 - more than `maxTokens`.
 
-**Agent and MCP client.** Spendguard checks the whole tab price (`n × unitPriceZat`) against the cap, allowlist and approval threshold before anything is paid, and the broadcast txid lands in the ledger like any payment. Before spendguard, the agent checks the offer: the key must be the one it pinned for that server for the current epoch, and the epoch plus grace must outlast `X402Z_AGENT_CONFIRM_TIMEOUT_SECS`. A paid tab is recorded with its txid before the tokens are requested, so a timeout or a crash collects it later instead of paying again.
+**Agent and MCP client.** Spendguard checks the whole tab price (`n × unitPriceZat`) against the cap, allowlist and approval threshold before anything is paid, and the broadcast txid lands in the ledger like any payment. Before spendguard, the agent checks the offer: the key must be the one it pinned for that server for the current epoch, and the epoch plus grace must outlast `X402Z_AGENT_CONFIRM_TIMEOUT_SECS`. A tab is recorded with its txid before its transaction is broadcast, so a timeout, a cancelled call or a crash collects it later instead of paying again, and two `tab_fetch` calls racing for the same server buy one tab (the check runs again under the ledger lock).
 - `x402z-agent tab-buy <n>` pays from the agent's own wallet (`X402Z_AGENT_SEED`), blinds n messages, calls `/tab/issue` until the payment confirms, and unblinds and verifies each signature.
 - `x402z-agent tab-buy <n> --external` stops after spendguard and prints a ZIP 321 request for `n × unit` with the nonce memo. Pay it from any wallet, then run `x402z-agent tab-redeem <txid>`.
 - `x402z-agent tab-fetch [url]` spends one token per request. `tab-status` lists tokens per server.
@@ -257,9 +258,9 @@ Testnet blocks arrive about every 75 s, sometimes much slower. By default both t
 
 Earlier unfunded runs (health, rejections of foreign txs, exit codes 3/4) are logged in [docs/build-notes.md](docs/build-notes.md).
 
-### Run the whole stack locally (one command)
+### Run the whole stack locally (four commands)
 
-The E2E stack starts the facilitator with the published demo UIVK and a throwaway receipt key, five servers in different states and the landing page, all on 127.0.0.1, and kills them by PID afterwards. No wallet or seed is involved:
+Four commands: a cargo build, then `npm ci`, the stack and the browser suite (which needs Google Chrome installed). The E2E stack starts the facilitator with the published demo UIVK and a throwaway receipt key, five servers in different states and the landing page, all on 127.0.0.1, and kills them by PID afterwards. No wallet or seed is involved:
 ```sh
 CARGO_BUILD_JOBS=2 cargo build -p x402z-server -p x402z-facilitator -p x402z-agent --bins --examples
 cd e2e && npm ci && npm run stack        # dashboard on http://127.0.0.1:4120, its paid API on :4020
@@ -359,7 +360,7 @@ Because the UIVK is published, anyone can run the merchant side of the Oct 21 ru
 ## Known limits
 
 - **Pre-release Zcash crates.** NU7 is live on testnet, and only the pre-release librustzcash line parses its transactions. See [docs/build-notes.md](docs/build-notes.md) for the pinned versions and toolchain.
-- **No hosted demo.** The Pages site is docs and recorded output; a live 402 a judge can pay needs a public host (not set up). The [one-command local stack](#run-the-whole-stack-locally-one-command) runs the same thing on your machine.
+- **No hosted demo.** The Pages site is docs and recorded output; a live 402 a judge can pay needs a public host (not set up). The [local stack](#run-the-whole-stack-locally-four-commands) runs the same thing on your machine.
 - **Testnet only.** Mainnet challenges are refused by the protocol crate.
 - **Kage Tab** ran live three times on one machine: twice paid through `--external`, once from the agent's own wallet by an LLM. Its limits are listed under [Kage Tab](#kage-tab-one-payment-n-unlinkable-requests).
 - **One machine.** Every live run had client, server and facilitator on localhost.

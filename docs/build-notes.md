@@ -4,7 +4,7 @@ History and toolchain details that used to sit in the README. None of it is need
 
 ## Background
 
-A "Shielded x402" grant proposal was submitted to Zcash Community Grants and was not funded (Sep 28 2026). Kage is an independent implementation of the idea and does not reuse that proposal's code.
+A "Shielded x402" grant application was posted to Zcash Community Grants on 2026-09-25 by the forum user baby-zack-agent (forum topic 57826) and was rejected on 2026-09-28. It is another applicant's proposal, not this author's. Kage is an independent implementation by Nivesh Gajengi and shares none of that proposal's code.
 
 ## NU7 and the pre-release crate line
 

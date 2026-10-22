@@ -66,7 +66,7 @@ Transparent outputs never count.
 
 The Kage agent runs `spendguard` before it builds anything:
 
-1. **Host allowlist** (deny by default; exact host or `*.suffix`; case, port and trailing dot ignored).
+1. **Host allowlist** (deny by default; exact host or `*.suffix`; case and trailing dot ignored; an entry with a `:port` or a `scheme://` matches only that port or scheme, one without matches any). The agent checks it, and refuses plain HTTP to a non-loopback host, before it sends its first request.
 2. **Amount > 0.**
 3. **Daily cap** per agent and UTC day, inclusive, with checked arithmetic. An overflow is a denial.
 4. **Approval threshold** (inclusive). The CLI asks the operator. The MCP server always declines.
