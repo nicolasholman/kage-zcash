@@ -1059,6 +1059,48 @@ fn admin_router(app: Arc<App>) -> Router {
         .merge(public_router(app))
 }
 
+/// The `Host` values the admin console answers to: its bind address, and loopback names on its
+/// port, plus `X402Z_ADMIN_HOSTS`. Anything else is a 403, so a web page the operator visits
+/// can't read the feed or status through DNS rebinding (its requests carry the page's own host).
+fn admin_hosts(bind: &str, extra: &[String]) -> Vec<String> {
+    let mut hosts = vec![bind.to_ascii_lowercase()];
+    if let Some((_, port)) = bind.rsplit_once(':') {
+        for h in ["127.0.0.1", "[::1]", "localhost"] {
+            hosts.push(format!("{h}:{port}"));
+        }
+    }
+    hosts.extend(extra.iter().map(|h| h.trim().to_ascii_lowercase()).filter(|h| !h.is_empty()));
+    hosts
+}
+
+async fn check_admin_host(
+    State(allowed): State<Arc<Vec<String>>>,
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> Response {
+    let host = req
+        .headers()
+        .get("host")
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_string)
+        .or_else(|| req.uri().authority().map(|a| a.to_string()))
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    if allowed.iter().any(|h| *h == host) {
+        return next.run(req).await;
+    }
+    let msg = format!(
+        "admin console: Host '{}' is not this console's address; refused (DNS rebinding protection). Add it to X402Z_ADMIN_HOSTS if it is yours.",
+        clip(host)
+    );
+    (StatusCode::FORBIDDEN, Json(serde_json::json!({ "error": msg }))).into_response()
+}
+
+/// [`admin_router`] behind the `Host` check of [`admin_hosts`].
+fn admin_app(app: Arc<App>, bind: &str, extra_hosts: &[String]) -> Router {
+    admin_router(app).layer(axum::middleware::from_fn_with_state(Arc::new(admin_hosts(bind, extra_hosts)), check_admin_host))
+}
+
 fn is_loopback_bind(bind: &str) -> bool {
     match bind.parse::<SocketAddr>() {
         Ok(a) => a.ip().is_loopback(),
@@ -1210,7 +1252,8 @@ async fn main() {
             eprintln!("warning: X402Z_ADMIN_BIND={admin} is not loopback: anyone who can reach it sees the payment feed and status");
         }
         let admin_listener = bind_or_die(admin.clone()).await;
-        let admin_app = admin_router(app.clone()).into_make_service_with_connect_info::<SocketAddr>();
+        let extra: Vec<String> = optional("X402Z_ADMIN_HOSTS").map(|v| v.split(',').map(str::to_string).collect()).unwrap_or_default();
+        let admin_app = admin_app(app.clone(), &admin, &extra).into_make_service_with_connect_info::<SocketAddr>();
         eprintln!("x402z-server dashboard (feed, status) on http://{admin} (X402Z_ADMIN_BIND)");
         tokio::spawn(async move {
             if let Err(e) = axum::serve(admin_listener, admin_app).await {
@@ -2158,6 +2201,32 @@ mod tests {
         // the paid resource itself is on both
         assert_eq!(get_on(public_router(app.clone()), "/api/quote").await, StatusCode::PAYMENT_REQUIRED);
         assert_eq!(get_on(admin_router(app), "/api/quote").await, StatusCode::PAYMENT_REQUIRED);
+    }
+
+    #[tokio::test]
+    async fn the_admin_console_refuses_a_foreign_host_header() {
+        use axum::{body::Body, extract::connect_info::MockConnectInfo, http::Request};
+        use tower::ServiceExt;
+        let app = test_app(5);
+        let status_for = |host: &'static str, path: &'static str| {
+            let app = app.clone();
+            async move {
+                admin_app(app, "127.0.0.1:4029", &["dash.internal:4029".to_string()])
+                    .layer(MockConnectInfo(SocketAddr::from(([127, 0, 0, 1], 40000))))
+                    .oneshot(Request::get(path).header("host", host).body(Body::empty()).unwrap())
+                    .await
+                    .unwrap()
+                    .status()
+            }
+        };
+        // a DNS-rebinding page: the browser sends the attacker's host name
+        for path in ["/api/status", "/api/events?since=0", "/", "/api/quote"] {
+            assert_eq!(status_for("attacker.example:4029", path).await, StatusCode::FORBIDDEN, "{path}");
+            assert_eq!(status_for("127.0.0.1:9999", path).await, StatusCode::FORBIDDEN, "{path} on another port");
+        }
+        for host in ["127.0.0.1:4029", "localhost:4029", "LOCALHOST:4029", "[::1]:4029", "dash.internal:4029"] {
+            assert_eq!(status_for(host, "/api/status").await, StatusCode::OK, "{host}");
+        }
     }
 
     fn feed(app: &App) -> Vec<Event> {
