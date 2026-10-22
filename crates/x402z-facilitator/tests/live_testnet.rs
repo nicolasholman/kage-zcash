@@ -14,9 +14,11 @@ use zcash_protocol::{consensus::BlockHeight, ShieldedPool};
 /// Published in the README on purpose: incoming viewing key of the demo-only testnet merchant.
 const MERCHANT_UIVK: &str = "uivktest1ma9hgu9cmmmkv5f5npk7aktj8tradzqyxzwerez5trhku0xxgx7vsh0azzurz44pfdhmyrzxnur3n282f5t0glhje7kay4fw79njmg64g2wupcznmpfpy0gh6wngu0qw07ry404hnh6rq9vuj264gcjfxucylma4c8cuygxezqx2xwph5x66nckx4095pgvjzuq5rudsmr9dztnyv9f2w74unppttta6cu7fr3tx494zqstn2hv";
 
-/// (txid, mined height, memo nonce, amount in zat, block time where pinned). The last two bought
-/// Kage Tabs of 5 and 3 tokens.
-const PAYMENTS: [(&str, u32, &str, u64, Option<u64>); 8] = [
+/// (txid, mined height, memo nonce, amount in zat, block time where pinned). fa011720 and d3bf0b49
+/// bought Kage Tabs of 5 and 3 tokens (paid by a zingo-cli demo wallet). The last two were paid by
+/// the agent's own wallet, chosen by an LLM over MCP (docs/mcp-paid-run.txt): a paid_fetch of
+/// 100,000 zat and a tab of 3 tokens.
+const PAYMENTS: [(&str, u32, &str, u64, Option<u64>); 10] = [
     ("030c3cbf78ce8460553bba4e82c0ba813f039bd3ecf4d7f2e81c59837dc28351", 4_521_112, "x402z-f19a63da20cbc0749ea800b3", 100_000, None),
     ("cd64980a5247881a727aa916476a3ba757e59794263c2ff1bcde467654a0916d", 4_521_440, "x402z-af06b1d50af81616075f0cb3", 100_000, Some(1_792_482_929)),
     ("ccb4214c6a1fdf183c086ae5b4f559d181ead4c1c61dc7e711fc4a08b95b0ed3", 4_524_586, "x402z-b7a15cc628bb7a06bf9a26cd", 100_000, None),
@@ -25,6 +27,8 @@ const PAYMENTS: [(&str, u32, &str, u64, Option<u64>); 8] = [
     ("a7c3b0b2eaeb406ddcd02276cd71e69e4e618b22a1cab8977c959f2da3fc38bc", 4_524_694, "x402z-10699970ecb69ff79eb66735", 100_000, None),
     ("fa01172015c63ce47a0285f7fae130a3efe5f821b938a8befa1ca547d00ac3ad", 4_526_095, "x402z-aed6ff1377cea1055b1163bd", 500_000, None),
     ("d3bf0b49408fed118fe9e1241239d98319cbb83088c45a5ba357f68cd97bd00d", 4_526_113, "x402z-58712c3f95459bb9ead9ce5b", 300_000, None),
+    ("f037d5978fec7817340ff118d328995288f0a575a1850b083ca05f7d71d4e22a", 4_529_425, "x402z-ca140754c5e37e36f106ed84", 100_000, None),
+    ("b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91", 4_529_427, "x402z-00f89ac38b4216a4b37e4ff1", 300_000, None),
 ];
 
 fn merchant() -> (MerchantKey, String) {

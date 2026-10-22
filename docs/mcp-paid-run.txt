@@ -1,0 +1,312 @@
+LLM-paid Kage run over MCP, 2026-10-22 (Zcash testnet via testnet.zec.rocks). Rendered from the raw opencode
+JSON events in docs/mcp-paid-run.jsonl (every tool call with its full input and output, in order); nothing
+in the outputs was edited. The program logs below are copied whole, except where marked [note].
+
+Who did what
+- LLM: opencode 1.18.31, model openrouter/nvidia/nemotron-3-ultra-550b-a55b:free, with the kage MCP server
+  (target/debug/x402z-mcp, the code at this commit's parent). Its only other tool was a `sleep` shell command,
+  which it never used. The model chose every tool call below from the prompt.
+- Payer: the agent's OWN wallet. A fresh testnet wallet made for this run with `x402z-agent new-wallet` (stdout
+  to a 0600 file, so the seed was never displayed), funded with 450,000 zat by a separate zingo-cli demo wallet
+  (funding tx 0d7b0885d6c8f1e5491c2841a681be962a6cfb3fd6644a1f19000b84acb87568; not a Kage payment).
+  Spendguard: allowlist 127.0.0.1:4220, daily cap 600,000 zat. The ledger and tab file are sealed with the
+  key derived from that wallet's seed (no X402Z_AGENT_LEDGER_KEY was set).
+- Merchant: x402z-facilitator holding only the published demo merchant UIVK, a fresh receipt key and
+  X402Z_FACILITATOR_TOKEN; x402z-server on 127.0.0.1:4220 (public) / 4229 (admin), tab key da1d313217fd693c.
+  Everything on one machine, debug builds.
+- Two earlier attempts the same minute never reached a tool: openrouter answered 404 for
+  minimax/minimax-m3.1-flash:free ("free launch period ... ended on Oct 22, 2026") and for
+  nvidia/nemotron-3-super-120b-a12b:free (provider function not found).
+
+================ Prompt (verbatim) ================
+You are an AI agent that pays for HTTP APIs with the `kage` MCP tools (shielded Zcash testnet payments, checked by spendguard). Do these steps in order and do not skip any:
+1. Call the kage spend_status tool.
+2. Call the kage paid_fetch tool with url http://127.0.0.1:4220/api/quote.
+3. If paid_fetch returned status "settlement_pending", the payment is broadcast and waits for a block (about 75 seconds). Run the shell command `sleep 90`, then call the kage redeem_payment tool with the same url and the txid and memoNonce that paid_fetch returned. Repeat sleep 90 + redeem_payment until it returns status 200 (at most 8 times). Never call paid_fetch again while that payment is pending.
+4. Call the kage tab_fetch tool with url http://127.0.0.1:4220/api/quote and buy 3. If it returns status "tab_pending", run `sleep 90` and call tab_fetch again with the same url (no buy), until it returns status 200 (at most 8 times).
+5. Call the kage tab_fetch tool twice more with the same url.
+6. Call the kage ledger_tail tool with n 10.
+Then summarize: each txid that was paid, whether X-PAYMENT-RESPONSE said success, and how many tab tokens are left.
+
+================ Tool calls (from the raw events) ================
+--- [1] 15:34:30Z kage_spend_status {}  (completed)
+{
+  "agent": "llm-agent",
+  "allowedHosts": [
+    "127.0.0.1:4220"
+  ],
+  "approvalThresholdZat": null,
+  "dailyCapZat": 600000,
+  "network": "zcash-testnet",
+  "remainingZat": 600000,
+  "spentTodayZat": 0,
+  "utcDay": 20748
+}
+--- [2] 15:34:47Z kage_paid_fetch {"url": "http://127.0.0.1:4220/api/quote"}  (completed)
+{
+  "amountZat": 100000,
+  "explorer": "https://testnet.zecblock.com/tx/f037d5978fec7817340ff118d328995288f0a575a1850b083ca05f7d71d4e22a",
+  "memoNonce": "x402z-ca140754c5e37e36f106ed84",
+  "message": "not settled yet (402 Payment Required, settlement_pending): payment found (100000 zat) with 0 confirmation(s); need 1",
+  "next": "The payment is broadcast and waits for its block (about 75 s). Call redeem_payment with this url, txid and memoNonce in about a minute, or paid_fetch again for the same URL; neither pays a second time.",
+  "resumed": false,
+  "status": "settlement_pending",
+  "txid": "f037d5978fec7817340ff118d328995288f0a575a1850b083ca05f7d71d4e22a",
+  "url": "http://127.0.0.1:4220/api/quote"
+}
+--- [3] 15:35:18Z kage_redeem_payment {"url": "http://127.0.0.1:4220/api/quote", "txid": "f037d5978fec7817340ff118d328995288f0a575a1850b083ca05f7d71d4e22a", "memoNonce": "x402z-ca140754c5e37e36f106ed84"}  (completed)
+{
+  "body": {
+    "product": "Kage demo quote",
+    "quote": "Paid content unlocked by a shielded Zcash testnet payment. The merchant saw it only through its incoming viewing key; the chain shows neither amount nor address.",
+    "servedAt": 1792683318,
+    "settlement": {
+      "amountZat": 100000,
+      "confirmations": 2,
+      "memoNonce": "x402z-ca140754c5e37e36f106ed84",
+      "minedAt": 1792683290,
+      "txid": "f037d5978fec7817340ff118d328995288f0a575a1850b083ca05f7d71d4e22a"
+    }
+  },
+  "paid": {
+    "amountZat": 100000,
+    "explorer": "https://testnet.zecblock.com/tx/f037d5978fec7817340ff118d328995288f0a575a1850b083ca05f7d71d4e22a",
+    "memoNonce": "x402z-ca140754c5e37e36f106ed84",
+    "txid": "f037d5978fec7817340ff118d328995288f0a575a1850b083ca05f7d71d4e22a"
+  },
+  "settlement": {
+    "network": "zcash-testnet",
+    "payer": "",
+    "success": true,
+    "transaction": "f037d5978fec7817340ff118d328995288f0a575a1850b083ca05f7d71d4e22a"
+  },
+  "status": 200
+}
+--- [4] 15:35:31Z kage_tab_fetch {"buy": 3, "url": "http://127.0.0.1:4220/api/quote"}  (completed)
+{
+  "amountZat": 300000,
+  "explorer": "https://testnet.zecblock.com/tx/b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91",
+  "keyId": "da1d313217fd693c",
+  "memoNonce": "x402z-00f89ac38b4216a4b37e4ff1",
+  "message": "tab issue: not yet (202 Accepted): {\"message\":\"payment found (300000 zat) with 0 confirmation(s); need 1\",\"reason\":\"settlement_pending\",\"status\":\"pending\"}",
+  "next": "The tab is paid and the server issues its tokens once the payment has its block (about 75 s). Call tab_fetch again for this URL in about a minute; it collects the tokens and does not pay again.",
+  "status": "tab_pending",
+  "tokens": 3,
+  "txid": "b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91"
+}
+--- [5] 15:35:35Z kage_tab_fetch {"url": "http://127.0.0.1:4220/api/quote"}  (completed)
+{
+  "amountZat": 300000,
+  "explorer": "https://testnet.zecblock.com/tx/b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91",
+  "keyId": "da1d313217fd693c",
+  "memoNonce": "x402z-00f89ac38b4216a4b37e4ff1",
+  "message": "tab issue: not yet (202 Accepted): {\"message\":\"payment found (300000 zat) with 0 confirmation(s); need 1\",\"reason\":\"settlement_pending\",\"status\":\"pending\"}",
+  "next": "The tab is paid and the server issues its tokens once the payment has its block (about 75 s). Call tab_fetch again for this URL in about a minute; it collects the tokens and does not pay again.",
+  "status": "tab_pending",
+  "tokens": 3,
+  "txid": "b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91"
+}
+--- [6] 15:35:39Z kage_tab_fetch {"url": "http://127.0.0.1:4220/api/quote"}  (completed)
+{
+  "amountZat": 300000,
+  "explorer": "https://testnet.zecblock.com/tx/b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91",
+  "keyId": "da1d313217fd693c",
+  "memoNonce": "x402z-00f89ac38b4216a4b37e4ff1",
+  "message": "tab issue: not yet (202 Accepted): {\"message\":\"payment found (300000 zat) with 0 confirmation(s); need 1\",\"reason\":\"settlement_pending\",\"status\":\"pending\"}",
+  "next": "The tab is paid and the server issues its tokens once the payment has its block (about 75 s). Call tab_fetch again for this URL in about a minute; it collects the tokens and does not pay again.",
+  "status": "tab_pending",
+  "tokens": 3,
+  "txid": "b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91"
+}
+--- [7] 15:35:43Z kage_tab_fetch {"url": "http://127.0.0.1:4220/api/quote"}  (completed)
+{
+  "amountZat": 300000,
+  "explorer": "https://testnet.zecblock.com/tx/b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91",
+  "keyId": "da1d313217fd693c",
+  "memoNonce": "x402z-00f89ac38b4216a4b37e4ff1",
+  "message": "tab issue: not yet (202 Accepted): {\"message\":\"payment found (300000 zat) with 0 confirmation(s); need 1\",\"reason\":\"settlement_pending\",\"status\":\"pending\"}",
+  "next": "The tab is paid and the server issues its tokens once the payment has its block (about 75 s). Call tab_fetch again for this URL in about a minute; it collects the tokens and does not pay again.",
+  "status": "tab_pending",
+  "tokens": 3,
+  "txid": "b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91"
+}
+--- [8] 15:36:08Z kage_tab_fetch {"url": "http://127.0.0.1:4220/api/quote"}  (completed)
+{
+  "body": {
+    "product": "Kage demo quote",
+    "quote": "Paid content unlocked by a blind-signed tab token. The server can't link this request to the shielded payment that bought the tab.",
+    "servedAt": 1792683368,
+    "settlement": {
+      "tab": true,
+      "token": "f64cf56451454ddc913cc33ce820ef5b352d6d5833924cbb7219231103cd1a72"
+    }
+  },
+  "bought": {
+    "amountZat": 300000,
+    "explorer": "https://testnet.zecblock.com/tx/b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91",
+    "keyId": "da1d313217fd693c",
+    "memoNonce": "x402z-00f89ac38b4216a4b37e4ff1",
+    "tokens": 3,
+    "txid": "b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91"
+  },
+  "elapsedMs": 1,
+  "paidWith": "tab_token",
+  "remainingTokens": 2,
+  "settlement": {
+    "network": "zcash-testnet",
+    "payer": "",
+    "success": true,
+    "transaction": "tab:f64cf56451454ddc"
+  },
+  "status": 200
+}
+--- [9] 15:36:12Z kage_tab_fetch {"url": "http://127.0.0.1:4220/api/quote"}  (completed)
+{
+  "body": {
+    "product": "Kage demo quote",
+    "quote": "Paid content unlocked by a blind-signed tab token. The server can't link this request to the shielded payment that bought the tab.",
+    "servedAt": 1792683372,
+    "settlement": {
+      "tab": true,
+      "token": "268c28cae693f12448d00e3484260e3718fe05782299cefe8b8abdcb3690c740"
+    }
+  },
+  "bought": null,
+  "elapsedMs": 1,
+  "paidWith": "tab_token",
+  "remainingTokens": 1,
+  "settlement": {
+    "network": "zcash-testnet",
+    "payer": "",
+    "success": true,
+    "transaction": "tab:268c28cae693f124"
+  },
+  "status": 200
+}
+--- [10] 15:36:14Z kage_tab_fetch {"url": "http://127.0.0.1:4220/api/quote"}  (completed)
+{
+  "body": {
+    "product": "Kage demo quote",
+    "quote": "Paid content unlocked by a blind-signed tab token. The server can't link this request to the shielded payment that bought the tab.",
+    "servedAt": 1792683374,
+    "settlement": {
+      "tab": true,
+      "token": "3dc634365b4e2de99216b89c657d0ec658e887b36ae01d7691b32f55882d4a9f"
+    }
+  },
+  "bought": null,
+  "elapsedMs": 0,
+  "paidWith": "tab_token",
+  "remainingTokens": 0,
+  "settlement": {
+    "network": "zcash-testnet",
+    "payer": "",
+    "success": true,
+    "transaction": "tab:3dc634365b4e2de9"
+  },
+  "status": 200
+}
+--- [11] 15:36:22Z kage_ledger_tail {"n": 10}  (completed)
+{
+  "entries": [
+    {
+      "agent": "llm-agent",
+      "amountZat": 100000,
+      "decision": "allowed",
+      "host": "127.0.0.1:4220",
+      "memoNonce": "x402z-ca140754c5e37e36f106ed84",
+      "reason": "paid",
+      "settled": true,
+      "ts": 1792683278,
+      "txid": "f037d5978fec7817340ff118d328995288f0a575a1850b083ca05f7d71d4e22a",
+      "url": "http://127.0.0.1:4220/api/quote"
+    },
+    {
+      "agent": "llm-agent",
+      "amountZat": 300000,
+      "decision": "allowed",
+      "host": "127.0.0.1:4220",
+      "memoNonce": "x402z-00f89ac38b4216a4b37e4ff1",
+      "reason": "paid",
+      "ts": 1792683323,
+      "txid": "b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91"
+    }
+  ],
+  "total": 2
+}
+--- 15:36:50Z model text:
+**Summary**
+
+| Transaction | Amount (zat) | X-PAYMENT-RESPONSE Success |
+|-------------|--------------|----------------------------|
+| `f037d5978fec7817340ff118d328995288f0a575a1850b083ca05f7d71d4e22a` (paid_fetch) | 100,000 | ✅ Yes (2 confirmations, status 200) |
+| `b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91` (tab_fetch buy 3) | 300,000 | ✅ Yes (status 200) |
+
+**Tab tokens remaining**: 0 (all 3 tokens consumed: 1 for initial successful call + 2 additional calls)
+
+================ x402z-mcp stderr (the agent's own log, whole) ================
+x402z-mcp: ready on stdio (tools: paid_fetch, redeem_payment, tab_fetch, spend_status, ledger_tail)
+x402z-mcp: ready on stdio (tools: paid_fetch, redeem_payment, tab_fetch, spend_status, ledger_tail)
+x402z-mcp: ready on stdio (tools: paid_fetch, redeem_payment, tab_fetch, spend_status, ledger_tail)
+x402z-mcp: ready on stdio (tools: paid_fetch, redeem_payment, tab_fetch, spend_status, ledger_tail)
+402 challenge: pay 100000 zat to utest100fnpp4zd4lp0v… memo x402z-ca140754c5e37e36f106ed84 (expires in 900s)
+spendguard: allowed 100000 zat (0 of 600000 zat already spent today)
+lightwalletd https://testnet.zec.rocks:443: testnet, chain tip 4529422
+syncing wallet in /private/tmp/claude-501/-Volumes-Extreme-SSD-Projects-grokbot/56ca0ebc-f85c-4be5-a61f-c327d6a58412/scratchpad/kage/live/agent-wallet...
+broadcast tx f037d5978fec7817340ff118d328995288f0a575a1850b083ca05f7d71d4e22a
+paid: tx f037d5978fec7817340ff118d328995288f0a575a1850b083ca05f7d71d4e22a (100000 zat, memo x402z-ca140754c5e37e36f106ed84)
+not settled yet (402 Payment Required, settlement_pending): payment found (100000 zat) with 0 confirmation(s); need 1
+http://127.0.0.1:4220/api/quote answered 200 OK: paid content delivered
+x402z-mcp: no tab token for http://127.0.0.1:4220/api/quote; collecting a paid tab or buying one of 3
+tab offer: key da1d313217fd693c at 100000 zat a token; buying 3 for 300000 zat (memo x402z-00f89ac38b4216a4b37e4ff1)
+spendguard: allowed 300000 zat (100000 of 600000 zat already spent today)
+lightwalletd https://testnet.zec.rocks:443: testnet, chain tip 4529426
+syncing wallet in /private/tmp/claude-501/-Volumes-Extreme-SSD-Projects-grokbot/56ca0ebc-f85c-4be5-a61f-c327d6a58412/scratchpad/kage/live/agent-wallet...
+broadcast tx b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91
+paid: tx b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91 (300000 zat, memo x402z-00f89ac38b4216a4b37e4ff1)
+tab issue: not yet (202 Accepted): {"message":"payment found (300000 zat) with 0 confirmation(s); need 1","reason":"settlement_pending","status":"pending"}
+x402z-mcp: no tab token for http://127.0.0.1:4220/api/quote; collecting a paid tab or buying one of 3
+tab already paid by tx b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91 for http://127.0.0.1:4220; collecting it instead of paying again
+tab issue: not yet (202 Accepted): {"message":"payment found (300000 zat) with 0 confirmation(s); need 1","reason":"settlement_pending","status":"pending"}
+x402z-mcp: no tab token for http://127.0.0.1:4220/api/quote; collecting a paid tab or buying one of 3
+tab already paid by tx b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91 for http://127.0.0.1:4220; collecting it instead of paying again
+tab issue: not yet (202 Accepted): {"message":"payment found (300000 zat) with 0 confirmation(s); need 1","reason":"settlement_pending","status":"pending"}
+x402z-mcp: no tab token for http://127.0.0.1:4220/api/quote; collecting a paid tab or buying one of 3
+tab already paid by tx b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91 for http://127.0.0.1:4220; collecting it instead of paying again
+tab issue: not yet (202 Accepted): {"message":"payment found (300000 zat) with 0 confirmation(s); need 1","reason":"settlement_pending","status":"pending"}
+x402z-mcp: no tab token for http://127.0.0.1:4220/api/quote; collecting a paid tab or buying one of 3
+tab already paid by tx b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91 for http://127.0.0.1:4220; collecting it instead of paying again
+[note] the 'ready on stdio' lines are the MCP server starting: once for `opencode mcp list` and once per
+opencode run (the two 404 attempts and this one).
+
+================ x402z-facilitator log (whole) ================
+ZCASH_LWD_URL not set; using https://testnet.zec.rocks:443
+lightwalletd https://testnet.zec.rocks:443 (ECC LightWalletD v0.5.4) chain=test tip=4529409
+receipt pubkey (X402Z_RECEIPT_PUBKEY) = 7b43e371b3a84c81d4b18a4534da0b042ee0ee18d93017e17105fe5212603254
+x402z-facilitator listening on http://127.0.0.1:4221 (min confirmations 1)
+verify x402z-ca140754c5e37e36f106ed84 tx f037d5978fec7817340ff118d328995288f0a575a1850b083ca05f7d71d4e22a: pending (0 of 1 confirmations, tip 4529423)
+verify x402z-ca140754c5e37e36f106ed84 tx f037d5978fec7817340ff118d328995288f0a575a1850b083ca05f7d71d4e22a: CONFIRMED 100000 zat via [Ironwood], 2 conf (tip 4529426); receipt issued
+verify x402z-00f89ac38b4216a4b37e4ff1 tx b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91: pending (0 of 1 confirmations, tip 4529426)
+verify x402z-00f89ac38b4216a4b37e4ff1 tx b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91: pending (0 of 1 confirmations, tip 4529426)
+verify x402z-00f89ac38b4216a4b37e4ff1 tx b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91: pending (0 of 1 confirmations, tip 4529426)
+verify x402z-00f89ac38b4216a4b37e4ff1 tx b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91: pending (0 of 1 confirmations, tip 4529426)
+verify x402z-00f89ac38b4216a4b37e4ff1 tx b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91: CONFIRMED 300000 zat via [Ironwood], 1 conf (tip 4529427); receipt issued
+
+================ x402z-server log (whole) ================
+challenge book: /private/tmp/claude-501/-Volumes-Extreme-SSD-Projects-grokbot/56ca0ebc-f85c-4be5-a61f-c327d6a58412/scratchpad/kage/live/server.sqlite (X402Z_SERVER_DB)
+dashboard: merchant view, the agent's spendguard ledger is not shown (X402Z_DEMO_AGENT_LEDGER unset)
+tab: key da1d313217fd693c (20 tokens max per payment)
+x402z-server dashboard (feed, status) on http://127.0.0.1:4229 (X402Z_ADMIN_BIND)
+x402z-server listening on http://127.0.0.1:4220 (paid API only; X-PAYMENT attempts and 402 challenges limited to 30/min per client)
+
+================ Anyone can check both payments with the published UIVK ================
+$ target/debug/examples/check_uivk "$uivk" f037d5978fec7817340ff118d328995288f0a575a1850b083ca05f7d71d4e22a x402z-ca140754c5e37e36f106ed84
+tx f037d5978fec7817340ff118d328995288f0a575a1850b083ca05f7d71d4e22a: mined at 4529425, 6 confirmation(s) (tip 4529430)
+incoming 100000 zat via Ironwood, memo text "x402z-ca140754c5e37e36f106ed84"
+total to merchant with memo "x402z-ca140754c5e37e36f106ed84": 100000 zat
+exit 0
+$ target/debug/examples/check_uivk "$uivk" b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91 x402z-00f89ac38b4216a4b37e4ff1
+tx b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91: mined at 4529427, 4 confirmation(s) (tip 4529430)
+incoming 300000 zat via Ironwood, memo text "x402z-00f89ac38b4216a4b37e4ff1"
+total to merchant with memo "x402z-00f89ac38b4216a4b37e4ff1": 300000 zat
+exit 0
