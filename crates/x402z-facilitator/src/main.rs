@@ -12,6 +12,10 @@
 //! not lost because its block came late or the payer asked for the receipt later.
 //! Nonce -> txid bindings persist in SQLite (`X402Z_FACILITATOR_DB`).
 //!
+//! `/verify` and `/settle` need `Authorization: Bearer $X402Z_FACILITATOR_TOKEN` (the resource
+//! server sends it); without the token the facilitator does not start. `/health` and `/supported`
+//! are open.
+//!
 //! `GET /health`     live lightwalletd round-trip; 200 with the chain tip, 503 if it fails.
 //! `GET /supported`  x402: `{kinds: [{x402Version: 1, scheme: "zcash-shielded", network: "zcash-testnet"}]}`.
 //! `POST /verify`    x402 `{x402Version, paymentPayload, paymentRequirements}` -> read-only
@@ -32,7 +36,7 @@ use std::{
 use axum::{
     body::Bytes,
     extract::State,
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
@@ -79,8 +83,33 @@ struct App {
     merchant_ua: Option<String>,
     min_confirmations: u32,
     expiry_grace_secs: u64,
-    /// memo nonce -> txid it was receipted for, so one nonce can't be receipted for two txs.
+    /// (memo nonce, payTo, amount) -> txid it was receipted for, so one requirement can't be
+    /// receipted for two txs.
     issued: IssuedStore,
+    /// Shared secret the resource server presents on `/verify` and `/settle`.
+    token: String,
+}
+
+/// Shortest `X402Z_FACILITATOR_TOKEN` accepted (`openssl rand -hex 32` gives 64).
+const MIN_TOKEN_LEN: usize = 32;
+
+/// `Authorization: Bearer <token>`, compared in constant time.
+fn authorized(app: &App, headers: &HeaderMap) -> bool {
+    let Some(got) = headers.get("authorization").and_then(|v| v.to_str().ok()).and_then(|v| v.strip_prefix("Bearer ")) else {
+        return false;
+    };
+    let (a, b) = (got.trim().as_bytes(), app.token.as_bytes());
+    a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+}
+
+fn unauthorized() -> Response {
+    let mut resp = (
+        StatusCode::UNAUTHORIZED,
+        Json(serde_json::json!({ "error": "facilitator requires Authorization: Bearer <X402Z_FACILITATOR_TOKEN>" })),
+    )
+        .into_response();
+    resp.headers_mut().insert("www-authenticate", axum::http::HeaderValue::from_static("Bearer"));
+    resp
 }
 
 type Outcome = (StatusCode, Option<&'static str>, VerifyResponse);
@@ -118,7 +147,7 @@ async fn process(app: &App, ch: &PaymentRequired, txid_in: &str, issue_receipt: 
         return fail(StatusCode::BAD_REQUEST, VerifyStatus::Rejected, reason::INVALID_PAYLOAD, "txid must be 64 hex chars".into());
     };
     let txid_hex = txid.to_string();
-    let prev = match app.issued.txid_for(&ch.memo_nonce) {
+    let prev = match app.issued.txid_for(&ch.memo_nonce, &ch.pay_to, ch.amount_zat) {
         Ok(p) => p,
         Err(e) => return fail(StatusCode::SERVICE_UNAVAILABLE, VerifyStatus::Error, reason::FACILITATOR_ERROR, e),
     };
@@ -243,7 +272,7 @@ async fn process(app: &App, ch: &PaymentRequired, txid_in: &str, issue_receipt: 
             },
         );
     }
-    match app.issued.bind(&ch.memo_nonce, &txid_hex, now()) {
+    match app.issued.bind(&ch.memo_nonce, &ch.pay_to, ch.amount_zat, &txid_hex, now()) {
         Ok(bound) if bound == txid_hex => {}
         Ok(bound) => {
             return fail(
@@ -298,7 +327,10 @@ fn is_x402_body(body: &[u8]) -> bool {
 /// `POST /verify`. x402 body (`{x402Version, paymentPayload, paymentRequirements}`) -> read-only
 /// `{isValid, invalidReason, payer}`. Legacy body (`{challenge, txid}`) -> `VerifyResponse` with a
 /// receipt, as before.
-async fn verify_handler(State(app): State<Arc<App>>, body: Bytes) -> Response {
+async fn verify_handler(State(app): State<Arc<App>>, headers: HeaderMap, body: Bytes) -> Response {
+    if !authorized(&app, &headers) {
+        return unauthorized();
+    }
     if is_x402_body(&body) {
         let (code, why, r) = match x402_request(&body) {
             Ok((ch, txid)) => process(&app, &ch, &txid, false).await,
@@ -327,7 +359,10 @@ async fn verify_handler(State(app): State<Arc<App>>, body: Bytes) -> Response {
 
 /// `POST /settle` (x402): binds the nonce to the txid and returns the settlement plus a signed
 /// receipt for the resource server.
-async fn settle_handler(State(app): State<Arc<App>>, body: Bytes) -> Response {
+async fn settle_handler(State(app): State<Arc<App>>, headers: HeaderMap, body: Bytes) -> Response {
+    if !authorized(&app, &headers) {
+        return unauthorized();
+    }
     let (code, why, r) = match x402_request(&body) {
         Ok((ch, txid)) => process(&app, &ch, &txid, true).await,
         Err((why, e)) => fail(StatusCode::BAD_REQUEST, VerifyStatus::Rejected, why, e),
@@ -471,6 +506,20 @@ async fn main() {
         exit(2);
     });
     let bind = optional("X402Z_FACILITATOR_BIND").unwrap_or_else(|| "127.0.0.1:4021".into());
+    let token = match optional("X402Z_FACILITATOR_TOKEN") {
+        Some(t) if t.len() >= MIN_TOKEN_LEN => t,
+        Some(_) => {
+            eprintln!("error: X402Z_FACILITATOR_TOKEN must be at least {MIN_TOKEN_LEN} characters (e.g. `openssl rand -hex 32`)");
+            exit(2);
+        }
+        None => {
+            eprintln!(
+                "error: Setup required: X402Z_FACILITATOR_TOKEN not configured. /verify and /settle accept only the resource \
+                 server holding this shared secret; generate one with `openssl rand -hex 32` and give the same value to x402z-server."
+            );
+            exit(2);
+        }
+    };
 
     let mut client = lwd::connect(&lwd_url).await.unwrap_or_else(|e| {
         eprintln!("error: {e}");
@@ -503,6 +552,7 @@ async fn main() {
         min_confirmations,
         expiry_grace_secs,
         issued,
+        token,
     });
     let router = Router::new()
         .route(HEALTH_PATH, get(health))
@@ -563,6 +613,50 @@ mod tests {
         // legacy body is not mistaken for x402
         let legacy = serde_json::to_vec(&VerifyRequest { challenge: ch(), txid: "ab".repeat(32) }).unwrap();
         assert!(!is_x402_body(&legacy));
+    }
+
+    /// The demo merchant's UIVK, published in the README on purpose.
+    const DEMO_UIVK: &str = "uivktest1ma9hgu9cmmmkv5f5npk7aktj8tradzqyxzwerez5trhku0xxgx7vsh0azzurz44pfdhmyrzxnur3n282f5t0glhje7kay4fw79njmg64g2wupcznmpfpy0gh6wngu0qw07ry404hnh6rq9vuj264gcjfxucylma4c8cuygxezqx2xwph5x66nckx4095pgvjzuq5rudsmr9dztnyv9f2w74unppttta6cu7fr3tx494zqstn2hv";
+    const TOKEN: &str = "0123456789abcdef0123456789abcdef-test";
+
+    /// An app whose lightwalletd channel connects lazily to a closed port: these tests stop
+    /// before any chain call.
+    fn app() -> Arc<App> {
+        let channel = tonic::transport::Endpoint::from_static("http://127.0.0.1:9").connect_lazy();
+        Arc::new(App {
+            lwd_url: "http://127.0.0.1:9".into(),
+            lwd: zcash_client_backend::proto::service::compact_tx_streamer_client::CompactTxStreamerClient::new(channel),
+            key: MerchantKey::decode_uivk(&NETWORK, DEMO_UIVK).unwrap(),
+            signing_key: SigningKey::from_bytes(&[7u8; 32]),
+            merchant_ua: None,
+            min_confirmations: 1,
+            expiry_grace_secs: DEFAULT_EXPIRY_GRACE_SECS,
+            issued: IssuedStore::open(std::path::Path::new(":memory:")).unwrap(),
+            token: TOKEN.into(),
+        })
+    }
+
+    fn with_auth(v: &str) -> HeaderMap {
+        let mut h = HeaderMap::new();
+        h.insert("authorization", axum::http::HeaderValue::from_str(v).unwrap());
+        h
+    }
+
+    #[tokio::test]
+    async fn verify_and_settle_refuse_callers_without_the_token() {
+        let reqs = PaymentRequirements::from_challenge(&ch(), "http://h/r", "d", "application/json", 900);
+        let b = Bytes::from(body(PaymentPayload::zcash(&"ab".repeat(32), "x402z-abc"), reqs));
+        for headers in [HeaderMap::new(), with_auth("Bearer wrong-token-wrong-token-wrong-token"), with_auth(TOKEN), with_auth(&format!("Basic {TOKEN}"))] {
+            let r = settle_handler(State(app()), headers.clone(), b.clone()).await;
+            assert_eq!(r.status(), StatusCode::UNAUTHORIZED);
+            assert_eq!(r.headers().get("www-authenticate").unwrap(), "Bearer");
+            assert_eq!(verify_handler(State(app()), headers, b.clone()).await.status(), StatusCode::UNAUTHORIZED);
+        }
+        // with the token the request gets past auth (and stops at the body check, before any chain call)
+        let r = settle_handler(State(app()), with_auth(&format!("Bearer {TOKEN}")), Bytes::from_static(b"{}")).await;
+        assert_eq!(r.status(), StatusCode::BAD_REQUEST);
+        let r = verify_handler(State(app()), with_auth(&format!("Bearer {TOKEN}")), Bytes::from_static(b"{}")).await;
+        assert_eq!(r.status(), StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]

@@ -98,6 +98,8 @@ struct Config {
     price_zat: u64,
     receipt_key: VerifyingKey,
     facilitator_url: String,
+    /// Bearer token the facilitator requires on `/settle` (`X402Z_FACILITATOR_TOKEN`).
+    facilitator_token: String,
     agent_ledger: Option<String>,
     /// Receipts with fewer confirmations are refused (0 = accept mempool-only payments).
     min_confirmations: u32,
@@ -528,11 +530,16 @@ async fn confirmed_receipt(app: &App, nonce: &str, txid: &str, resource: &str) -
         payment_payload: PaymentPayload::zcash(txid, nonce),
         payment_requirements: requirements(&row.challenge, resource),
     };
-    let resp = match app.http.post(&url).json(&body).send().await {
+    let resp = match app.http.post(&url).bearer_auth(&app.cfg.facilitator_token).json(&body).send().await {
         Ok(r) => r,
         Err(e) => return Err(Redeem::Unavailable(format!("facilitator unreachable at {url}: {e}"))),
     };
     let code = resp.status();
+    if code == StatusCode::UNAUTHORIZED {
+        return Err(Redeem::Unavailable(format!(
+            "Setup required: the facilitator at {url} refused this server's X402Z_FACILITATOR_TOKEN (401); both must hold the same value"
+        )));
+    }
     let s: SettleResponse = match resp.json().await {
         Ok(s) => s,
         Err(e) => return Err(Redeem::Unavailable(format!("facilitator answered {code} with an unreadable body: {e}"))),
@@ -973,6 +980,13 @@ async fn main() {
         exit(2);
     });
     let facilitator_url = require("X402Z_FACILITATOR_URL");
+    let facilitator_token = optional("X402Z_FACILITATOR_TOKEN").unwrap_or_else(|| {
+        eprintln!(
+            "error: Setup required: X402Z_FACILITATOR_TOKEN not configured. The facilitator only settles for a server that \
+             presents its shared token; set the same value on both (e.g. `openssl rand -hex 32`)."
+        );
+        exit(2);
+    });
     let price_zat = match optional("X402Z_PRICE_ZAT").map(|s| s.parse::<u64>()) {
         None => DEFAULT_PRICE_ZAT,
         Some(Ok(p)) if p > 0 => p,
@@ -1028,6 +1042,7 @@ async fn main() {
         price_zat,
         receipt_key,
         facilitator_url,
+        facilitator_token,
         agent_ledger: optional("X402Z_DEMO_AGENT_LEDGER"),
         min_confirmations,
         expiry_grace_secs: nonneg("X402Z_EXPIRY_GRACE_SECS", DEFAULT_EXPIRY_GRACE_SECS),
@@ -1308,6 +1323,7 @@ mod tests {
             price_zat: 100_000,
             receipt_key: key().verifying_key(),
             facilitator_url: "http://127.0.0.1:9".into(),
+            facilitator_token: STAND_IN_TOKEN.into(),
             agent_ledger: None,
             min_confirmations: 1,
             expiry_grace_secs: GRACE,
@@ -1447,7 +1463,17 @@ mod tests {
     /// Pays three times the challenge price (a tab of up to 3 tokens).
     const TX_PAID_3X: &str = "3333333333333333333333333333333333333333333333333333333333333333";
 
-    async fn stand_in_settle(Json(req): Json<FacilitatorRequest>) -> Response {
+    /// The facilitator token the test servers send and the stand-ins require.
+    const STAND_IN_TOKEN: &str = "stand-in-facilitator-token-0123456789";
+
+    fn bearer_ok(headers: &HeaderMap) -> bool {
+        headers.get("authorization").and_then(|v| v.to_str().ok()) == Some(&format!("Bearer {STAND_IN_TOKEN}"))
+    }
+
+    async fn stand_in_settle(headers: HeaderMap, Json(req): Json<FacilitatorRequest>) -> Response {
+        if !bearer_ok(&headers) {
+            return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": "no token" }))).into_response();
+        }
         let pay = req.payment_payload.zcash_payload().unwrap();
         let ch = req.payment_requirements.to_challenge().unwrap();
         let claims = ReceiptClaims {
@@ -1958,9 +1984,10 @@ mod tests {
         let h = hits.clone();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
-        let handler = move |Json(_): Json<FacilitatorRequest>| {
+        let handler = move |headers: HeaderMap, Json(_): Json<FacilitatorRequest>| {
             let h = h.clone();
             async move {
+                assert!(bearer_ok(&headers), "the server sends X402Z_FACILITATOR_TOKEN");
                 h.fetch_add(1, Ordering::SeqCst);
                 Json(SettleResponse {
                     settlement: SettlementResponse::failed(reason::NOT_FOUND),
@@ -2020,6 +2047,19 @@ mod tests {
         let r = post_redeem(app.clone(), serde_json::json!({"memoNonce": huge, "txid": TX_OK})).await;
         assert_eq!(r.status(), StatusCode::BAD_REQUEST);
         assert_eq!(feed(&app).len(), before);
+    }
+
+    #[tokio::test]
+    async fn a_facilitator_that_refuses_the_token_is_setup_required_and_burns_nothing() {
+        let mut a = Arc::try_unwrap(app_with_stand_in().await).ok().unwrap();
+        a.cfg.facilitator_token = "not-the-token".into();
+        let app = Arc::new(a);
+        let v = body_json(get_quote(app.clone(), [10, 0, 0, 1], None).await).await;
+        let nonce = v["accepts"][0]["extra"]["memoNonce"].as_str().unwrap().to_string();
+        let r = get_quote_with(app.clone(), [10, 0, 0, 1], &[(PAYMENT_HEADER, &x_payment_header(TX_OK, &nonce))]).await;
+        assert_eq!(r.status(), StatusCode::BAD_GATEWAY);
+        assert!(body_json(r).await["error"].as_str().unwrap().contains("X402Z_FACILITATOR_TOKEN"));
+        assert_eq!(open_nonces(&app), vec![nonce]);
     }
 
     #[test]

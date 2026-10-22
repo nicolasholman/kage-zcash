@@ -30,8 +30,9 @@ rm -rf "$RUN"; mkdir -p "$RUN/wallet"; chmod 700 "$RUN"
 # The demo merchant's UIVK is published in the README on purpose (testnet, incoming only).
 UIVK=$(grep -o 'uivktest1[a-z0-9]\{100,\}' README.md | head -1)
 UA=$($BIN/examples/check_uivk address "$UIVK")
-# A fresh receipt key for this run only; the secret stays in a 0600 file and is never printed.
-( umask 077; $BIN/x402z-facilitator keygen > "$RUN/receipt.env" )
+# A fresh receipt key and facilitator token for this run only; the secrets stay in 0600 files and
+# are never printed.
+( umask 077; $BIN/x402z-facilitator keygen > "$RUN/receipt.env"; echo "X402Z_FACILITATOR_TOKEN=$(openssl rand -hex 32)" > "$RUN/token.env" )
 PUB=$(sed -n 's/^X402Z_RECEIPT_PUBKEY=//p' "$RUN/receipt.env")
 
 start() { # name logfile cmd...
@@ -42,13 +43,14 @@ start() { # name logfile cmd...
 
 start facilitator env X402Z_MERCHANT_UIVK="$UIVK" X402Z_FACILITATOR_BIND=127.0.0.1:4021 \
   X402Z_FACILITATOR_DB="$RUN/facilitator.sqlite" \
-  bash -c 'set -a; . "$0"; set +a; exec "$1"' "$RUN/receipt.env" "$BIN/x402z-facilitator"
+  bash -c 'set -a; . "$0"; . "$1"; set +a; exec "$2"' "$RUN/receipt.env" "$RUN/token.env" "$BIN/x402z-facilitator"
 
 server() { # name public-port admin-port extra-env...
   local name=$1 port=$2 admin=$3; shift 3
   start "$name" env X402Z_MERCHANT_UA="$UA" X402Z_RECEIPT_PUBKEY="$PUB" X402Z_FACILITATOR_URL=http://127.0.0.1:4021 \
     X402Z_BIND=127.0.0.1:$port X402Z_ADMIN_BIND=127.0.0.1:$admin X402Z_SERVER_DB="$RUN/$name.sqlite" \
-    X402Z_CHALLENGE_RATE_PER_MIN=200 "$@" "$BIN/x402z-server"
+    X402Z_CHALLENGE_RATE_PER_MIN=200 "$@" \
+    bash -c 'set -a; . "$0"; set +a; exec "$1"' "$RUN/token.env" "$BIN/x402z-server"
 }
 server server 4020 4120
 server server-nofac 4030 4130 X402Z_FACILITATOR_URL=http://127.0.0.1:4039
