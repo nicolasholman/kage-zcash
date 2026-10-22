@@ -41,6 +41,9 @@ pub struct StoredToken {
     pub origin: String,
     pub key_id: String,
     pub epoch_ends_at: u64,
+    /// The offer's grace period: the server accepts the token until `epoch_ends_at + grace_secs`.
+    #[serde(default)]
+    pub grace_secs: u64,
     pub msg: String,
     pub randomizer: String,
     pub sig: String,
@@ -65,6 +68,18 @@ pub struct PendingPurchase {
     pub txid: Option<String>,
 }
 
+/// The tab key a merchant offered for an origin, remembered for that key's epoch. Unlinkability
+/// rests on every buyer getting the same key: a merchant that hands each 402 its own key can tell
+/// whose token is whose. The agent therefore refuses a different key for the same origin while
+/// the pinned one's epoch lasts.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KeyPin {
+    pub origin: String,
+    pub key_id: String,
+    pub epoch_ends_at: u64,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TabState {
@@ -72,6 +87,8 @@ pub struct TabState {
     pub tokens: Vec<StoredToken>,
     #[serde(default)]
     pub pending: Vec<PendingPurchase>,
+    #[serde(default)]
+    pub pins: Vec<KeyPin>,
 }
 
 /// The token file, loaded under its lock (released on drop).
@@ -108,17 +125,69 @@ impl TabFile {
         std::fs::rename(&tmp, &self.path).map_err(|e| PayError::Runtime(format!("cannot replace {}: {e}", self.path.display())))
     }
 
-    /// Spendable tokens for `origin` (epoch not over).
+    /// Spendable tokens for `origin` (epoch plus grace not over).
     pub fn count(&self, origin: &str, now_unix: u64) -> usize {
-        self.state.tokens.iter().filter(|t| t.origin == origin && t.epoch_ends_at > now_unix).count()
+        self.state.tokens.iter().filter(|t| t.origin == origin && spendable(t, now_unix)).count()
     }
 
-    /// Remove and return one spendable token for `origin`; tokens whose epoch is over are dropped.
+    /// Remove and return one spendable token for `origin`; tokens past their epoch and grace are
+    /// dropped.
     pub fn take(&mut self, origin: &str, now_unix: u64) -> Option<StoredToken> {
-        self.state.tokens.retain(|t| t.epoch_ends_at > now_unix);
+        self.state.tokens.retain(|t| spendable(t, now_unix));
         let i = self.state.tokens.iter().position(|t| t.origin == origin)?;
         Some(self.state.tokens.remove(i))
     }
+}
+
+fn spendable(t: &StoredToken, now_unix: u64) -> bool {
+    t.epoch_ends_at.saturating_add(t.grace_secs) > now_unix
+}
+
+impl TabFile {
+    /// Accept `offer` for `origin` only if no other key is pinned for it with an epoch still
+    /// running, and pin it. Call before spendguard: a refusal pays nothing.
+    pub fn pin_key(&mut self, origin: &str, offer: &TabOffer, now_unix: u64) -> Result<(), PayError> {
+        self.state.pins.retain(|p| p.epoch_ends_at > now_unix);
+        if let Some(p) = self.state.pins.iter().find(|p| p.origin == origin) {
+            if p.key_id != offer.key_id {
+                return Err(PayError::Runtime(format!(
+                    "{origin} offered tab key {} while key {} it offered before is still in its epoch (until {}). A merchant \
+                     that gives buyers different keys can link each token to its buyer; refusing to buy. Nothing was paid.",
+                    offer.key_id, p.key_id, p.epoch_ends_at
+                )));
+            }
+            return Ok(());
+        }
+        self.state.pins.push(KeyPin { origin: origin.to_string(), key_id: offer.key_id.clone(), epoch_ends_at: offer.epoch_ends_at });
+        Ok(())
+    }
+}
+
+/// A tab bought under `offer` must be issuable before the key stops honouring it: refuse an
+/// offer whose epoch (plus grace) ends sooner than a payment can confirm.
+fn check_offer_life(offer: &TabOffer, now_unix: u64, confirm_timeout_secs: u64) -> Result<(), PayError> {
+    let honoured_until = offer.epoch_ends_at.saturating_add(offer.grace_secs);
+    if honoured_until < now_unix.saturating_add(confirm_timeout_secs) {
+        return Err(PayError::Runtime(format!(
+            "the tab key {} stops issuing in {} s (epoch end plus {} s grace), less than the {} s a payment may take to \
+             confirm; not buying a tab that may never be issued. Try again after the server's next key epoch starts.",
+            offer.key_id,
+            honoured_until.saturating_sub(now_unix),
+            offer.grace_secs,
+            confirm_timeout_secs
+        )));
+    }
+    Ok(())
+}
+
+/// Fetch `url`'s tab offer and accept it: same key as pinned for this origin, long enough to live.
+async fn accepted_offer(cfg: &AgentConfig, http: &reqwest::Client, url: &str) -> Result<(PaymentRequired, TabOffer), PayError> {
+    let (ch, offer) = fetch_offer(http, url).await?;
+    check_offer_life(&offer, now(), cfg.confirm_timeout_secs)?;
+    let mut f = TabFile::open(&tab_path(cfg)?)?;
+    f.pin_key(&origin_of(url)?, &offer, now())?;
+    f.save()?;
+    Ok((ch, offer))
 }
 
 /// `X402Z_AGENT_TAB_FILE`, else `<X402Z_AGENT_LEDGER>.tab.json`.
@@ -217,6 +286,23 @@ pub struct Bought {
 /// Blind `n` fresh messages, have the server sign them for the paid challenge (retrying while the
 /// payment confirms, or asking once if `!wait`), unblind and verify each signature, and store the
 /// tokens. `Ok(Err(message))` means "not issued yet" (only when `!wait`).
+/// `n` fresh random messages blinded for `offer`'s key.
+fn blind_for(offer: &TabOffer, n: u32) -> Result<(Pk, Vec<(Vec<u8>, BlindingResult)>), PayError> {
+    let pk = Pk::from_spki(&b64_any(&offer.public_key).ok_or_else(|| PayError::Runtime("tab publicKey is not base64".into()))?)
+        .map_err(|e| PayError::Runtime(format!("tab publicKey is not an RSA SPKI: {e:?}")))?;
+    let mut blinded: Vec<(Vec<u8>, BlindingResult)> = Vec::with_capacity(n as usize);
+    for _ in 0..n {
+        let mut msg = vec![0u8; 32];
+        rand::fill(&mut msg[..]);
+        let br = pk.blind(&mut DefaultRng, &msg).map_err(|e| PayError::Runtime(format!("blinding failed: {e:?}")))?;
+        blinded.push((msg, br));
+    }
+    Ok((pk, blinded))
+}
+
+/// How many times a 409 `tab_key_rotated` is followed by blinding again for the new key.
+const MAX_KEY_ROTATIONS: u32 = 2;
+
 #[allow(clippy::too_many_arguments)]
 async fn issue_and_store(
     cfg: &AgentConfig,
@@ -228,25 +314,19 @@ async fn issue_and_store(
     txid: &str,
     wait: bool,
 ) -> Result<Result<u64, String>, PayError> {
-    let pk = Pk::from_spki(&b64_any(&offer.public_key).ok_or_else(|| PayError::Runtime("tab publicKey is not base64".into()))?)
-        .map_err(|e| PayError::Runtime(format!("tab publicKey is not an RSA SPKI: {e:?}")))?;
-    let mut blinded: Vec<(Vec<u8>, BlindingResult)> = Vec::with_capacity(n as usize);
-    for _ in 0..n {
-        let mut msg = vec![0u8; 32];
-        rand::fill(&mut msg[..]);
-        let br = pk.blind(&mut DefaultRng, &msg).map_err(|e| PayError::Runtime(format!("blinding failed: {e:?}")))?;
-        blinded.push((msg, br));
-    }
-    let req = TabIssueRequest {
-        memo_nonce: memo_nonce.to_string(),
-        txid: txid.to_string(),
-        key_id: offer.key_id.clone(),
-        blinded: blinded.iter().map(|(_, br)| b64(&br.blind_message)).collect(),
-    };
-    let issue = issue_url(url, offer)?;
+    let mut offer = offer.clone();
+    let (mut pk, mut blinded) = blind_for(&offer, n)?;
+    let issue = issue_url(url, &offer)?;
     let started = Instant::now();
     let deadline = now() + cfg.confirm_timeout_secs;
+    let mut rotations = 0;
     let answer: TabIssueResponse = loop {
+        let req = TabIssueRequest {
+            memo_nonce: memo_nonce.to_string(),
+            txid: txid.to_string(),
+            key_id: offer.key_id.clone(),
+            blinded: blinded.iter().map(|(_, br)| b64(&br.blind_message)).collect(),
+        };
         let message = match http.post(&issue).json(&req).send().await {
             Err(e) => format!("POST {issue} failed: {e}"),
             Ok(resp) => {
@@ -256,6 +336,20 @@ async fn issue_and_store(
                     200 => {
                         break serde_json::from_str(&body)
                             .map_err(|e| PayError::Runtime(format!("tab issue answer is not {{keyId, blindSignatures}}: {e}")))?
+                    }
+                    // The key rotated between the payment and the issue. Nothing was burned: take
+                    // the new offer (it must pass the same pin and lifetime checks), blind again
+                    // for its key and retry the same payment.
+                    409 if rotations < MAX_KEY_ROTATIONS => {
+                        rotations += 1;
+                        let (_, fresh) = accepted_offer(cfg, http, url).await?;
+                        eprintln!("tab issue: key {} rotated to {}; blinding again for the new key", offer.key_id, fresh.key_id);
+                        if issue_url(url, &fresh)? != issue {
+                            return Err(PayError::Runtime("the rotated tab offer moved its issuePath; not following it".into()));
+                        }
+                        offer = fresh;
+                        (pk, blinded) = blind_for(&offer, n)?;
+                        continue;
                     }
                     202 | 429 | 502 | 503 => format!("tab issue: not yet ({status}): {body}"),
                     _ => return Err(PayError::Rejected(format!("tab issue for tx {txid} refused ({status}): {body}"))),
@@ -294,6 +388,7 @@ async fn issue_and_store(
             origin: origin.clone(),
             key_id: offer.key_id.clone(),
             epoch_ends_at: offer.epoch_ends_at,
+            grace_secs: offer.grace_secs,
             msg: b64(msg),
             randomizer: b64(&r.0),
             sig: b64(&sig),
@@ -339,7 +434,7 @@ pub async fn buy_or_resume(cfg: &AgentConfig, url: &str, n: u32, approve: &(dyn 
         eprintln!("tab already paid by tx {} for {origin}; collecting it instead of paying again", p.txid.as_deref().unwrap_or_default());
         return collect(cfg, &http, p, wait).await;
     }
-    let (ch, offer) = fetch_offer(&http, url).await?;
+    let (ch, offer) = accepted_offer(cfg, &http, url).await?;
     let amount = check_n(&offer, n)?;
     eprintln!("tab offer: key {} at {} zat a token; buying {n} for {amount} zat (memo {})", offer.key_id, offer.unit_price_zat, ch.memo_nonce);
     drop(TabFile::open(&tab_file)?); // fail on an unusable token file before paying
@@ -387,7 +482,7 @@ async fn collect(cfg: &AgentConfig, http: &reqwest::Client, p: PendingPurchase, 
 pub async fn start_external(cfg: &AgentConfig, url: &str, n: u32, approve: &(dyn Fn(&str, u64, u64) -> bool + Sync)) -> Result<PendingPurchase, PayError> {
     let host = pay::host_of(url)?;
     let http = pay::http_client()?;
-    let (ch, offer) = fetch_offer(&http, url).await?;
+    let (ch, offer) = accepted_offer(cfg, &http, url).await?;
     let amount = check_n(&offer, n)?;
     let mut f = TabFile::open(&tab_path(cfg)?)?;
     let gate = pay::spendguard_gate(cfg, &host, amount, &ch.memo_nonce, approve)?;
@@ -524,7 +619,7 @@ mod tests {
     }
 
     fn tok(origin: &str, ends: u64, n: u8) -> StoredToken {
-        StoredToken { origin: origin.into(), key_id: "k".into(), epoch_ends_at: ends, msg: b64(&[n]), randomizer: b64(&[0; 32]), sig: b64(&[n]) }
+        StoredToken { origin: origin.into(), key_id: "k".into(), epoch_ends_at: ends, grace_secs: 0, msg: b64(&[n]), randomizer: b64(&[0; 32]), sig: b64(&[n]) }
     }
 
     #[test]
@@ -543,6 +638,32 @@ mod tests {
         drop(f);
         let f = TabFile::open(&p).unwrap();
         assert_eq!(f.state.tokens, vec![tok("http://b:1", 1_000, 2)]);
+        let _ = std::fs::remove_file(&p);
+    }
+
+    #[test]
+    fn tokens_live_through_the_offer_grace_and_pins_hold_for_the_epoch() {
+        let p = tmp("grace");
+        let mut f = TabFile::open(&p).unwrap();
+        let mut t = tok("http://a:1", 100, 1);
+        t.grace_secs = 50;
+        f.state.tokens = vec![t];
+        assert_eq!(f.count("http://a:1", 120), 1, "past the epoch, inside the grace");
+        assert_eq!(f.count("http://a:1", 150), 0);
+        let offer = |key: &str, ends: u64| TabOffer {
+            scheme: TAB_SCHEME.into(), suite: TAB_SUITE.into(), key_id: key.into(), public_key: "AA==".into(),
+            unit_price_zat: 1, max_tokens: 5, issue_path: "/tab/issue".into(), epoch_ends_at: ends, grace_secs: 0,
+        };
+        f.pin_key("http://a:1", &offer("k1", 1_000), 10).unwrap();
+        f.pin_key("http://a:1", &offer("k1", 1_000), 20).unwrap();
+        assert!(matches!(f.pin_key("http://a:1", &offer("k2", 1_000), 30), Err(PayError::Runtime(m)) if m.contains("still in its epoch")));
+        f.pin_key("http://b:1", &offer("k2", 1_000), 30).unwrap(); // another origin has its own pin
+        f.pin_key("http://a:1", &offer("k2", 2_000), 1_000).unwrap(); // k1's epoch is over: a new key is fine
+        assert_eq!(f.state.pins.iter().find(|p| p.origin == "http://a:1").unwrap().key_id, "k2");
+        // lifetime: an offer ending before a payment can confirm is refused, its grace counts
+        assert!(check_offer_life(&offer("k", 1_050), 1_000, 900).is_err());
+        assert!(check_offer_life(&TabOffer { grace_secs: 1_800, ..offer("k", 1_050) }, 1_000, 900).is_ok());
+        assert!(check_offer_life(&offer("k", 5_000), 1_000, 900).is_ok());
         let _ = std::fs::remove_file(&p);
     }
 

@@ -56,6 +56,14 @@ impl Store {
              );",
         )
         .map_err(err)?;
+        // When a tab key stopped being the active one (added after the first release).
+        let has_retired_at = conn
+            .prepare("SELECT 1 FROM pragma_table_info('tab_keys') WHERE name = 'retired_at'")
+            .and_then(|mut q| q.exists([]))
+            .map_err(err)?;
+        if !has_retired_at {
+            conn.execute_batch("ALTER TABLE tab_keys ADD COLUMN retired_at INTEGER").map_err(err)?;
+        }
         Ok(Self { conn: Mutex::new(conn) })
     }
 
@@ -145,10 +153,26 @@ impl Store {
             .map_err(err)
     }
 
+    /// The most recently retired key: (key_id, secret key DER, created_at, retired_at).
+    pub fn previous_tab_key(&self) -> Result<Option<(String, Vec<u8>, u64, u64)>, String> {
+        self.conn
+            .lock()
+            .unwrap()
+            .query_row(
+                "SELECT key_id, sk_der, created_at, retired_at FROM tab_keys WHERE active = 0 AND retired_at IS NOT NULL
+                 ORDER BY retired_at DESC, created_at DESC LIMIT 1",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get::<_, i64>(2)? as u64, r.get::<_, i64>(3)? as u64)),
+            )
+            .optional()
+            .map_err(err)
+    }
+
     /// Retire every key and make `key_id` the only active one (a new epoch).
     pub fn install_tab_key(&self, key_id: &str, sk_der: &[u8], now: u64) -> Result<(), String> {
         let mut conn = self.conn.lock().unwrap();
         let tx = conn.transaction().map_err(err)?;
+        tx.execute("UPDATE tab_keys SET retired_at = ?1 WHERE active = 1", params![now as i64]).map_err(err)?;
         tx.execute("UPDATE tab_keys SET active = 0", []).map_err(err)?;
         tx.execute(
             "INSERT INTO tab_keys (key_id, sk_der, created_at, active) VALUES (?1, ?2, ?3, 1)",

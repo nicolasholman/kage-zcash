@@ -344,6 +344,9 @@ pub mod reason {
     pub const INVALID_PAYMENT: &str = "invalid_payment";
     pub const EXPIRED: &str = "payment_expired";
     pub const NONCE_USED: &str = "nonce_already_used";
+    /// Kage Tab: `/tab/issue` named a key that is no longer active (nothing was burned; blind
+    /// again for the active key and retry with the same nonce and txid).
+    pub const TAB_KEY_ROTATED: &str = "tab_key_rotated";
     pub const FACILITATOR_ERROR: &str = "facilitator_error";
 }
 
@@ -561,8 +564,12 @@ pub struct TabOffer {
     pub unit_price_zat: u64,
     pub max_tokens: u32,
     pub issue_path: String,
-    /// Unix seconds after which this key's unspent tokens stop being accepted.
+    /// Unix seconds when this key's epoch ends: no new tab is sold under it after that.
     pub epoch_ends_at: u64,
+    /// Seconds after `epochEndsAt` during which the server still issues a tab already paid under
+    /// this key and still accepts its tokens (absent in older offers: 0).
+    #[serde(default)]
+    pub grace_secs: u64,
 }
 
 /// `POST /tab/issue` body. Blinded messages are base64 (standard or URL-safe).

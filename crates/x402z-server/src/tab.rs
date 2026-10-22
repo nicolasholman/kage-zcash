@@ -29,6 +29,9 @@ pub type Sk = SecretKey<Sha384, PSS, Randomized>;
 pub const DEFAULT_EPOCH_SECS: u64 = 7 * 24 * 60 * 60;
 /// Default `X402Z_TAB_MAX_TOKENS`.
 pub const DEFAULT_MAX_TOKENS: u32 = 20;
+/// Default `X402Z_TAB_GRACE_SECS`: how long after its epoch the previous key still issues a tab
+/// already paid under it and still accepts its tokens (two confirmation timeouts).
+pub const DEFAULT_GRACE_SECS: u64 = 30 * 60;
 
 pub struct TabKey {
     pub key_id: String,
@@ -72,7 +75,21 @@ pub fn load_or_rotate(store: &Store, now: u64, epoch_secs: u64) -> Result<TabKey
     }
 }
 
-pub fn offer(k: &TabKey, unit_price_zat: u64, max_tokens: u32, epoch_secs: u64) -> TabOffer {
+/// The previous key if it is still inside its grace period: it stopped selling at the earlier of
+/// its epoch end and its retirement, and tabs paid under it are honoured `grace_secs` past that.
+pub fn previous_in_grace(store: &Store, now: u64, epoch_secs: u64, grace_secs: u64) -> Result<Option<TabKey>, String> {
+    if grace_secs == 0 {
+        return Ok(None);
+    }
+    match store.previous_tab_key()? {
+        Some((_, der, created, retired)) if now < created.saturating_add(epoch_secs).min(retired).saturating_add(grace_secs) => {
+            from_der(&der, created).map(Some)
+        }
+        _ => Ok(None),
+    }
+}
+
+pub fn offer(k: &TabKey, unit_price_zat: u64, max_tokens: u32, epoch_secs: u64, grace_secs: u64) -> TabOffer {
     TabOffer {
         scheme: TAB_SCHEME.into(),
         suite: TAB_SUITE.into(),
@@ -82,6 +99,7 @@ pub fn offer(k: &TabKey, unit_price_zat: u64, max_tokens: u32, epoch_secs: u64) 
         max_tokens,
         issue_path: TAB_ISSUE_PATH.into(),
         epoch_ends_at: k.created_at.saturating_add(epoch_secs),
+        grace_secs,
     }
 }
 

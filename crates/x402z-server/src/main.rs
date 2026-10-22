@@ -109,6 +109,8 @@ struct Config {
     /// Kage Tab: most tokens one payment may buy (0 turns the tab off) and the key epoch.
     tab_max_tokens: u32,
     tab_epoch_secs: u64,
+    /// How long the previous tab key still issues paid tabs and accepts tokens after its epoch.
+    tab_grace_secs: u64,
     /// Reverse proxies whose `X-Forwarded-For` is believed for the per-client limiter
     /// (`X402Z_TRUSTED_PROXIES`); empty means the TCP peer is the client.
     trusted_proxies: Vec<IpAddr>,
@@ -378,7 +380,7 @@ fn payment_required(app: &App, ch: &PaymentRequired, resource: &str, error: Opti
     match tab_key(app) {
         Ok(Some(k)) => {
             if let Ok(mut extra) = req.zcash_extra() {
-                let o = tab::offer(&k, app.cfg.price_zat, app.cfg.tab_max_tokens, app.cfg.tab_epoch_secs);
+                let o = tab::offer(&k, app.cfg.price_zat, app.cfg.tab_max_tokens, app.cfg.tab_epoch_secs, app.cfg.tab_grace_secs);
                 extra.tab = serde_json::to_value(o).ok();
                 req.set_zcash_extra(&extra);
             }
@@ -466,14 +468,30 @@ fn tab_key(app: &App) -> Result<Option<Arc<tab::TabKey>>, String> {
         return Ok(None);
     }
     let now_unix = now();
-    if let Some(k) = app.tab.read().unwrap().as_ref() {
-        if now_unix < k.created_at.saturating_add(app.cfg.tab_epoch_secs) {
-            return Ok(Some(k.clone()));
-        }
+    let fresh = |k: &Arc<tab::TabKey>| now_unix < k.created_at.saturating_add(app.cfg.tab_epoch_secs);
+    if let Some(k) = app.tab.read().unwrap().as_ref().filter(|k| fresh(k)) {
+        return Ok(Some(k.clone()));
+    }
+    // Rotate under the write lock, checking again: two requests at the epoch boundary must not
+    // each install a key (the first one's offers would then name a key that is already retired).
+    let mut slot = app.tab.write().unwrap();
+    if let Some(k) = slot.as_ref().filter(|k| fresh(k)) {
+        return Ok(Some(k.clone()));
     }
     let k = Arc::new(tab::load_or_rotate(&app.store, now_unix, app.cfg.tab_epoch_secs)?);
-    *app.tab.write().unwrap() = Some(k.clone());
+    *slot = Some(k.clone());
     Ok(Some(k))
+}
+
+/// The key a tab request names: the active one, or the previous one inside its grace period.
+fn tab_key_for(app: &App, key_id: &str) -> Result<Option<Arc<tab::TabKey>>, String> {
+    let Some(active) = tab_key(app)? else { return Ok(None) };
+    if active.key_id == key_id {
+        return Ok(Some(active));
+    }
+    Ok(tab::previous_in_grace(&app.store, now(), app.cfg.tab_epoch_secs, app.cfg.tab_grace_secs)?
+        .filter(|k| k.key_id == key_id)
+        .map(Arc::new))
 }
 
 /// Result of redeeming a (memoNonce, txid) pair through the facilitator.
@@ -658,7 +676,17 @@ async fn x_payment(app: &App, client: IpAddr, resource: &str, header: &str) -> R
 
 /// `X-PAYMENT` with scheme `zcash-shielded-tab`: spend one blind-signed tab token.
 fn tab_payment(app: &App, client: IpAddr, resource: &str, p: &PaymentPayload) -> Response {
-    let result = match (p.tab_payload(), tab_key(app)) {
+    let payload = p.tab_payload();
+    let key = match (&payload, tab_key(app)) {
+        (_, Err(e)) => return storage_error(e),
+        // A token from the previous key is honoured inside its grace period.
+        (Ok(t), Ok(Some(active))) if t.key_id != active.key_id => match tab_key_for(app, &t.key_id) {
+            Err(e) => return storage_error(e),
+            Ok(k) => Ok(Some(k.unwrap_or(active))),
+        },
+        (_, k) => k,
+    };
+    let result = match (payload, key) {
         (Err(e), _) => Err((e.reason(), format!("{PAYMENT_HEADER} {e}"))),
         (_, Err(e)) => return storage_error(e),
         (_, Ok(None)) => Err((reason::INVALID_SCHEME, "this server does not offer a tab".to_string())),
@@ -701,14 +729,29 @@ async fn tab_issue(State(app): State<Arc<App>>, ConnectInfo(peer): ConnectInfo<S
         Ok(r) => r,
         Err(e) => return fail(StatusCode::BAD_REQUEST, reason::INVALID_PAYLOAD, format!("body must be {{memoNonce, txid, keyId, blinded}}: {e}")),
     };
-    let k = match tab_key(&app) {
+    let active = match tab_key(&app) {
         Ok(Some(k)) => k,
         Ok(None) => return fail(StatusCode::NOT_FOUND, reason::INVALID_SCHEME, "this server does not offer a tab".into()),
         Err(e) => return storage_error(e),
     };
-    if req.key_id != k.key_id {
-        return fail(StatusCode::UNPROCESSABLE_ENTITY, reason::EXPIRED, format!("keyId {} is not the active tab key {}", req.key_id, k.key_id));
-    }
+    // The previous key still issues a tab paid under it while its grace period lasts; any other
+    // key is a 409 that burns nothing: blind again for the active key and retry the same payment.
+    let k = match tab_key_for(&app, &req.key_id) {
+        Ok(Some(k)) => k,
+        Ok(None) => {
+            return (
+                StatusCode::CONFLICT,
+                Json(serde_json::json!({
+                    "status": "rejected",
+                    "reason": reason::TAB_KEY_ROTATED,
+                    "message": format!("keyId {} is not the active tab key {}; nothing was burned: blind for the active key and retry with the same memoNonce and txid", req.key_id, active.key_id),
+                    "activeKeyId": active.key_id,
+                })),
+            )
+                .into_response()
+        }
+        Err(e) => return storage_error(e),
+    };
     let n = req.blinded.len();
     if n == 0 || n > app.cfg.tab_max_tokens as usize {
         return fail(StatusCode::BAD_REQUEST, reason::INVALID_PAYLOAD, format!("blinded must hold 1 to {} messages", app.cfg.tab_max_tokens));
@@ -1049,6 +1092,7 @@ async fn main() {
         redeem_window_secs: nonneg("X402Z_REDEEM_WINDOW_SECS", DEFAULT_REDEEM_WINDOW_SECS),
         tab_max_tokens: u32::try_from(nonneg("X402Z_TAB_MAX_TOKENS", tab::DEFAULT_MAX_TOKENS as u64)).unwrap_or(u32::MAX),
         tab_epoch_secs: nonneg("X402Z_TAB_EPOCH_SECS", tab::DEFAULT_EPOCH_SECS).max(60),
+        tab_grace_secs: nonneg("X402Z_TAB_GRACE_SECS", tab::DEFAULT_GRACE_SECS),
         trusted_proxies,
     };
     let db_path = PathBuf::from(optional("X402Z_SERVER_DB").unwrap_or_else(|| "x402z-server.sqlite".into()));
@@ -1330,6 +1374,9 @@ mod tests {
             redeem_window_secs: DEFAULT_REDEEM_WINDOW_SECS,
             tab_max_tokens: 5,
             tab_epoch_secs: tab::DEFAULT_EPOCH_SECS,
+            // No grace by default here: the epoch tests assert a retired key is dead at once;
+            // the grace period has its own test.
+            tab_grace_secs: 0,
             trusted_proxies: Vec::new(),
         };
         let store = Store::open(db).unwrap();
@@ -1854,12 +1901,55 @@ mod tests {
         let mut relabelled = old.clone();
         relabelled.key_id = new_key.key_id.clone();
         assert_eq!(body_json(spend_token(&app, &relabelled).await).await["error"], "tab token signature invalid");
-        // issuing against the old keyId is refused too
+        // issuing against the old keyId is refused too, as a retryable 409 that burns nothing
         let (offer2, nonce2) = tab_offer_and_nonce(&app).await;
         assert_eq!(offer2.key_id, new_key.key_id);
         let (_, toks2) = blind_n(&offer, 1); // blinded for the retired key
         let r = issue(&app, &nonce2, TX_OK, &offer.key_id, &toks2).await;
-        assert_eq!(r.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(r.status(), StatusCode::CONFLICT);
+        let v = body_json(r).await;
+        assert_eq!((v["reason"].as_str(), v["activeKeyId"].as_str()), (Some(reason::TAB_KEY_ROTATED), Some(new_key.key_id.as_str())));
+        assert!(app.store.get(&nonce2).unwrap().unwrap().spent_txid.is_none(), "nothing burned");
+        // ...and blinding again for the active key with the same nonce and txid works
+        let (pk2, toks3) = blind_n(&offer2, 1);
+        assert_eq!(finalize(&pk2, &toks3, issue(&app, &nonce2, TX_OK, &offer2.key_id, &toks3).await).await.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn the_previous_key_issues_and_accepts_tokens_during_its_grace_period_only() {
+        let mut a = Arc::try_unwrap(app_with_stand_in().await).ok().unwrap();
+        a.cfg.tab_grace_secs = 600;
+        let app = Arc::new(a);
+        let (offer, nonce) = tab_offer_and_nonce(&app).await;
+        assert_eq!(offer.grace_secs, 600, "the offer says how long tokens outlive the epoch");
+        let (pk, toks) = blind_n(&offer, 3);
+        let tokens = finalize(&pk, &toks, issue(&app, &nonce, TX_PAID_3X, &offer.key_id, &toks).await).await;
+        // a tab paid under the old key just before the rotation, issued just after it
+        let (_, nonce_b) = tab_offer_and_nonce(&app).await;
+        let (_, late) = blind_n(&offer, 1);
+
+        // the epoch rolls over a moment later
+        let new_key = tab::rotate(&app.store, now()).unwrap();
+        *app.tab.write().unwrap() = None;
+        assert_ne!(new_key.key_id, offer.key_id);
+        // tokens bought a minute ago still spend, once
+        assert_eq!(spend_token(&app, &tokens[0]).await.status(), StatusCode::OK);
+        assert_eq!(body_json(spend_token(&app, &tokens[0]).await).await["error"], "tab token already spent");
+        // the late tab is still issued under the old key
+        let r = issue(&app, &nonce_b, TX_OK, &offer.key_id, &late).await;
+        assert_eq!(r.status(), StatusCode::OK);
+        assert_eq!(body_json(r).await["keyId"], offer.key_id.as_str());
+
+        // once the grace period is over the old key is dead
+        app.store
+            .conn_for_tests()
+            .execute("UPDATE tab_keys SET retired_at = ?1 WHERE key_id = ?2", rusqlite::params![(now() - 601) as i64, offer.key_id])
+            .unwrap();
+        let r = spend_token(&app, &tokens[1]).await;
+        assert_eq!(r.status(), StatusCode::PAYMENT_REQUIRED);
+        assert_eq!(settlement_of(&r).error_reason.as_deref(), Some(reason::EXPIRED));
+        let (_, nonce_c) = tab_offer_and_nonce(&app).await;
+        assert_eq!(issue(&app, &nonce_c, TX_OK, &offer.key_id, &late).await.status(), StatusCode::CONFLICT);
     }
 
     #[tokio::test]
