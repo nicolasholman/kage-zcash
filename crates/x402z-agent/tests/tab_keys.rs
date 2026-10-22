@@ -134,6 +134,7 @@ fn config(ledger: &PathBuf, confirm_timeout_secs: u64) -> AgentConfig {
         agent: "tab-keys".into(),
         policy: Policy { daily_cap_zat: 10_000_000, allowed_hosts: vec!["127.0.0.1".into()], approval_threshold_zat: None },
         seed: None,
+        ledger_key: Some(x402z_agent::ledger::LedgerKey::from_bytes([3; 32])),
         birthday: None,
         lwd_url: String::new(),
         confirm_timeout_secs,
@@ -142,7 +143,7 @@ fn config(ledger: &PathBuf, confirm_timeout_secs: u64) -> AgentConfig {
 }
 
 fn audit_len(ledger: &PathBuf) -> usize {
-    x402z_agent::ledger::LedgerFile::load(ledger).unwrap().data.audit.len()
+    x402z_agent::ledger::LedgerFile::load(ledger, &x402z_agent::ledger::LedgerKey::from_bytes([3; 32])).unwrap().data.audit.len()
 }
 
 fn no_approval(_: &str, _: u64, _: u64) -> bool {
@@ -195,7 +196,7 @@ async fn a_rotated_key_at_issue_is_answered_by_blinding_again_for_the_new_key() 
     assert_eq!((b.n, b.key_id.as_str()), (3, "k1"), "the purchase is the one paid under k1");
     assert_eq!(state.lock().unwrap().issue_calls, 2, "one 409, then the same payment with new blinded messages");
     // the stored tokens are k2 tokens and the k2 server takes them
-    let stored = tab::TabFile::open(&tab::tab_path(&cfg).unwrap()).unwrap().state;
+    let stored = tab::TabFile::open(&tab::tab_path(&cfg).unwrap(), cfg.key().unwrap()).unwrap().state;
     assert!(stored.tokens.len() == 3 && stored.tokens.iter().all(|t| t.key_id == "k2"), "{:?}", stored.tokens);
     for left in [2, 1, 0] {
         assert_eq!(tab::fetch(&cfg, &url).await.unwrap().unwrap().remaining, left);

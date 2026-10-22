@@ -111,8 +111,17 @@ fn tool_error(kind: &str, message: &str) -> Value {
     text_result(&json!({ "error": kind, "message": message }), true)
 }
 
+/// The tool-error kind of `e`: missing or invalid configuration is always "setup_required".
+fn error_kind(e: &PayError) -> &'static str {
+    if matches!(e, PayError::Config(_)) {
+        "setup_required"
+    } else {
+        e.kind()
+    }
+}
+
 fn setup_required(e: &PayError) -> Value {
-    tool_error(if matches!(e, PayError::Config(_)) { "setup_required" } else { e.kind() }, e.message())
+    tool_error(error_kind(e), e.message())
 }
 
 /// Approvals can't be given through MCP; decline and say why (it lands in the ledger too).
@@ -140,7 +149,7 @@ fn paid_result(r: Result<pay::PaidFetch, PayError>) -> Value {
             }),
             false,
         ),
-        Err(e) => tool_error(e.kind(), e.message()),
+        Err(e) => tool_error(error_kind(&e), e.message()),
     }
 }
 
@@ -211,7 +220,7 @@ async fn tab_fetch(args: &Value) -> Value {
                         false,
                     );
                 }
-                Err(e) => return tool_error(e.kind(), &format!("no tab token left, and buying a tab of {size} failed: {}", e.message())),
+                Err(e) => return tool_error(error_kind(&e), &format!("no tab token left, and buying a tab of {size} failed: {}", e.message())),
             };
             bought = Some(json!({
                 "tokens": b.n, "amountZat": b.amount_zat, "txid": b.txid, "memoNonce": b.memo_nonce, "keyId": b.key_id,
@@ -220,10 +229,10 @@ async fn tab_fetch(args: &Value) -> Value {
             match tab::fetch(&cfg, url).await {
                 Ok(Some(f)) => f,
                 Ok(None) => return tool_error("runtime", "the tab was bought but no token is stored for this URL"),
-                Err(e) => return tool_error(e.kind(), e.message()),
+                Err(e) => return tool_error(error_kind(&e), e.message()),
             }
         }
-        Err(e) => return tool_error(e.kind(), e.message()),
+        Err(e) => return tool_error(error_kind(&e), e.message()),
     };
     let body = serde_json::from_str::<Value>(&fetched.body).unwrap_or(Value::String(fetched.body.clone()));
     text_result(
@@ -240,7 +249,15 @@ fn ledger_and_policy() -> Result<(LedgerFile, spendguard::Policy, String), PayEr
         .ok()
         .filter(|v| !v.trim().is_empty())
         .ok_or_else(|| PayError::Config("X402Z_AGENT_LEDGER not configured (see .env.example)".into()))?;
-    let ledger = LedgerFile::load(std::path::Path::new(path.trim())).map_err(PayError::Config)?;
+    let seed = std::env::var("X402Z_AGENT_SEED")
+        .ok()
+        .filter(|v| !v.trim().is_empty())
+        .map(|p| x402z_agent::wallet::seed_from_phrase(&p).map_err(|e| PayError::Config(format!("X402Z_AGENT_SEED invalid: {e}"))))
+        .transpose()?;
+    let key = x402z_agent::ledger::LedgerKey::from_env(seed.as_ref())
+        .map_err(PayError::Config)?
+        .ok_or_else(|| PayError::Config(x402z_agent::ledger::MISSING_KEY.into()))?;
+    let ledger = LedgerFile::load(std::path::Path::new(path.trim()), &key).map_err(PayError::Config)?;
     let policy = AgentConfig::policy_from_env()?;
     let agent = std::env::var("X402Z_AGENT_NAME").ok().filter(|v| !v.trim().is_empty()).unwrap_or_else(|| "agent-1".into());
     Ok((ledger, policy, agent))

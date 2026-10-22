@@ -6,11 +6,113 @@
 //! Concurrent agent runs serialize on an exclusive lock on `<ledger>.lock` ([`LedgerFile::lock`]):
 //! the check against the cap and the record of the broadcast happen under one lock, so two runs
 //! can't both see room under the cap and both pay.
+//!
+//! At rest the file is sealed ([`spendguard::sealed`], XChaCha20-Poly1305) under a [`LedgerKey`]:
+//! `X402Z_AGENT_LEDGER_KEY` (64 hex), or else one derived from `X402Z_AGENT_SEED`. Without
+//! either the agent stops with "Setup required". A wrong key or a changed byte is an error, never
+//! an empty ledger. The Kage Tab token file uses the same key.
 
 use std::path::{Path, PathBuf};
 
+use secrecy::{ExposeSecret, SecretVec};
 use serde::{Deserialize, Serialize};
-use spendguard::{day_of, Policy, SpendGuard, SpendRequest};
+use sha2::{Digest, Sha256};
+use spendguard::{day_of, sealed, Policy, SpendGuard, SpendRequest};
+
+/// Key that seals the ledger and the tab file at rest.
+#[derive(Clone)]
+pub struct LedgerKey([u8; 32]);
+
+impl std::fmt::Debug for LedgerKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("LedgerKey(..)")
+    }
+}
+
+impl LedgerKey {
+    pub fn from_bytes(k: [u8; 32]) -> Self {
+        Self(k)
+    }
+
+    /// `X402Z_AGENT_LEDGER_KEY`: 64 hex characters.
+    pub fn from_hex(s: &str) -> Result<Self, String> {
+        sealed::parse_key_hex(s).map(Self).map_err(|e| format!("X402Z_AGENT_LEDGER_KEY {e}"))
+    }
+
+    /// Derived from the wallet seed: SHA-256 of a fixed label and the BIP 39 seed.
+    pub fn from_seed(seed: &SecretVec<u8>) -> Self {
+        let mut h = Sha256::new();
+        h.update(b"kage x402z-agent ledger key v1");
+        h.update(seed.expose_secret());
+        Self(h.finalize().into())
+    }
+
+    /// `X402Z_AGENT_LEDGER_KEY` if set, else derived from `seed`; `None` if neither.
+    pub fn from_env(seed: Option<&SecretVec<u8>>) -> Result<Option<Self>, String> {
+        match std::env::var("X402Z_AGENT_LEDGER_KEY").ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty()) {
+            Some(hex) => Self::from_hex(&hex).map(Some),
+            None => Ok(seed.map(Self::from_seed)),
+        }
+    }
+
+    pub(crate) fn seal(&self, purpose: &str, plaintext: &[u8]) -> Vec<u8> {
+        let mut nonce = [0u8; sealed::NONCE_LEN];
+        rand::fill(&mut nonce[..]);
+        sealed::seal(&self.0, purpose, nonce, plaintext)
+    }
+
+    pub(crate) fn open(&self, purpose: &str, data: &[u8]) -> Result<Vec<u8>, sealed::SealError> {
+        sealed::open(&self.0, purpose, data)
+    }
+}
+
+/// The "Setup required" message when no ledger key is configured.
+pub const MISSING_KEY: &str = "Setup required: X402Z_AGENT_LEDGER_KEY not configured (64 hex, e.g. `openssl rand -hex 32`) and no \
+     X402Z_AGENT_SEED to derive one from. The ledger and the tab file are encrypted at rest with it.";
+
+/// Read a sealed file: missing => `None`; plaintext from an older version, a wrong key or a
+/// changed byte => an error naming `what`.
+pub(crate) fn read_sealed(path: &Path, key: &LedgerKey, purpose: &str, what: &str) -> Result<Option<Vec<u8>>, String> {
+    let raw = match std::fs::read(path) {
+        Ok(raw) => raw,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(format!("{what} unreadable ({}): {e}", path.display())),
+    };
+    match key.open(purpose, &raw) {
+        Ok(plain) => Ok(Some(plain)),
+        Err(sealed::SealError::NotSealed) if raw.first() == Some(&b'{') => Err(format!(
+            "{what} {} is plaintext JSON from before encryption at rest; run `x402z-agent seal-ledger` once to encrypt it",
+            path.display()
+        )),
+        Err(e) => Err(format!("{what} {}: {e}", path.display())),
+    }
+}
+
+/// Atomic sealed write (temp file, rename), so a crash never leaves half a file.
+pub(crate) fn write_sealed(path: &Path, key: &LedgerKey, purpose: &str, plaintext: &[u8]) -> Result<(), String> {
+    let tmp = path.with_extension("sealed.tmp");
+    std::fs::write(&tmp, key.seal(purpose, plaintext)).map_err(|e| format!("cannot write {}: {e}", tmp.display()))?;
+    std::fs::rename(&tmp, path).map_err(|e| format!("cannot replace {}: {e}", path.display()))
+}
+
+/// Encrypt a plaintext file written by an older version in place. `Ok(false)` if it is missing
+/// or already sealed.
+pub fn seal_plaintext_file(path: &Path, key: &LedgerKey, purpose: &str) -> Result<bool, String> {
+    let raw = match std::fs::read(path) {
+        Ok(raw) => raw,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(e) => return Err(format!("{} unreadable: {e}", path.display())),
+    };
+    if sealed::is_sealed(&raw) {
+        return Ok(false);
+    }
+    serde_json::from_slice::<serde_json::Value>(&raw).map_err(|e| format!("{} is neither sealed nor JSON: {e}", path.display()))?;
+    write_sealed(path, key, purpose, &raw)?;
+    Ok(true)
+}
+
+/// Sealed-file purpose of the ledger.
+pub const LEDGER_PURPOSE: &str = sealed::LEDGER_PURPOSE;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -68,6 +170,7 @@ pub struct LedgerLock {
 
 pub struct LedgerFile {
     path: PathBuf,
+    key: LedgerKey,
     pub data: Ledger,
 }
 
@@ -85,23 +188,21 @@ impl LedgerFile {
         Ok(LedgerLock { _file: file })
     }
 
-    /// A missing file starts an empty ledger; an unreadable or invalid one is an error.
-    pub fn load(path: &Path) -> Result<Self, String> {
-        let data = match std::fs::read(path) {
-            Ok(raw) => serde_json::from_slice(&raw)
+    /// A missing file starts an empty ledger; an unreadable, invalid, plaintext or tampered one,
+    /// or the wrong key, is an error.
+    pub fn load(path: &Path, key: &LedgerKey) -> Result<Self, String> {
+        let data = match read_sealed(path, key, LEDGER_PURPOSE, "X402Z_AGENT_LEDGER")? {
+            None => Ledger::default(),
+            Some(raw) => serde_json::from_slice(&raw)
                 .map_err(|e| format!("X402Z_AGENT_LEDGER is not valid ledger JSON ({}): {e}", path.display()))?,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ledger::default(),
-            Err(e) => return Err(format!("X402Z_AGENT_LEDGER unreadable ({}): {e}", path.display())),
         };
-        Ok(Self { path: path.to_path_buf(), data })
+        Ok(Self { path: path.to_path_buf(), key: key.clone(), data })
     }
 
-    /// Atomic replace (write temp file, rename), so a crash never leaves half a ledger.
+    /// Sealed atomic replace, so a crash never leaves half a ledger.
     pub fn save(&self) -> Result<(), String> {
-        let tmp = self.path.with_extension("json.tmp");
-        let raw = serde_json::to_vec_pretty(&self.data).map_err(|e| e.to_string())?;
-        std::fs::write(&tmp, raw).map_err(|e| format!("cannot write {}: {e}", tmp.display()))?;
-        std::fs::rename(&tmp, &self.path).map_err(|e| format!("cannot replace {}: {e}", self.path.display()))
+        let raw = serde_json::to_vec(&self.data).map_err(|e| e.to_string())?;
+        write_sealed(&self.path, &self.key, LEDGER_PURPOSE, &raw)
     }
 
     /// Paid (broadcast) amounts for `agent` on the UTC day of `now`.
@@ -206,10 +307,14 @@ mod tests {
         p
     }
 
+    fn k() -> LedgerKey {
+        LedgerKey::from_bytes([42; 32])
+    }
+
     #[test]
     fn cap_survives_restarts_via_paid_audit_entries() {
         let path = tmp("cap");
-        let mut l = LedgerFile::load(&path).unwrap();
+        let mut l = LedgerFile::load(&path, &k()).unwrap();
         assert!(l.data.audit.is_empty());
         l.append(entry(DAY0 - 10, 200_000, Some("aa"))); // yesterday: does not count
         l.append(entry(DAY0 + 5, 100_000, Some("bb")));
@@ -217,7 +322,7 @@ mod tests {
         l.append(entry(DAY0 + 7, 100_000, None)); // allowed but never broadcast: does not count
         l.save().unwrap();
 
-        let l = LedgerFile::load(&path).unwrap();
+        let l = LedgerFile::load(&path, &k()).unwrap();
         let g = l.guard("agent-1", &policy(), DAY0 + 100);
         assert_eq!(g.spent_today("agent-1", DAY0 + 100), 200_000);
         let req = |amt| SpendRequest { agent: "agent-1", host: "127.0.0.1:4020", amount_zat: amt, now_unix: DAY0 + 100 };
@@ -233,7 +338,7 @@ mod tests {
 
     #[test]
     fn replay_does_not_bypass_allowlist() {
-        let l = LedgerFile::load(&tmp("allow")).unwrap();
+        let l = LedgerFile::load(&tmp("allow"), &k()).unwrap();
         let g = l.guard("agent-1", &policy(), DAY0);
         let r = SpendRequest { agent: "agent-1", host: "replay.local", amount_zat: 1, now_unix: DAY0 };
         assert!(matches!(g.check(&r), Decision::Deny(Denial::HostNotAllowed { .. })));
@@ -243,8 +348,11 @@ mod tests {
     fn invalid_ledger_is_an_error_not_a_reset() {
         let path = tmp("bad");
         std::fs::write(&path, b"{not json").unwrap();
-        let e = LedgerFile::load(&path).err().unwrap();
+        let e = LedgerFile::load(&path, &k()).err().unwrap();
         assert!(e.contains("X402Z_AGENT_LEDGER"), "{e}");
+        // valid JSON sealed under the right key but not a ledger is an error too
+        write_sealed(&path, &k(), LEDGER_PURPOSE, b"[1,2]").unwrap();
+        assert!(LedgerFile::load(&path, &k()).err().unwrap().contains("not valid ledger JSON"));
         let _ = std::fs::remove_file(&path);
     }
 
@@ -252,7 +360,7 @@ mod tests {
     fn concurrent_runs_cannot_both_pass_the_cap() {
         // Cap 250k with 200k already paid today: room for exactly one more 50k payment.
         let path = tmp("race");
-        let mut l = LedgerFile::load(&path).unwrap();
+        let mut l = LedgerFile::load(&path, &k()).unwrap();
         l.append(entry(DAY0 + 1, 200_000, Some("aa")));
         l.save().unwrap();
 
@@ -264,7 +372,7 @@ mod tests {
                     barrier.wait();
                     // What `x402z-agent pay` does: lock, load, check, pay, record, unlock.
                     let _lock = LedgerFile::lock(&path).unwrap();
-                    let mut l = LedgerFile::load(&path).unwrap();
+                    let mut l = LedgerFile::load(&path, &k()).unwrap();
                     let now = DAY0 + 10;
                     let g = l.guard("agent-1", &policy(), now);
                     let req = SpendRequest { agent: "agent-1", host: "127.0.0.1:4020", amount_zat: 50_000, now_unix: now };
@@ -280,7 +388,7 @@ mod tests {
             .collect();
         let paid = runs.into_iter().map(|h| h.join().unwrap()).filter(|p| *p).count();
         assert_eq!(paid, 1, "exactly one run may pay");
-        let l = LedgerFile::load(&path).unwrap();
+        let l = LedgerFile::load(&path, &k()).unwrap();
         assert_eq!(l.guard("agent-1", &policy(), DAY0 + 10).spent_today("agent-1", DAY0 + 10), 250_000);
         let _ = std::fs::remove_file(&path);
         let _ = std::fs::remove_file(path.with_extension("json.lock"));
@@ -288,7 +396,7 @@ mod tests {
 
     #[test]
     fn unresolved_payments_are_found_per_url_until_settled_or_stale() {
-        let mut l = LedgerFile::load(&tmp("resume")).unwrap();
+        let mut l = LedgerFile::load(&tmp("resume"), &k()).unwrap();
         let mut paid = entry(DAY0, 100_000, Some("tx1"));
         paid.memo_nonce = Some("x402z-1".into());
         paid.url = Some("http://127.0.0.1:4020/api/quote".into());
@@ -308,8 +416,61 @@ mod tests {
     }
 
     #[test]
+    fn the_ledger_is_sealed_at_rest_and_survives_a_restart() {
+        let path = tmp("sealed");
+        let mut l = LedgerFile::load(&path, &k()).unwrap();
+        let mut e = entry(DAY0, 300_000, Some("d3bf0b49408fed118fe9e1241239d983"));
+        e.host = "api.example.org:4020".into();
+        e.memo_nonce = Some("x402z-58712c3f95459bb9".into());
+        l.append(e);
+        l.save().unwrap();
+        // `strings` on the file shows none of it
+        let raw = std::fs::read(&path).unwrap();
+        for needle in ["api.example.org", "d3bf0b49", "x402z-", "agent-1", "audit", "300000"] {
+            assert!(!raw.windows(needle.len()).any(|w| w == needle.as_bytes()), "{needle} readable on disk");
+        }
+        // restart: same key reads it back
+        let l = LedgerFile::load(&path, &k()).unwrap();
+        assert_eq!(l.data.audit[0].host, "api.example.org:4020");
+        assert_eq!(l.guard("agent-1", &policy(), DAY0 + 5).spent_today("agent-1", DAY0 + 5), 300_000);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn a_wrong_key_a_changed_byte_or_an_old_plaintext_ledger_is_refused_not_reset() {
+        let path = tmp("refuse");
+        let mut l = LedgerFile::load(&path, &k()).unwrap();
+        l.append(entry(DAY0, 200_000, Some("aa")));
+        l.save().unwrap();
+        let e = LedgerFile::load(&path, &LedgerKey::from_bytes([43; 32])).err().unwrap();
+        assert!(e.contains("wrong key, or the file was changed"), "{e}");
+        let mut raw = std::fs::read(&path).unwrap();
+        let mid = raw.len() / 2;
+        raw[mid] ^= 0x40;
+        std::fs::write(&path, &raw).unwrap();
+        assert!(LedgerFile::load(&path, &k()).err().unwrap().contains("wrong key, or the file was changed"));
+        // a plaintext ledger from before encryption: refused with the migration command named...
+        std::fs::write(&path, br#"{"agents":[],"audit":[{"ts":1,"agent":"a","host":"h","amountZat":5,"decision":"allowed","txid":"bb"}]}"#).unwrap();
+        assert!(LedgerFile::load(&path, &k()).err().unwrap().contains("x402z-agent seal-ledger"));
+        // ...which seals it in place, once
+        assert!(seal_plaintext_file(&path, &k(), LEDGER_PURPOSE).unwrap());
+        assert!(!seal_plaintext_file(&path, &k(), LEDGER_PURPOSE).unwrap());
+        assert_eq!(LedgerFile::load(&path, &k()).unwrap().data.audit[0].txid.as_deref(), Some("bb"));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn the_key_comes_from_the_env_or_the_seed() {
+        let seed = SecretVec::new(vec![1u8; 64]);
+        let a = LedgerKey::from_seed(&seed);
+        assert_eq!(a.0, LedgerKey::from_seed(&SecretVec::new(vec![1u8; 64])).0, "deterministic");
+        assert_ne!(a.0, LedgerKey::from_seed(&SecretVec::new(vec![2u8; 64])).0);
+        assert!(LedgerKey::from_hex("nothex").unwrap_err().contains("X402Z_AGENT_LEDGER_KEY"));
+    }
+
+    #[test]
     fn upsert_and_dashboard_shape() {
-        let mut l = LedgerFile::load(&tmp("shape")).unwrap();
+        let mut l = LedgerFile::load(&tmp("shape"), &k()).unwrap();
         l.upsert_agent("agent-1", &policy(), 10);
         l.upsert_agent("agent-1", &policy(), 20);
         l.append(entry(DAY0, 5, Some("dd")));

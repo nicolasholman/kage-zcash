@@ -101,6 +101,9 @@ struct Config {
     /// Bearer token the facilitator requires on `/settle` (`X402Z_FACILITATOR_TOKEN`).
     facilitator_token: String,
     agent_ledger: Option<String>,
+    /// Key the agent sealed that ledger with (`X402Z_DEMO_AGENT_LEDGER_KEY`, the agent's
+    /// `X402Z_AGENT_LEDGER_KEY`); without it the demo panel shows "Setup required".
+    agent_ledger_key: Option<[u8; 32]>,
     /// Receipts with fewer confirmations are refused (0 = accept mempool-only payments).
     min_confirmations: u32,
     /// A payment mined up to this long after `expiresAt` still counts.
@@ -931,19 +934,28 @@ async fn events(State(app): State<Arc<App>>, Query(q): Query<Since>) -> Json<Vec
 }
 
 /// The agent ledger is the *payer's* file, written by `x402z-agent` (spendguard state + audit
-/// trail). A merchant has no business reading it, so the dashboard shows it only when
-/// `X402Z_DEMO_AGENT_LEDGER` names it (payer and merchant on one machine, for a demo). Unset =>
-/// `hidden`; set but unreadable => a red banner naming the problem.
-fn read_ledger(path: Option<&str>) -> serde_json::Value {
+/// trail) and sealed at rest. A merchant has no business reading it, so the dashboard shows it
+/// only when `X402Z_DEMO_AGENT_LEDGER` names it and `X402Z_DEMO_AGENT_LEDGER_KEY` holds the
+/// agent's key (payer and merchant on one machine, for a demo). Unset => `hidden`; set but
+/// unreadable, keyless or not openable => a red banner naming the problem.
+fn read_ledger(path: Option<&str>, key: Option<&[u8; 32]>) -> serde_json::Value {
     let Some(path) = path else {
         return serde_json::json!({ "hidden": "merchant view: the payer's spendguard ledger is not shown (set X402Z_DEMO_AGENT_LEDGER for a one-machine demo)" });
     };
-    match std::fs::read(path) {
-        Err(e) => serde_json::json!({ "error": format!("X402Z_DEMO_AGENT_LEDGER unreadable ({path}): {e}") }),
-        Ok(raw) => match serde_json::from_slice::<serde_json::Value>(&raw) {
-            Err(e) => serde_json::json!({ "error": format!("X402Z_DEMO_AGENT_LEDGER is not valid JSON ({path}): {e}") }),
-            Ok(v) => serde_json::json!({ "data": v }),
-        },
+    let Some(key) = key else {
+        return serde_json::json!({ "error": "Setup required: X402Z_DEMO_AGENT_LEDGER_KEY not configured; the agent ledger is encrypted at rest, give the dashboard the agent's X402Z_AGENT_LEDGER_KEY" });
+    };
+    let raw = match std::fs::read(path) {
+        Err(e) => return serde_json::json!({ "error": format!("X402Z_DEMO_AGENT_LEDGER unreadable ({path}): {e}") }),
+        Ok(raw) => raw,
+    };
+    let plain = match spendguard::sealed::open(key, spendguard::sealed::LEDGER_PURPOSE, &raw) {
+        Err(e) => return serde_json::json!({ "error": format!("X402Z_DEMO_AGENT_LEDGER {path}: {e}") }),
+        Ok(p) => p,
+    };
+    match serde_json::from_slice::<serde_json::Value>(&plain) {
+        Err(e) => serde_json::json!({ "error": format!("X402Z_DEMO_AGENT_LEDGER is not valid JSON ({path}): {e}") }),
+        Ok(v) => serde_json::json!({ "data": v }),
     }
 }
 
@@ -973,7 +985,7 @@ async fn status(State(app): State<Arc<App>>) -> Json<serde_json::Value> {
         "facilitator": facilitator,
         "receiptKey": hex::encode(app.cfg.receipt_key.as_bytes()),
         "openChallenges": open,
-        "ledger": read_ledger(app.cfg.agent_ledger.as_deref()),
+        "ledger": read_ledger(app.cfg.agent_ledger.as_deref(), app.cfg.agent_ledger_key.as_ref()),
     }))
 }
 
@@ -1087,6 +1099,12 @@ async fn main() {
         facilitator_url,
         facilitator_token,
         agent_ledger: optional("X402Z_DEMO_AGENT_LEDGER"),
+        agent_ledger_key: optional("X402Z_DEMO_AGENT_LEDGER_KEY").map(|k| {
+            spendguard::sealed::parse_key_hex(&k).unwrap_or_else(|e| {
+                eprintln!("error: X402Z_DEMO_AGENT_LEDGER_KEY {e}");
+                exit(2);
+            })
+        }),
         min_confirmations,
         expiry_grace_secs: nonneg("X402Z_EXPIRY_GRACE_SECS", DEFAULT_EXPIRY_GRACE_SECS),
         redeem_window_secs: nonneg("X402Z_REDEEM_WINDOW_SECS", DEFAULT_REDEEM_WINDOW_SECS),
@@ -1369,6 +1387,7 @@ mod tests {
             facilitator_url: "http://127.0.0.1:9".into(),
             facilitator_token: STAND_IN_TOKEN.into(),
             agent_ledger: None,
+            agent_ledger_key: None,
             min_confirmations: 1,
             expiry_grace_secs: GRACE,
             redeem_window_secs: DEFAULT_REDEEM_WINDOW_SECS,
@@ -2150,6 +2169,23 @@ mod tests {
         assert_eq!(r.status(), StatusCode::BAD_GATEWAY);
         assert!(body_json(r).await["error"].as_str().unwrap().contains("X402Z_FACILITATOR_TOKEN"));
         assert_eq!(open_nonces(&app), vec![nonce]);
+    }
+
+    #[test]
+    fn the_demo_panel_opens_the_sealed_agent_ledger_only_with_its_key() {
+        let path = std::env::temp_dir().join(format!("x402z-server-{}-demo-ledger", std::process::id()));
+        let key = [0x33u8; 32];
+        let sealed = spendguard::sealed::seal(&key, spendguard::sealed::LEDGER_PURPOSE, [1; 24], br#"{"agents":[{"agent":"a1"}],"audit":[]}"#);
+        std::fs::write(&path, &sealed).unwrap();
+        let p = path.to_str().unwrap();
+        assert_eq!(read_ledger(Some(p), Some(&key))["data"]["agents"][0]["agent"], "a1");
+        assert!(read_ledger(Some(p), None)["error"].as_str().unwrap().starts_with("Setup required: X402Z_DEMO_AGENT_LEDGER_KEY"));
+        assert!(read_ledger(Some(p), Some(&[0x34; 32]))["error"].as_str().unwrap().contains("wrong key"));
+        std::fs::write(&path, br#"{"agents":[],"audit":[]}"#).unwrap(); // a plaintext file is not shown either
+        assert!(read_ledger(Some(p), Some(&key))["error"].as_str().unwrap().contains("not a sealed file"));
+        assert!(read_ledger(Some("/nonexistent/ledger"), Some(&key))["error"].as_str().unwrap().contains("unreadable"));
+        assert!(read_ledger(None, Some(&key)).get("hidden").is_some());
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]

@@ -20,7 +20,7 @@ use x402z_protocol::{
 use zcash_protocol::consensus::BlockHeight;
 
 use crate::{
-    ledger::{AuditEntry, LedgerFile},
+    ledger::{AuditEntry, LedgerFile, LedgerKey},
     wallet,
 };
 
@@ -81,6 +81,8 @@ pub struct AgentConfig {
     pub agent: String,
     pub policy: Policy,
     pub seed: Option<SecretVec<u8>>,
+    /// Seals the ledger and the tab file (`X402Z_AGENT_LEDGER_KEY`, else derived from the seed).
+    pub ledger_key: Option<LedgerKey>,
     pub birthday: Option<u32>,
     pub lwd_url: String,
     pub confirm_timeout_secs: u64,
@@ -110,17 +112,24 @@ impl AgentConfig {
         let seed = optional("X402Z_AGENT_SEED")
             .map(|p| wallet::seed_from_phrase(&p).map_err(|e| PayError::Config(format!("X402Z_AGENT_SEED invalid: {e}"))))
             .transpose()?;
+        let ledger_key = LedgerKey::from_env(seed.as_ref()).map_err(PayError::Config)?;
         Ok(Self {
             ledger_path: optional("X402Z_AGENT_LEDGER").map(PathBuf::from),
             wallet_dir: PathBuf::from(require("X402Z_AGENT_WALLET_DIR")?),
             agent: optional("X402Z_AGENT_NAME").unwrap_or_else(|| "agent-1".into()),
             policy: Self::policy_from_env()?,
             seed,
+            ledger_key,
             birthday: parse_u64("X402Z_AGENT_BIRTHDAY")?.map(|h| h as u32),
             lwd_url: optional("ZCASH_LWD_URL").unwrap_or_else(|| lwd::DEFAULT_LWD_URL.to_string()),
             confirm_timeout_secs: parse_u64("X402Z_AGENT_CONFIRM_TIMEOUT_SECS")?.unwrap_or(900),
             poll_secs: 15,
         })
+    }
+
+    /// The ledger key, or "Setup required".
+    pub fn key(&self) -> Result<&LedgerKey, PayError> {
+        self.ledger_key.as_ref().ok_or_else(|| PayError::Config(crate::ledger::MISSING_KEY.into()))
     }
 
     pub fn policy_from_env() -> Result<Policy, PayError> {
@@ -308,8 +317,9 @@ pub fn spendguard_gate(
         .ledger_path
         .as_ref()
         .ok_or_else(|| PayError::Config("X402Z_AGENT_LEDGER not configured: spendguard needs it to enforce the daily cap. Not paying.".into()))?;
+    let key = cfg.key()?;
     let lock = LedgerFile::lock(ledger_path).map_err(PayError::Config)?;
-    let mut ledger = LedgerFile::load(ledger_path).map_err(PayError::Config)?;
+    let mut ledger = LedgerFile::load(ledger_path, key).map_err(PayError::Config)?;
     let agent = cfg.agent.as_str();
     let policy = &cfg.policy;
     let t = now();
@@ -490,16 +500,16 @@ pub async fn redeem_payment(cfg: &AgentConfig, url: &str, txid: &str, memo_nonce
 }
 
 fn ledger_entry(cfg: &AgentConfig, txid: &str) -> Option<AuditEntry> {
-    let l = LedgerFile::load(cfg.ledger_path.as_ref()?).ok()?;
+    let l = LedgerFile::load(cfg.ledger_path.as_ref()?, cfg.ledger_key.as_ref()?).ok()?;
     l.data.audit.iter().rev().find(|e| e.txid.as_deref() == Some(txid)).cloned()
 }
 
 /// Write the server's final answer for `txid` into the ledger (best effort: the answer itself
 /// is what the caller gets either way).
 fn mark_settled(cfg: &AgentConfig, txid: &str, settled: bool) {
-    let Some(path) = cfg.ledger_path.as_ref() else { return };
+    let (Some(path), Some(key)) = (cfg.ledger_path.as_ref(), cfg.ledger_key.as_ref()) else { return };
     let result = LedgerFile::lock(path).and_then(|_lock| {
-        let mut l = LedgerFile::load(path)?;
+        let mut l = LedgerFile::load(path, key)?;
         if l.mark_settled(txid, settled) {
             l.save()?;
         }
@@ -517,7 +527,7 @@ async fn fetch_or_pay(cfg: &AgentConfig, url: &str, approve: &(dyn Fn(&str, u64,
     // 0. A payment for this URL that was broadcast and never settled is presented again; paying
     //    a second time would only be a second payment for the same thing.
     if let Some(path) = cfg.ledger_path.as_ref() {
-        let ledger = LedgerFile::load(path).map_err(PayError::Config)?;
+        let ledger = LedgerFile::load(path, cfg.key()?).map_err(PayError::Config)?;
         if let Some(e) = ledger.unresolved_payment(&cfg.agent, url, now()) {
             let (txid, nonce) = (e.txid.clone().unwrap_or_default(), e.memo_nonce.clone().unwrap_or_default());
             eprintln!("resuming tx {txid} (memo {nonce}) for {url}: broadcast earlier and not settled yet; not paying again");
@@ -654,6 +664,7 @@ mod tests {
             agent: "gate-test".into(),
             policy: Policy { daily_cap_zat: 1_000_000, allowed_hosts: vec!["127.0.0.1:4020".into()], approval_threshold_zat: None },
             seed: None,
+            ledger_key: Some(LedgerKey::from_bytes([9; 32])),
             birthday: None,
             lwd_url: String::new(),
             confirm_timeout_secs: 60,
@@ -662,7 +673,7 @@ mod tests {
     }
 
     fn spent_and_last(cfg: &AgentConfig) -> (u64, AuditEntry) {
-        let l = LedgerFile::load(cfg.ledger_path.as_ref().unwrap()).unwrap();
+        let l = LedgerFile::load(cfg.ledger_path.as_ref().unwrap(), cfg.key().unwrap()).unwrap();
         (l.guard(&cfg.agent, &cfg.policy, now()).spent_today(&cfg.agent, now()), l.data.audit.last().unwrap().clone())
     }
 

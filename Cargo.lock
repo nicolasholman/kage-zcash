@@ -3093,6 +3093,9 @@ dependencies = [
 [[package]]
 name = "spendguard"
 version = "0.1.0"
+dependencies = [
+ "chacha20poly1305",
+]
 
 [[package]]
 name = "spin"
@@ -3887,6 +3890,7 @@ dependencies = [
  "secrecy",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "spendguard",
  "tokio",
  "tonic",
@@ -3965,6 +3969,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
+ "spendguard",
  "tokio",
  "tower",
  "x402z-protocol",

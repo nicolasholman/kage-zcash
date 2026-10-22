@@ -32,7 +32,8 @@ UIVK=$(grep -o 'uivktest1[a-z0-9]\{100,\}' README.md | head -1)
 UA=$($BIN/examples/check_uivk address "$UIVK")
 # A fresh receipt key and facilitator token for this run only; the secrets stay in 0600 files and
 # are never printed.
-( umask 077; $BIN/x402z-facilitator keygen > "$RUN/receipt.env"; echo "X402Z_FACILITATOR_TOKEN=$(openssl rand -hex 32)" > "$RUN/token.env" )
+( umask 077; $BIN/x402z-facilitator keygen > "$RUN/receipt.env"; echo "X402Z_FACILITATOR_TOKEN=$(openssl rand -hex 32)" > "$RUN/token.env"
+  k=$(openssl rand -hex 32); echo "X402Z_AGENT_LEDGER_KEY=$k" > "$RUN/agent-key.env"; echo "X402Z_DEMO_AGENT_LEDGER_KEY=$k" > "$RUN/demo-key.env" )
 PUB=$(sed -n 's/^X402Z_RECEIPT_PUBKEY=//p' "$RUN/receipt.env")
 
 start() { # name logfile cmd...
@@ -45,18 +46,20 @@ start facilitator env X402Z_MERCHANT_UIVK="$UIVK" X402Z_FACILITATOR_BIND=127.0.0
   X402Z_FACILITATOR_DB="$RUN/facilitator.sqlite" \
   bash -c 'set -a; . "$0"; . "$1"; set +a; exec "$2"' "$RUN/receipt.env" "$RUN/token.env" "$BIN/x402z-facilitator"
 
-server() { # name public-port admin-port extra-env...
-  local name=$1 port=$2 admin=$3; shift 3
+server() { # name public-port admin-port extra-env-file extra-env...
+  local name=$1 port=$2 admin=$3 envfile=$4; shift 4
   start "$name" env X402Z_MERCHANT_UA="$UA" X402Z_RECEIPT_PUBKEY="$PUB" X402Z_FACILITATOR_URL=http://127.0.0.1:4021 \
     X402Z_BIND=127.0.0.1:$port X402Z_ADMIN_BIND=127.0.0.1:$admin X402Z_SERVER_DB="$RUN/$name.sqlite" \
     X402Z_CHALLENGE_RATE_PER_MIN=200 "$@" \
-    bash -c 'set -a; . "$0"; set +a; exec "$1"' "$RUN/token.env" "$BIN/x402z-server"
+    bash -c 'set -a; . "$0"; . "$1"; set +a; exec "$2"' "$RUN/token.env" "$envfile" "$BIN/x402z-server"
 }
-server server 4020 4120
-server server-nofac 4030 4130 X402Z_FACILITATOR_URL=http://127.0.0.1:4039
-server server-ledger 4040 4140 X402Z_DEMO_AGENT_LEDGER="$PWD/$RUN/agent-ledger.json"
-server server-badledger 4041 4141 X402Z_DEMO_AGENT_LEDGER="$PWD/$RUN/no-such-ledger.json"
-server server-ratelimit 4042 4142 X402Z_CHALLENGE_RATE_PER_MIN=1
+NOENV=/dev/null
+# The demo-ledger servers get the agent's ledger key (the ledger is sealed at rest).
+server server 4020 4120 $NOENV
+server server-nofac 4030 4130 $NOENV X402Z_FACILITATOR_URL=http://127.0.0.1:4039
+server server-ledger 4040 4140 "$RUN/demo-key.env" X402Z_DEMO_AGENT_LEDGER="$PWD/$RUN/agent-ledger.json"
+server server-badledger 4041 4141 "$RUN/demo-key.env" X402Z_DEMO_AGENT_LEDGER="$PWD/$RUN/no-such-ledger.json"
+server server-ratelimit 4042 4142 $NOENV X402Z_CHALLENGE_RATE_PER_MIN=1
 start landing node e2e/serve-landing.mjs 4050
 
 wait_http() { for _ in $(seq 1 100); do curl -fs -o /dev/null "$1" && return 0; sleep 0.3; done; echo "error: $1 never came up" >&2; return 1; }
@@ -67,7 +70,8 @@ for _ in $(seq 1 100); do grep -q "listening" "$RUN/facilitator.log" 2>/dev/null
 # Real spendguard decisions for the ledger panel: the agent asks the 4040 server for a 402, and
 # spendguard refuses before any wallet is opened (no seed is set, nothing is built or broadcast).
 agent() { env X402Z_TARGET_URL=http://127.0.0.1:4040/api/quote X402Z_AGENT_LEDGER="$RUN/agent-ledger.json" \
-  X402Z_AGENT_WALLET_DIR="$RUN/wallet" X402Z_AGENT_NAME=e2e-agent "$@" "$BIN/x402z-agent" >> "$RUN/agent.log" 2>&1 || echo "agent exit $?" >> "$RUN/agent.log"; }
+  X402Z_AGENT_WALLET_DIR="$RUN/wallet" X402Z_AGENT_NAME=e2e-agent "$@" \
+  bash -c 'set -a; . "$0"; set +a; exec "$1"' "$RUN/agent-key.env" "$BIN/x402z-agent" >> "$RUN/agent.log" 2>&1 || echo "agent exit $?" >> "$RUN/agent.log"; }
 agent X402Z_AGENT_ALLOWED_HOSTS=127.0.0.1 X402Z_AGENT_DAILY_CAP_ZAT=50000
 agent X402Z_AGENT_ALLOWED_HOSTS=api.example.org X402Z_AGENT_DAILY_CAP_ZAT=50000
 

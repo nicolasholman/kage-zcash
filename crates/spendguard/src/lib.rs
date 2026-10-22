@@ -9,6 +9,10 @@
 //!
 //! Days are UTC days (unix seconds / 86400). All amounts are zatoshi (u64);
 //! sums use checked arithmetic so an overflow is a denial, never a wrap.
+//!
+//! [`sealed`] is the at-rest format of the agent's ledger and tab file.
+
+pub mod sealed;
 
 use std::collections::HashMap;
 use std::fmt;

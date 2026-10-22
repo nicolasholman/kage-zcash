@@ -10,10 +10,11 @@
 //! - [`start_external`] + [`finish_external`]: the agent prints a ZIP 321 URI for `n * unit` with
 //!   the challenge nonce as memo, any wallet pays it, and the txid is handed back.
 //!
-//! Tokens are bearer secrets and live in a local JSON file (`X402Z_AGENT_TAB_FILE`, default
-//! `<X402Z_AGENT_LEDGER>.tab.json`), guarded by an exclusive lock on `<file>.lock`. A token is
-//! removed from the file *before* it is sent, so two runs can't both send it; it is put back only
-//! if the request never reached the server. Nothing here prints to stdout.
+//! Tokens are bearer secrets and live in a local file (`X402Z_AGENT_TAB_FILE`, default
+//! `<X402Z_AGENT_LEDGER>.tab.json`), sealed at rest with the ledger key (XChaCha20-Poly1305) and
+//! guarded by an exclusive lock on `<file>.lock`. A token is removed from the file *before* it is
+//! sent, so two runs can't both send it; it is put back only if the request never reached the
+//! server. Nothing here prints to stdout.
 
 use std::{
     path::{Path, PathBuf},
@@ -27,7 +28,13 @@ use x402z_protocol::{
     TabIssueRequest, TabIssueResponse, TabOffer, TabPayload, PAYMENT_HEADER, TAB_SCHEME, TAB_SUITE,
 };
 
-use crate::pay::{self, now, AgentConfig, PayError};
+use crate::{
+    ledger::{read_sealed, write_sealed, LedgerKey},
+    pay::{self, now, AgentConfig, PayError},
+};
+
+/// Sealed-file purpose of the tab token file.
+pub const TAB_PURPOSE: &str = spendguard::sealed::TAB_PURPOSE;
 
 type Pk = PublicKey<Sha384, PSS, Randomized>;
 
@@ -94,12 +101,13 @@ pub struct TabState {
 /// The token file, loaded under its lock (released on drop).
 pub struct TabFile {
     path: PathBuf,
+    key: LedgerKey,
     _lock: std::fs::File,
     pub state: TabState,
 }
 
 impl TabFile {
-    pub fn open(path: &Path) -> Result<Self, PayError> {
+    pub fn open(path: &Path, key: &LedgerKey) -> Result<Self, PayError> {
         let lock_path = path.with_extension("json.lock");
         let lock = std::fs::OpenOptions::new()
             .create(true)
@@ -108,21 +116,18 @@ impl TabFile {
             .open(&lock_path)
             .map_err(|e| PayError::Config(format!("cannot open tab lock {}: {e}", lock_path.display())))?;
         lock.lock().map_err(|e| PayError::Config(format!("cannot lock {}: {e}", lock_path.display())))?;
-        let state = match std::fs::read(path) {
-            Ok(raw) => serde_json::from_slice(&raw)
+        let state = match read_sealed(path, key, TAB_PURPOSE, "tab file").map_err(PayError::Config)? {
+            None => TabState::default(),
+            Some(raw) => serde_json::from_slice(&raw)
                 .map_err(|e| PayError::Config(format!("tab file {} is not valid JSON: {e}", path.display())))?,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => TabState::default(),
-            Err(e) => return Err(PayError::Config(format!("tab file {} unreadable: {e}", path.display()))),
         };
-        Ok(Self { path: path.to_path_buf(), _lock: lock, state })
+        Ok(Self { path: path.to_path_buf(), key: key.clone(), _lock: lock, state })
     }
 
-    /// Atomic replace, so a crash never leaves half a token file.
+    /// Sealed atomic replace, so a crash never leaves half a token file.
     pub fn save(&self) -> Result<(), PayError> {
-        let tmp = self.path.with_extension("json.tmp");
-        let raw = serde_json::to_vec_pretty(&self.state).map_err(|e| PayError::Runtime(e.to_string()))?;
-        std::fs::write(&tmp, raw).map_err(|e| PayError::Runtime(format!("cannot write {}: {e}", tmp.display())))?;
-        std::fs::rename(&tmp, &self.path).map_err(|e| PayError::Runtime(format!("cannot replace {}: {e}", self.path.display())))
+        let raw = serde_json::to_vec(&self.state).map_err(|e| PayError::Runtime(e.to_string()))?;
+        write_sealed(&self.path, &self.key, TAB_PURPOSE, &raw).map_err(PayError::Runtime)
     }
 
     /// Spendable tokens for `origin` (epoch plus grace not over).
@@ -184,7 +189,7 @@ fn check_offer_life(offer: &TabOffer, now_unix: u64, confirm_timeout_secs: u64) 
 async fn accepted_offer(cfg: &AgentConfig, http: &reqwest::Client, url: &str) -> Result<(PaymentRequired, TabOffer), PayError> {
     let (ch, offer) = fetch_offer(http, url).await?;
     check_offer_life(&offer, now(), cfg.confirm_timeout_secs)?;
-    let mut f = TabFile::open(&tab_path(cfg)?)?;
+    let mut f = TabFile::open(&tab_path(cfg)?, cfg.key()?)?;
     f.pin_key(&origin_of(url)?, &offer, now())?;
     f.save()?;
     Ok((ch, offer))
@@ -394,7 +399,7 @@ async fn issue_and_store(
             sig: b64(&sig),
         });
     }
-    let mut f = TabFile::open(&tab_path(cfg)?)?;
+    let mut f = TabFile::open(&tab_path(cfg)?, cfg.key()?)?;
     f.state.tokens.extend(tokens);
     f.state.pending.retain(|p| p.memo_nonce != memo_nonce);
     f.save()?;
@@ -423,7 +428,7 @@ pub async fn buy_or_resume(cfg: &AgentConfig, url: &str, n: u32, approve: &(dyn 
     let origin = origin_of(url)?;
     let tab_file = tab_path(cfg)?;
     let http = pay::http_client()?;
-    let paid_earlier = TabFile::open(&tab_file)?
+    let paid_earlier = TabFile::open(&tab_file, cfg.key()?)?
         .state
         .pending
         .iter()
@@ -437,7 +442,7 @@ pub async fn buy_or_resume(cfg: &AgentConfig, url: &str, n: u32, approve: &(dyn 
     let (ch, offer) = accepted_offer(cfg, &http, url).await?;
     let amount = check_n(&offer, n)?;
     eprintln!("tab offer: key {} at {} zat a token; buying {n} for {amount} zat (memo {})", offer.key_id, offer.unit_price_zat, ch.memo_nonce);
-    drop(TabFile::open(&tab_file)?); // fail on an unusable token file before paying
+    drop(TabFile::open(&tab_file, cfg.key()?)?); // fail on an unusable token file before paying
     let gate = pay::spendguard_gate(cfg, &host, amount, &ch.memo_nonce, approve)?;
     let txid = pay::pay_from_agent_wallet(cfg, gate, &ch.pay_to, amount, &ch.memo_nonce).await?;
     // Remember the paid purchase before asking for the tokens, so a timeout or a crash can't
@@ -454,7 +459,7 @@ pub async fn buy_or_resume(cfg: &AgentConfig, url: &str, n: u32, approve: &(dyn 
         created_at: now(),
         txid: Some(txid),
     };
-    let mut f = TabFile::open(&tab_file)?;
+    let mut f = TabFile::open(&tab_file, cfg.key()?)?;
     f.state.pending.push(p.clone());
     f.save()?;
     drop(f);
@@ -484,7 +489,7 @@ pub async fn start_external(cfg: &AgentConfig, url: &str, n: u32, approve: &(dyn
     let http = pay::http_client()?;
     let (ch, offer) = accepted_offer(cfg, &http, url).await?;
     let amount = check_n(&offer, n)?;
-    let mut f = TabFile::open(&tab_path(cfg)?)?;
+    let mut f = TabFile::open(&tab_path(cfg)?, cfg.key()?)?;
     let gate = pay::spendguard_gate(cfg, &host, amount, &ch.memo_nonce, approve)?;
     gate.record_failure("awaiting payment from an external wallet (ZIP 321)");
     let p = PendingPurchase {
@@ -512,7 +517,7 @@ pub async fn finish_external(cfg: &AgentConfig, txid: &str, memo_nonce: Option<&
         return Err(PayError::Config("txid must be 64 hex characters".into()));
     }
     let p = {
-        let f = TabFile::open(&tab_path(cfg)?)?;
+        let f = TabFile::open(&tab_path(cfg)?, cfg.key()?)?;
         let found = match memo_nonce {
             Some(m) => f.state.pending.iter().find(|p| p.memo_nonce == m),
             None => f.state.pending.iter().max_by_key(|p| p.created_at),
@@ -523,7 +528,7 @@ pub async fn finish_external(cfg: &AgentConfig, txid: &str, memo_nonce: Option<&
     let ledger_path = cfg.ledger_path.as_ref().ok_or_else(|| PayError::Config("X402Z_AGENT_LEDGER not configured".into()))?;
     {
         let _lock = crate::ledger::LedgerFile::lock(ledger_path).map_err(PayError::Config)?;
-        let mut ledger = crate::ledger::LedgerFile::load(ledger_path).map_err(PayError::Config)?;
+        let mut ledger = crate::ledger::LedgerFile::load(ledger_path, cfg.key()?).map_err(PayError::Config)?;
         let host = pay::host_of(&p.url)?;
         let t = now();
         let already = ledger.data.audit.iter().any(|e| e.txid.as_deref() == Some(txid.as_str()));
@@ -567,7 +572,7 @@ pub async fn fetch(cfg: &AgentConfig, url: &str) -> Result<Option<TabFetched>, P
     let origin = origin_of(url)?;
     let path = tab_path(cfg)?;
     let token = {
-        let mut f = TabFile::open(&path)?;
+        let mut f = TabFile::open(&path, cfg.key()?)?;
         let Some(t) = f.take(&origin, now()) else { return Ok(None) };
         f.save()?; // gone from the file before it is sent
         t
@@ -585,7 +590,7 @@ pub async fn fetch(cfg: &AgentConfig, url: &str) -> Result<Option<TabFetched>, P
         Err(e) => {
             if e.is_connect() {
                 // never reached the server: the token is still unspent
-                let mut f = TabFile::open(&path)?;
+                let mut f = TabFile::open(&path, cfg.key()?)?;
                 f.state.tokens.push(token);
                 f.save()?;
             }
@@ -596,7 +601,7 @@ pub async fn fetch(cfg: &AgentConfig, url: &str) -> Result<Option<TabFetched>, P
     let settlement = pay::settlement_header(&resp);
     let body = resp.text().await.unwrap_or_default();
     let elapsed_ms = started.elapsed().as_millis();
-    let remaining = TabFile::open(&path)?.count(&origin, now());
+    let remaining = TabFile::open(&path, cfg.key()?)?.count(&origin, now());
     if !status.is_success() {
         let why = settlement.as_ref().and_then(|s| s.error_reason.clone()).unwrap_or_default();
         let detail = serde_json::from_str::<serde_json::Value>(&body)
@@ -618,6 +623,10 @@ mod tests {
         p
     }
 
+    fn tk() -> LedgerKey {
+        LedgerKey::from_bytes([5; 32])
+    }
+
     fn tok(origin: &str, ends: u64, n: u8) -> StoredToken {
         StoredToken { origin: origin.into(), key_id: "k".into(), epoch_ends_at: ends, grace_secs: 0, msg: b64(&[n]), randomizer: b64(&[0; 32]), sig: b64(&[n]) }
     }
@@ -626,17 +635,17 @@ mod tests {
     fn token_file_takes_per_origin_drops_expired_and_survives_reopen() {
         let p = tmp("file");
         {
-            let mut f = TabFile::open(&p).unwrap();
+            let mut f = TabFile::open(&p, &tk()).unwrap();
             f.state.tokens = vec![tok("http://a:1", 100, 1), tok("http://b:1", 1_000, 2), tok("http://a:1", 1_000, 3)];
             f.save().unwrap();
         }
-        let mut f = TabFile::open(&p).unwrap();
+        let mut f = TabFile::open(&p, &tk()).unwrap();
         assert_eq!(f.count("http://a:1", 500), 1); // the first one's epoch is over
         assert_eq!(f.take("http://a:1", 500).unwrap().msg, b64(&[3]));
         assert!(f.take("http://a:1", 500).is_none());
         f.save().unwrap();
         drop(f);
-        let f = TabFile::open(&p).unwrap();
+        let f = TabFile::open(&p, &tk()).unwrap();
         assert_eq!(f.state.tokens, vec![tok("http://b:1", 1_000, 2)]);
         let _ = std::fs::remove_file(&p);
     }
@@ -644,7 +653,7 @@ mod tests {
     #[test]
     fn tokens_live_through_the_offer_grace_and_pins_hold_for_the_epoch() {
         let p = tmp("grace");
-        let mut f = TabFile::open(&p).unwrap();
+        let mut f = TabFile::open(&p, &tk()).unwrap();
         let mut t = tok("http://a:1", 100, 1);
         t.grace_secs = 50;
         f.state.tokens = vec![t];
@@ -671,8 +680,33 @@ mod tests {
     fn invalid_token_file_is_an_error_not_a_reset() {
         let p = tmp("bad");
         std::fs::write(&p, b"{not json").unwrap();
-        assert!(matches!(TabFile::open(&p), Err(PayError::Config(_))));
+        assert!(matches!(TabFile::open(&p, &tk()), Err(PayError::Config(_))));
         assert_eq!(std::fs::read(&p).unwrap(), b"{not json");
+        let _ = std::fs::remove_file(&p);
+    }
+
+    #[test]
+    fn tokens_are_sealed_at_rest_and_refused_under_a_wrong_key_or_a_changed_byte() {
+        let p = tmp("sealed");
+        {
+            let mut f = TabFile::open(&p, &tk()).unwrap();
+            f.state.tokens = vec![tok("http://merchant.example:4020", 1_000, 1)];
+            f.save().unwrap();
+        }
+        let raw = std::fs::read(&p).unwrap();
+        for needle in ["merchant.example", "randomizer", "tokens", "origin"] {
+            assert!(!raw.windows(needle.len()).any(|w| w == needle.as_bytes()), "{needle} readable on disk");
+        }
+        assert_eq!(TabFile::open(&p, &tk()).unwrap().state.tokens.len(), 1, "reopens after a restart");
+        assert!(matches!(TabFile::open(&p, &LedgerKey::from_bytes([6; 32])), Err(PayError::Config(m)) if m.contains("wrong key")));
+        let mut t = raw.clone();
+        let last = t.len() - 1;
+        t[last] ^= 1;
+        std::fs::write(&p, &t).unwrap();
+        assert!(matches!(TabFile::open(&p, &tk()), Err(PayError::Config(m)) if m.contains("wrong key")));
+        // the ledger's sealed bytes can't be passed off as a tab file (different purpose)
+        crate::ledger::write_sealed(&p, &tk(), crate::ledger::LEDGER_PURPOSE, br#"{"tokens":[]}"#).unwrap();
+        assert!(TabFile::open(&p, &tk()).is_err());
         let _ = std::fs::remove_file(&p);
     }
 

@@ -90,6 +90,7 @@ async fn a_redirect_from_an_allowlisted_host_is_refused_before_spendguard_and_ne
         agent: "redirect-test".into(),
         policy: Policy { daily_cap_zat: 1_000_000, allowed_hosts: vec![a.clone()], approval_threshold_zat: None },
         seed: None,
+        ledger_key: Some(x402z_agent::ledger::LedgerKey::from_bytes([3; 32])),
         birthday: None,
         lwd_url: String::new(),
         confirm_timeout_secs: 60,

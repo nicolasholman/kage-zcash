@@ -143,6 +143,7 @@ fn config(ledger: &PathBuf, cap: u64) -> AgentConfig {
         agent: "tab-test".into(),
         policy: Policy { daily_cap_zat: cap, allowed_hosts: vec!["127.0.0.1".into()], approval_threshold_zat: None },
         seed: None,
+        ledger_key: Some(x402z_agent::ledger::LedgerKey::from_bytes([3; 32])),
         birthday: None,
         lwd_url: String::new(),
         confirm_timeout_secs: 60,
@@ -173,11 +174,11 @@ async fn one_external_payment_buys_n_tokens_each_spendable_once() {
     assert_eq!((b.n, b.amount_zat, b.key_id.as_str()), (3, 300_000, "fixturekey"));
     assert_eq!(state.lock().unwrap().issue_calls, 2);
     let path = tab::tab_path(&cfg).unwrap();
-    let stored = tab::TabFile::open(&path).unwrap().state;
+    let stored = tab::TabFile::open(&path, cfg.key().unwrap()).unwrap().state;
     assert_eq!(stored.tokens.len(), 3);
     assert!(stored.pending.is_empty());
     // the payment counts against today's cap, once
-    let l: serde_json::Value = serde_json::from_slice(&std::fs::read(&ledger).unwrap()).unwrap();
+    let l = serde_json::to_value(x402z_agent::ledger::LedgerFile::load(&ledger, cfg.key().unwrap()).unwrap().data).unwrap();
     let paid: Vec<_> = l["audit"].as_array().unwrap().iter().filter(|e| e["txid"] == txid.as_str()).collect();
     assert_eq!(paid.len(), 1);
     assert_eq!(paid[0]["amountZat"], 300_000);
@@ -194,19 +195,19 @@ async fn one_external_payment_buys_n_tokens_each_spendable_once() {
 
     // 4. a token replayed from a copy of the file is refused by the server and not put back
     {
-        let mut f = tab::TabFile::open(&path).unwrap();
+        let mut f = tab::TabFile::open(&path, cfg.key().unwrap()).unwrap();
         f.state.tokens.push(stored.tokens[0].clone());
         f.save().unwrap();
     }
     let e = tab::fetch(&cfg, &url).await.unwrap_err();
     assert!(matches!(&e, PayError::Rejected(m) if m.contains("already spent")), "{e:?}");
-    assert_eq!(tab::TabFile::open(&path).unwrap().state.tokens.len(), 0);
+    assert_eq!(tab::TabFile::open(&path, cfg.key().unwrap()).unwrap().state.tokens.len(), 0);
 
     // 5. a forged token (signature over another message) is refused as invalid
     {
         let mut forged = stored.tokens[1].clone();
         forged.msg = b64(&[9u8; 32]);
-        let mut f = tab::TabFile::open(&path).unwrap();
+        let mut f = tab::TabFile::open(&path, cfg.key().unwrap()).unwrap();
         f.state.tokens.push(forged);
         f.save().unwrap();
     }

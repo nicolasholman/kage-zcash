@@ -13,6 +13,9 @@
 //! - `tab-fetch [url]`: GET the URL (default X402Z_TARGET_URL) spending one token;
 //! - `tab-status`: tokens left per origin and pending purchases.
 //!
+//! `seal-ledger` encrypts a ledger and tab file written by an older, plaintext version in place
+//! (both are sealed at rest with `X402Z_AGENT_LEDGER_KEY`, or a key derived from the seed).
+//!
 //! Exit codes: 0 paid/served, 1 runtime failure (network, server, facilitator), 2 missing or
 //! invalid config, 3 refused by spendguard (nothing built or broadcast), 4 wallet not usable
 //! (no seed, or not enough testnet ZEC), 5 the server/facilitator rejected the payment.
@@ -206,7 +209,8 @@ async fn cmd_tab_fetch(args: &[String]) {
 fn cmd_tab_status() {
     let cfg = config();
     let path = tab::tab_path(&cfg).unwrap_or_else(|e| die(e.exit_code(), e));
-    let f = tab::TabFile::open(&path).unwrap_or_else(|e| die(e.exit_code(), e));
+    let key = cfg.key().unwrap_or_else(|e| die(e.exit_code(), e));
+    let f = tab::TabFile::open(&path, key).unwrap_or_else(|e| die(e.exit_code(), e));
     let now = pay::now();
     let mut origins: Vec<&str> = f.state.tokens.iter().map(|t| t.origin.as_str()).collect();
     origins.sort();
@@ -219,6 +223,21 @@ fn cmd_tab_status() {
         .map(|p| serde_json::json!({ "memoNonce": p.memo_nonce, "tokens": p.n, "amountZat": p.amount_zat, "expiresAt": p.expires_at }))
         .collect();
     println!("{}", serde_json::json!({ "file": path.display().to_string(), "tokens": tokens, "pending": pending }));
+}
+
+fn cmd_seal_ledger() {
+    let cfg = config();
+    let key = cfg.key().unwrap_or_else(|e| die(e.exit_code(), e));
+    let ledger = cfg.ledger_path.clone().unwrap_or_else(|| die(2, "X402Z_AGENT_LEDGER not configured (see .env.example)"));
+    let tab_file = tab::tab_path(&cfg).unwrap_or_else(|e| die(e.exit_code(), e));
+    for (path, purpose) in [(&ledger, x402z_agent::ledger::LEDGER_PURPOSE), (&tab_file, tab::TAB_PURPOSE)] {
+        let _lock = x402z_agent::ledger::LedgerFile::lock(path).unwrap_or_else(|e| die(1, e));
+        match x402z_agent::ledger::seal_plaintext_file(path, key, purpose) {
+            Ok(true) => eprintln!("sealed {}", path.display()),
+            Ok(false) => eprintln!("{}: already sealed or absent; left as is", path.display()),
+            Err(e) => die(1, e),
+        }
+    }
 }
 
 #[tokio::main]
@@ -234,9 +253,10 @@ async fn main() {
         Some("tab-redeem") => cmd_tab_redeem(rest).await,
         Some("tab-fetch") => cmd_tab_fetch(rest).await,
         Some("tab-status") => cmd_tab_status(),
+        Some("seal-ledger") => cmd_seal_ledger(),
         Some(other) => die(
             2,
-            format!("unknown command '{other}' (usage: x402z-agent [pay|new-wallet|address|balance|tab-buy|tab-redeem|tab-fetch|tab-status])"),
+            format!("unknown command '{other}' (usage: x402z-agent [pay|new-wallet|address|balance|tab-buy|tab-redeem|tab-fetch|tab-status|seal-ledger])"),
         ),
     }
 }

@@ -20,6 +20,12 @@ use std::{
 use serde_json::{json, Value};
 
 const PAY_TO: &str = "utest1sampleaddressforschemaonly000000";
+/// X402Z_AGENT_LEDGER_KEY of the test runs (hex of 32 x 0x11).
+const TEST_LEDGER_KEY: &str = "1111111111111111111111111111111111111111111111111111111111111111";
+
+fn test_key() -> x402z_agent::ledger::LedgerKey {
+    x402z_agent::ledger::LedgerKey::from_bytes([0x11; 32])
+}
 
 /// Serve one fixed x402 402 for every request; returns the base URL.
 fn fixture_402() -> String {
@@ -64,9 +70,11 @@ impl Mcp {
     fn start(env: &[(&str, String)]) -> Self {
         let mut cmd = Command::new(env!("CARGO_BIN_EXE_x402z-mcp"));
         cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null());
-        for v in ["X402Z_AGENT_LEDGER", "X402Z_AGENT_WALLET_DIR", "X402Z_AGENT_SEED", "X402Z_AGENT_TAB_FILE", "X402Z_AGENT_TAB_SIZE", "X402Z_AGENT_ALLOWED_HOSTS", "X402Z_AGENT_DAILY_CAP_ZAT", "X402Z_AGENT_APPROVAL_ZAT", "X402Z_AGENT_NAME", "X402Z_AGENT_CONFIRM_TIMEOUT_SECS"] {
+        for v in ["X402Z_AGENT_LEDGER", "X402Z_AGENT_LEDGER_KEY", "X402Z_AGENT_WALLET_DIR", "X402Z_AGENT_SEED", "X402Z_AGENT_TAB_FILE", "X402Z_AGENT_TAB_SIZE", "X402Z_AGENT_ALLOWED_HOSTS", "X402Z_AGENT_DAILY_CAP_ZAT", "X402Z_AGENT_APPROVAL_ZAT", "X402Z_AGENT_NAME", "X402Z_AGENT_CONFIRM_TIMEOUT_SECS"] {
             cmd.env_remove(v);
         }
+        // Every run with a ledger seals it under this test key (a test can override it).
+        cmd.env("X402Z_AGENT_LEDGER_KEY", TEST_LEDGER_KEY);
         for (k, v) in env {
             cmd.env(k, v);
         }
@@ -165,6 +173,49 @@ fn missing_config_is_setup_required_not_a_crash() {
     let r = m.call("tab_fetch", json!({ "url": "http://127.0.0.1:9/x" }));
     assert_eq!(structured(&r)["error"], "setup_required");
     assert_eq!(structured(&m.call("tab_fetch", json!({ "url": "http://127.0.0.1:9/x", "buy": 0 })))["error"], "invalid_arguments");
+}
+
+#[test]
+fn without_a_ledger_key_the_tools_say_setup_required_and_the_ledger_stays_sealed() {
+    let url = format!("{}/api/quote", fixture_402());
+    let ledger = tmp_ledger("nokey");
+    let wallet_dir = std::env::temp_dir().join(format!("x402z-mcp-{}-nokey-wallet", std::process::id()));
+    let env = [
+        ("X402Z_AGENT_LEDGER", ledger.display().to_string()),
+        ("X402Z_AGENT_WALLET_DIR", wallet_dir.display().to_string()),
+        ("X402Z_AGENT_ALLOWED_HOSTS", "127.0.0.1".to_string()),
+        ("X402Z_AGENT_DAILY_CAP_ZAT", "50000".to_string()),
+    ];
+    // with the key: a refusal is written, sealed
+    let mut m = Mcp::start(&env);
+    assert_eq!(structured(&m.call("paid_fetch", json!({ "url": url })))["error"], "spendguard_refused");
+    drop(m);
+    let raw = std::fs::read(&ledger).unwrap();
+    assert!(raw.starts_with(b"KAGE-SEALED1"));
+    for needle in ["127.0.0.1", "x402z-fixture", "daily cap"] {
+        assert!(!raw.windows(needle.len()).any(|w| w == needle.as_bytes()), "{needle} readable on disk");
+    }
+    // without it (no key, no seed): Setup required, not a crash or a fresh ledger
+    let mut env2 = env.to_vec();
+    env2.push(("X402Z_AGENT_LEDGER_KEY", String::new()));
+    let mut m = Mcp::start(&env2);
+    for (tool, args) in [("spend_status", json!({})), ("ledger_tail", json!({})), ("paid_fetch", json!({ "url": url }))] {
+        let v = structured(&m.call(tool, args));
+        assert_eq!(v["error"], "setup_required", "{tool}: {v}");
+        assert!(v["message"].as_str().unwrap().contains("X402Z_AGENT_LEDGER_KEY"), "{tool}: {v}");
+    }
+    drop(m);
+    // and a wrong key is refused, the file left as it was
+    let mut env3 = env.to_vec();
+    env3.push(("X402Z_AGENT_LEDGER_KEY", "22".repeat(32)));
+    let mut m = Mcp::start(&env3);
+    let v = structured(&m.call("ledger_tail", json!({})));
+    assert_eq!(v["error"], "setup_required", "{v}");
+    assert!(v["message"].as_str().unwrap().contains("wrong key"), "{v}");
+    assert_eq!(std::fs::read(&ledger).unwrap(), raw);
+    for p in [ledger.clone(), ledger.with_extension("json.lock")] {
+        let _ = std::fs::remove_file(p);
+    }
 }
 
 #[test]
@@ -338,7 +389,7 @@ fn a_retried_paid_fetch_resumes_the_broadcast_payment_instead_of_paying_twice() 
     {
         use x402z_agent::ledger::{AuditEntry, LedgerFile};
         let _lock = LedgerFile::lock(&ledger).unwrap();
-        let mut l = LedgerFile::load(&ledger).unwrap();
+        let mut l = LedgerFile::load(&ledger, &test_key()).unwrap();
         l.append(AuditEntry {
             ts: x402z_agent::pay::now(), agent: "agent-1".into(), host: host.clone(), amount_zat: 100_000,
             decision: "allowed".into(), reason: Some("paid".into()), memo_nonce: Some(NONCE.into()), txid: Some(TXID.into()),

@@ -6,3 +6,5 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+# Ledger at rest: XChaCha20-Poly1305 (`sealed`). No RNG here: callers pass the 24-byte nonce.
+chacha20poly1305 = { version = "0.11", default-features = false, features = ["alloc"] }
