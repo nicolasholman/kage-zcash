@@ -88,6 +88,7 @@ What Kage adds:
    | No `X402Z_AGENT_SEED` | `X402Z_AGENT_SEED not configured: no funded testnet wallet to pay from …` | 4 |
    | Wallet synced but holding too little TAZ | `insufficient testnet balance: spendable 0 zat …, need at least 110000 zat … Send TAZ to utest1…` | 4 |
    | Server/facilitator refuses the payment | `server refused payment tx … (402 Payment Required, invalid_payment): …` | 5 |
+   | The server says the payment's nonce was already redeemed (it settled earlier and the 200 was lost, after the server's 10-minute resend window) | `tx … was already redeemed … Do NOT pay again for it.` The ledger keeps it settled | 6 |
    | Paid | the paid JSON on stdout, `X-PAYMENT-RESPONSE: success=true …` on stderr | 0 |
 
    Every decision is appended to `X402Z_AGENT_LEDGER`, sealed at rest (the dashboard shows it only in a one-machine demo, see below). Two agent runs at once take turns on `<ledger>.lock`, so they can't both pass the cap. Without `X402Z_AGENT_LEDGER_KEY` or a seed to derive it from, the agent stops with `Setup required: X402Z_AGENT_LEDGER_KEY not configured …` (exit 2).

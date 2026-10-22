@@ -37,6 +37,9 @@ pub enum PayError {
     Wallet(String),
     /// 5: the server/facilitator rejected the payment.
     Rejected(String),
+    /// 6: the server says this payment's nonce was already redeemed. The money moved and the
+    /// payment was settled earlier (its 200 was lost, or the resend window closed): do not pay again.
+    AlreadyRedeemed(String),
 }
 
 impl PayError {
@@ -47,6 +50,7 @@ impl PayError {
             PayError::Refused(_) => 3,
             PayError::Wallet(_) => 4,
             PayError::Rejected(_) => 5,
+            PayError::AlreadyRedeemed(_) => 6,
         }
     }
 
@@ -57,12 +61,18 @@ impl PayError {
             PayError::Refused(_) => "spendguard_refused",
             PayError::Wallet(_) => "wallet",
             PayError::Rejected(_) => "payment_rejected",
+            PayError::AlreadyRedeemed(_) => "already_redeemed",
         }
     }
 
     pub fn message(&self) -> &str {
         match self {
-            PayError::Runtime(m) | PayError::Config(m) | PayError::Refused(m) | PayError::Wallet(m) | PayError::Rejected(m) => m,
+            PayError::Runtime(m)
+            | PayError::Config(m)
+            | PayError::Refused(m)
+            | PayError::Wallet(m)
+            | PayError::Rejected(m)
+            | PayError::AlreadyRedeemed(m) => m,
         }
     }
 }
@@ -507,10 +517,14 @@ fn ledger_entry(cfg: &AgentConfig, txid: &str) -> Option<AuditEntry> {
 /// Write the server's final answer for `txid` into the ledger (best effort: the answer itself
 /// is what the caller gets either way).
 fn mark_settled(cfg: &AgentConfig, txid: &str, settled: bool) {
+    update_ledger(cfg, txid, |l| l.mark_settled(txid, settled));
+}
+
+fn update_ledger(cfg: &AgentConfig, txid: &str, f: impl FnOnce(&mut LedgerFile) -> bool) {
     let (Some(path), Some(key)) = (cfg.ledger_path.as_ref(), cfg.ledger_key.as_ref()) else { return };
     let result = LedgerFile::lock(path).and_then(|_lock| {
         let mut l = LedgerFile::load(path, key)?;
-        if l.mark_settled(txid, settled) {
+        if f(&mut l) {
             l.save()?;
         }
         Ok(())
@@ -610,6 +624,14 @@ async fn settle(
                     .and_then(|v| v.get("error").and_then(|e| e.as_str()).map(str::to_string))
                     .unwrap_or(body);
                 let retry = (status.as_u16() == 402 && why == reason::PENDING) || matches!(status.as_u16(), 429 | 502 | 503);
+                if !retry && why == reason::NONCE_USED {
+                    update_ledger(cfg, txid, |l| l.mark_already_redeemed(txid));
+                    return Err(PayError::AlreadyRedeemed(format!(
+                        "tx {txid} (memoNonce {memo_nonce}) was already redeemed at {url} ({status}, {why}): the payment is \
+                         spent and was settled earlier; its answer was lost, or it came back after the server's resend window. \
+                         Do NOT pay again for it. The ledger marks it settled."
+                    )));
+                }
                 if !retry {
                     mark_settled(cfg, txid, false);
                     return Err(PayError::Rejected(format!("server refused payment tx {txid} ({status}, {why}): {detail}")));
@@ -722,10 +744,11 @@ mod tests {
             PayError::Refused(String::new()),
             PayError::Wallet(String::new()),
             PayError::Rejected(String::new()),
+            PayError::AlreadyRedeemed(String::new()),
         ]
         .iter()
         .map(PayError::exit_code)
         .collect();
-        assert_eq!(codes, vec![1, 2, 3, 4, 5]);
+        assert_eq!(codes, vec![1, 2, 3, 4, 5, 6]);
     }
 }

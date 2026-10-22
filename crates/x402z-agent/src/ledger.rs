@@ -264,12 +264,36 @@ impl LedgerFile {
         })
     }
 
-    /// Record the server's final answer for the payment `txid`. False if no entry has that txid.
+    /// Record the server's final answer for the payment `txid`. A payment once settled stays
+    /// settled: a later refusal of the same txid (a replay, a lost 200 presented again) never
+    /// turns it into an unpaid one. False if nothing changed.
     pub fn mark_settled(&mut self, txid: &str, settled: bool) -> bool {
+        let mut changed = false;
+        for e in self.data.audit.iter_mut().filter(|e| e.txid.as_deref() == Some(txid)) {
+            if e.settled == Some(true) || e.settled == Some(settled) {
+                continue;
+            }
+            e.settled = Some(settled);
+            changed = true;
+        }
+        changed
+    }
+
+    /// The server answered `nonce_already_used` for the agent's own payment `txid`: its nonce was
+    /// redeemed (by an earlier answer that got lost, or before the server's resend window closed).
+    /// The money moved and the content was paid for, so it counts as settled and is never
+    /// resumed or paid again. False if no entry has that txid.
+    pub fn mark_already_redeemed(&mut self, txid: &str) -> bool {
         let mut found = false;
         for e in self.data.audit.iter_mut().filter(|e| e.txid.as_deref() == Some(txid)) {
-            e.settled = Some(settled);
             found = true;
+            e.settled = Some(true);
+            let note = "server: already redeemed (nonce_already_used); not paid again";
+            match &mut e.reason {
+                Some(r) if r.contains(note) => {}
+                Some(r) => *r = format!("{r}; {note}"),
+                None => e.reason = Some(format!("paid; {note}")),
+            }
         }
         found
     }
@@ -413,6 +437,29 @@ mod tests {
         assert!(l.mark_settled("tx1", true));
         assert!(l.unresolved_payment("agent-1", u, DAY0 + 10).is_none(), "settled");
         assert!(!l.mark_settled("nope", true));
+    }
+
+    #[test]
+    fn a_settled_payment_is_never_downgraded_by_a_later_refusal() {
+        let mut l = LedgerFile::load(&tmp("downgrade"), &k()).unwrap();
+        let mut paid = entry(DAY0, 100_000, Some("tx1"));
+        paid.memo_nonce = Some("x402z-1".into());
+        paid.url = Some("http://127.0.0.1:4020/api/quote".into());
+        l.append(paid);
+        assert!(l.mark_settled("tx1", true));
+        // the same txid refused later (a replay after its 200 was lost): still settled
+        assert!(!l.mark_settled("tx1", false));
+        assert_eq!(l.data.audit[0].settled, Some(true));
+        // nonce_already_used for an unsettled payment: settled, noted, never resumed
+        let mut p2 = entry(DAY0 + 1, 100_000, Some("tx2"));
+        p2.memo_nonce = Some("x402z-2".into());
+        p2.url = Some("http://127.0.0.1:4020/b".into());
+        l.append(p2);
+        assert!(l.mark_already_redeemed("tx2"));
+        assert_eq!(l.data.audit[1].settled, Some(true));
+        assert!(l.data.audit[1].reason.as_deref().unwrap().contains("already redeemed"));
+        assert!(l.unresolved_payment("agent-1", "http://127.0.0.1:4020/b", DAY0 + 10).is_none());
+        assert!(!l.mark_already_redeemed("nope"));
     }
 
     #[test]

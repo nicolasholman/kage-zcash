@@ -18,7 +18,8 @@
 //!
 //! Exit codes: 0 paid/served, 1 runtime failure (network, server, facilitator), 2 missing or
 //! invalid config, 3 refused by spendguard (nothing built or broadcast), 4 wallet not usable
-//! (no seed, or not enough testnet ZEC), 5 the server/facilitator rejected the payment.
+//! (no seed, or not enough testnet ZEC), 5 the server/facilitator rejected the payment, 6 the
+//! payment was already redeemed (settled earlier, its answer lost): do not pay again.
 
 use std::{
     io::{IsTerminal, Write},

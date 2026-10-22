@@ -54,7 +54,7 @@ fn tools() -> Value {
         {
             "name": "redeem_payment",
             "title": "Present an earlier payment again (never pays)",
-            "description": "Present a payment this agent already broadcast (txid and memoNonce from paid_fetch) to the URL with X-PAYMENT, once. Returns the paid response with X-PAYMENT-RESPONSE when the server settles it, or status \"settlement_pending\" while the transaction still waits for its block. Never builds or broadcasts a transaction.",
+            "description": "Present a payment this agent already broadcast (txid and memoNonce from paid_fetch) to the URL with X-PAYMENT, once. Returns the paid response with X-PAYMENT-RESPONSE when the server settles it, or status \"settlement_pending\" while the transaction still waits for its block. An already_redeemed error means the payment settled earlier and its answer was lost: do not pay again. Never builds or broadcasts a transaction.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
