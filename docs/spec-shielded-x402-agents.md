@@ -95,11 +95,13 @@ and answers `200` (paid, with the content), `202` (pending), `422` (rejected) or
 Endpoints: `GET /supported`, `POST /verify`, `POST /settle`, `GET /health`.
 
 - `GET /supported` → `{kinds: [{x402Version: 1, scheme: "zcash-shielded", network: "zcash-testnet"}]}`.
-- `POST /verify` and `POST /settle` take `{x402Version, paymentPayload, paymentRequirements}`.
+- `POST /verify` and `POST /settle` take `{x402Version, paymentPayload, paymentRequirements}` and require
+  `Authorization: Bearer $X402Z_FACILITATOR_TOKEN` (401 otherwise; the resource server holds the token).
   The payload's `memoNonce` must equal `paymentRequirements.extra.memoNonce`.
 - `/verify` is read-only: `{isValid, invalidReason, payer}`.
-- `/settle` binds the nonce to the txid in SQLite and returns the x402 settlement fields plus Kage's
-  `receipt` and `claims`. A nonce bound to one txid is refused for any other txid, also after a restart.
+- `/settle` binds the requirement (nonce, payTo, amount) to the txid in SQLite and returns the x402
+  settlement fields plus Kage's `receipt` and `claims`. A requirement bound to one txid is refused for any
+  other txid, also after a restart; a binding at another amount (a dust payment) doesn't block it.
 - `GET /health` makes a live lightwalletd round trip.
 
 For each request the facilitator:
@@ -157,7 +159,7 @@ token to the payment or to the other tokens. Blind signatures are RFC 9474 RSABS
 with an RSA-2048 key.
 
 1. **Offer.** `extra.tab = {scheme: "zcash-shielded-tab", suite, keyId, publicKey (SPKI, base64),
-   unitPriceZat, maxTokens, issuePath: "/tab/issue", epochEndsAt}`.
+   unitPriceZat, maxTokens, issuePath: "/tab/issue", epochEndsAt, graceSecs}`.
 2. **Buy.** Pay `n × unitPriceZat` (n ≤ `maxTokens`) with the nonce as memo. Blind n random 32-byte messages
    and `POST /tab/issue {memoNonce, txid, keyId, blinded[n]}`. The server confirms the payment through the
    facilitator, checks that it covers n tokens, burns the nonce once and returns n blind signatures. An
@@ -167,29 +169,44 @@ with an RSA-2048 key.
    `SHA-256(randomizer ‖ msg)` in a SQLite spent set. Success answers `200` with
    `transaction: "tab:<token id prefix>"`.
 
-Keys rotate every `X402Z_TAB_EPOCH_SECS` (default 7 days). Unspent tokens die with their epoch.
+Keys rotate every `X402Z_TAB_EPOCH_SECS` (default 7 days). For `graceSecs` (`X402Z_TAB_GRACE_SECS`,
+default 1800) after its epoch, the previous key still issues a tab paid under it and accepts its tokens.
+`/tab/issue` with any other key is `409 tab_key_rotated` and burns nothing: blind again for the active key
+and retry the same payment. Unlinkability assumes every buyer gets the same key per epoch; the agent pins
+the key it saw per server per epoch and refuses another.
 
 Clients: `x402z-agent tab-buy <n>` (agent wallet) or `tab-buy <n> --external` + `tab-redeem <txid>` (any
 wallet pays the printed ZIP 321 request), then `tab-fetch`; the MCP tool `tab_fetch`. Spendguard checks the
-whole `n × unitPriceZat` before anything is paid. Live on testnet on 2026-10-21: tx `fa011720…c3ad` bought
-5 tokens spent on 5 CLI requests, tx `d3bf0b49…d00d` bought 3 spent by MCP `tab_fetch` (README, "Kage Tab").
+whole `n × unitPriceZat` before anything is paid. Live on testnet: on 2026-10-21 tx `fa011720…c3ad` bought
+5 tokens spent on 5 CLI requests and tx `d3bf0b49…d00d` bought 3 spent by MCP `tab_fetch` from a script;
+on 2026-10-22 an LLM's `tab_fetch` paid tx `b75b2415…4b91` from the agent's own wallet and spent its 3
+tokens (README, "Kage Tab").
 
 ## 8. MCP surface
 
 `x402z-mcp` speaks MCP over stdio (newline-delimited JSON-RPC 2.0, protocol `2025-06-18`; `2025-03-26` and
-`2024-11-05` also accepted). Tools: `paid_fetch {url}`, `tab_fetch {url, buy?}`, `spend_status {}`, `ledger_tail {n}`. Spendguard
-refusals, wallet errors, rejected payments and missing configuration come back as `isError: true` results.
+`2024-11-05` also accepted). Tools: `paid_fetch {url}`, `redeem_payment {url, txid, memoNonce}`,
+`tab_fetch {url, buy?}`, `spend_status {}`, `ledger_tail {n}`. `paid_fetch` returns
+`settlement_pending` right after the broadcast, and a retry for the same URL presents that payment again
+instead of paying twice; `redeem_payment` never pays. Spendguard refusals, wallet errors, rejected
+payments and missing configuration come back as `isError: true` results.
 
 ## 9. What this does not hide
 
 - The merchant sees the client's IP. The paid request is ordinary HTTP.
 - lightwalletd sees which txid is looked up, and when.
-- The agent ledger (`X402Z_AGENT_LEDGER`) is plaintext JSON.
+- `X-PAYMENT` is a bearer credential until redeemed. The server's feed is on a loopback admin port and
+  shows only a nonce prefix next to a txid.
+- Kage Tab unlinkability assumes one key per epoch for every buyer.
+- The agent ledger and tab tokens are sealed (XChaCha20-Poly1305); the ledger key or the agent seed opens
+  them.
 - The 402 and the next block can be linked by timing.
 
 ## 10. Latency
 
-Testnet blocks arrive about every 75 s and sometimes much slower. The default is 1 confirmation. The agent
-retries `X-PAYMENT` every 15 s for up to `X402Z_AGENT_CONFIRM_TIMEOUT_SECS` (default 900).
+Testnet blocks arrive about every 75 s and sometimes much slower. The default is 1 confirmation. The CLI
+agent retries `X-PAYMENT` every 15 s for up to `X402Z_AGENT_CONFIRM_TIMEOUT_SECS` (default 900); the MCP
+tools return `settlement_pending` at once. Every `X-PAYMENT` attempt costs one token of the client's
+per-minute budget on the server.
 `X402Z_MIN_CONFIRMATIONS=0` on both server and facilitator accepts mempool-only payments; this is weaker,
 and the server logs a warning.

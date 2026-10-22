@@ -3,7 +3,7 @@ import { test, expect, expectNoHorizontalScroll, isMobile } from './fixtures';
 
 const URL_ = 'http://127.0.0.1:4050/zec-shielded-x402/';
 const README = readFileSync(new URL('../../README.md', import.meta.url), 'utf8');
-// The eight verified txids, as the README's "Verified testnet runs" table lists them.
+// The ten verified txids, as the README's "Verified testnet runs" table lists them.
 const README_TXIDS = [...README.matchAll(/^\| \[`([0-9a-f]{64})`\]\(https:\/\/testnet\.zecblock\.com\/tx\/\1\) \| (\d+) \|/gm)].map(m => ({ txid: m[1], block: m[2] }));
 
 test.describe('landing', () => {
@@ -11,7 +11,8 @@ test.describe('landing', () => {
     await page.goto(URL_);
     await expect(page).toHaveTitle(/Kage/);
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('HTTP 402, paid in shielded ZEC.');
-    await expect(page.locator('.facts b').first()).toHaveText('8');
+    await expect(page.locator('.facts b').first()).toHaveText(String(README_TXIDS.length));
+    expect(README_TXIDS).toHaveLength(10);
     await expectNoHorizontalScroll(page);
     await page.screenshot({ path: test.info().outputPath('landing-hero.png') });
   });
@@ -76,20 +77,24 @@ test.describe('landing', () => {
       'cargo test -p x402z-agent',
       'cargo test -p x402z-mcp',
       'cargo test -p x402z-facilitator',
+      'cd packages/x402-zcash && npm test',
     ]);
   });
 
-  test('quickstart test counts agree with the Tests table and the 80 headline', async ({ page }) => {
+  test('quickstart test counts agree with the Tests table and the 117 headline', async ({ page }) => {
     await page.goto(URL_);
     const table = Object.fromEntries(await page.locator('#tests tbody tr').evaluateAll(rows =>
       rows.map(r => [r.querySelector('code')!.textContent, Number(r.querySelector('.num')!.textContent)])));
-    expect(Object.values(table).reduce((a, b) => a + b, 0)).toBe(80);
+    const total = Object.values(table).reduce((a, b) => a + b, 0);
+    expect(total).toBe(117);
+    await expect(page.locator('.facts b').nth(1)).toHaveText(String(total));
     const qs = await page.locator('#qs').innerText();
     const nums = (crate: string) => (new RegExp(`-p ${crate}\\s+# ([\\d +]+)`).exec(qs)?.[1] || '').split('+').map(s => Number(s.trim()));
     expect(nums('x402z-server')).toEqual([table['spendguard'], table['x402z-protocol'], table['x402z-server']]);
     expect(nums('x402z-agent')[0]).toBe(table['x402z-agent']);
     expect(nums('x402z-mcp')[0]).toBe(table['x402z-mcp']);
     expect(nums('x402z-facilitator')[0]).toBe(table['x402z-facilitator']);
+    expect(Number(/npm test\s+# (\d+)/.exec(qs)?.[1])).toBe(table['x402-zcash']);
   });
 
   test('hero CTAs and top links jump to their sections', async ({ page }, info) => {
@@ -159,12 +164,12 @@ test.describe('landing', () => {
     await expect(page).toHaveURL(/#content$/);
   });
 
-  test('evidence table: eight explorer links, well-formed, matching the README and the label', async ({ page }) => {
+  test('evidence table: ten explorer links, well-formed, matching the README and the label', async ({ page }) => {
     await page.goto(URL_ + '#evidence');
-    expect(README_TXIDS).toHaveLength(8);
+    expect(README_TXIDS).toHaveLength(10);
     const rows = page.locator('#evidence tbody tr');
-    await expect(rows).toHaveCount(8);
-    for (let i = 0; i < 8; i++) {
+    await expect(rows).toHaveCount(10);
+    for (let i = 0; i < 10; i++) {
       const a = rows.nth(i).locator('a');
       const href = (await a.getAttribute('href'))!;
       const m = /^https:\/\/testnet\.zecblock\.com\/tx\/([0-9a-f]{64})$/.exec(href);
@@ -191,7 +196,9 @@ test.describe('landing', () => {
     await expect(page.locator('#tab')).toContainText('RFC 9474 blind RSA');
     await expect(page.locator('#tab .term')).toContainText('nonce_already_used');
     await expect(page.locator('#tab a', { hasText: 'full transcript' })).toHaveAttribute('href', 'https://github.com/nickthelegend/zec-shielded-x402/blob/main/docs/tab-live-run.txt');
-    await expect(page.locator('#mcp a', { hasText: 'full transcript' })).toHaveAttribute('href', 'https://github.com/nickthelegend/zec-shielded-x402/blob/main/docs/mcp-live-run.txt');
+    await expect(page.locator('#mcp a', { hasText: 'full transcript' })).toHaveAttribute('href', 'https://github.com/nickthelegend/zec-shielded-x402/blob/main/docs/mcp-paid-run.txt');
+    await expect(page.locator('#mcp a', { hasText: 'refusal transcript' })).toHaveAttribute('href', 'https://github.com/nickthelegend/zec-shielded-x402/blob/main/docs/mcp-live-run.txt');
+    await expect(page.locator('#mcp .term')).toContainText('"success": true');
     await page.screenshot({ path: test.info().outputPath('landing-tab.png') });
   });
 
