@@ -88,7 +88,15 @@ struct App {
     issued: IssuedStore,
     /// Shared secret the resource server presents on `/verify` and `/settle`.
     token: String,
+    /// `/health`'s last chain-tip probe and when it ran ([`HEALTH_CACHE`]): the endpoint has no
+    /// auth, so it must not cost a lightwalletd round trip per request.
+    health: tokio::sync::Mutex<Option<(std::time::Instant, Result<u32, String>)>>,
+    /// Chain-tip probes `/health` actually made.
+    health_probes: std::sync::atomic::AtomicUsize,
 }
+
+/// How long `/health` reuses its last chain-tip probe (success or failure).
+const HEALTH_CACHE: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// Shortest `X402Z_FACILITATOR_TOKEN` accepted (`openssl rand -hex 32` gives 64).
 const MIN_TOKEN_LEN: usize = 32;
@@ -391,13 +399,26 @@ async fn supported() -> Json<SupportedResponse> {
 }
 
 async fn health(State(app): State<Arc<App>>) -> Response {
-    let mut client = app.lwd.clone();
-    match lwd::chain_tip(&mut client).await {
+    // Concurrent requests wait on one probe; within HEALTH_CACHE they reuse its answer.
+    let probe = {
+        let mut cached = app.health.lock().await;
+        match cached.as_ref() {
+            Some((at, r)) if at.elapsed() < HEALTH_CACHE => r.clone(),
+            _ => {
+                app.health_probes.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                let mut client = app.lwd.clone();
+                let r = lwd::chain_tip(&mut client).await.map(u32::from).map_err(|e| e.to_string());
+                *cached = Some((std::time::Instant::now(), r.clone()));
+                r
+            }
+        }
+    };
+    match probe {
         Ok(tip) => Json(serde_json::json!({
             "ok": true,
             "network": "testnet",
             "lightwalletd": app.lwd_url,
-            "chainTip": u32::from(tip),
+            "chainTip": tip,
             "minConfirmations": app.min_confirmations,
             "viewingKey": if app.key.from_full_key { "ufvk (incoming part only; prefer X402Z_MERCHANT_UIVK)" } else { "uivk" },
             "receiptPubkey": hex::encode(app.signing_key.verifying_key().as_bytes()),
@@ -405,7 +426,7 @@ async fn health(State(app): State<Arc<App>>) -> Response {
         .into_response(),
         Err(e) => (
             StatusCode::SERVICE_UNAVAILABLE,
-            Json(serde_json::json!({ "ok": false, "lightwalletd": app.lwd_url, "error": e.to_string() })),
+            Json(serde_json::json!({ "ok": false, "lightwalletd": app.lwd_url, "error": e })),
         )
             .into_response(),
     }
@@ -553,6 +574,8 @@ async fn main() {
         expiry_grace_secs,
         issued,
         token,
+        health: tokio::sync::Mutex::new(None),
+        health_probes: std::sync::atomic::AtomicUsize::new(0),
     });
     let router = Router::new()
         .route(HEALTH_PATH, get(health))
@@ -633,7 +656,23 @@ mod tests {
             expiry_grace_secs: DEFAULT_EXPIRY_GRACE_SECS,
             issued: IssuedStore::open(std::path::Path::new(":memory:")).unwrap(),
             token: TOKEN.into(),
+            health: tokio::sync::Mutex::new(None),
+            health_probes: std::sync::atomic::AtomicUsize::new(0),
         })
+    }
+
+    #[tokio::test]
+    async fn health_probes_lightwalletd_once_for_a_burst_of_requests_and_keeps_the_503() {
+        let a = app(); // lightwalletd on a closed port: every probe fails
+        let calls: Vec<_> = (0..200).map(|_| tokio::spawn(health(State(a.clone())))).collect();
+        for c in calls {
+            assert_eq!(c.await.unwrap().status(), StatusCode::SERVICE_UNAVAILABLE);
+        }
+        assert_eq!(a.health_probes.load(std::sync::atomic::Ordering::Relaxed), 1, "one lightwalletd round trip for 200 requests");
+        // once the cached answer is older than HEALTH_CACHE, the next request probes again
+        a.health.lock().await.as_mut().unwrap().0 -= HEALTH_CACHE;
+        assert_eq!(health(State(a.clone())).await.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(a.health_probes.load(std::sync::atomic::Ordering::Relaxed), 2);
     }
 
     fn with_auth(v: &str) -> HeaderMap {
