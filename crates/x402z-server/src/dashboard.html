@@ -548,9 +548,14 @@ $("#try").onclick = async () => {
 // Sidebar: highlight the section in view.
 const navLinks = [...document.querySelectorAll(".nav a")];
 const secs = navLinks.map(a => document.querySelector(a.getAttribute("href")));
-let spyQueued = false;
+let spyQueued = false, picked = -1;
+// A clicked link stays highlighted while its jump scrolls (the last sections can't reach the top,
+// so position alone would light up the wrong one); the user's own scrolling hands back to the spy.
+navLinks.forEach((a, i) => a.addEventListener("click", () => { picked = i; requestAnimationFrame(spy); }));
+["wheel", "touchstart", "keydown"].forEach(t => addEventListener(t, () => { picked = -1; }, {passive: true}));
 function spy(){ spyQueued = false; let cur = 0; secs.forEach((s, i) => { if (s && s.getBoundingClientRect().top < 140) cur = i; });
   if (innerHeight + scrollY >= document.documentElement.scrollHeight - 4) cur = secs.length - 1;
+  if (picked >= 0) cur = picked;
   navLinks.forEach((a, i) => a.classList.toggle("on", i === cur)); }
 addEventListener("scroll", () => { if (!spyQueued) { spyQueued = true; requestAnimationFrame(spy); } }, {passive: true});
 spy();
