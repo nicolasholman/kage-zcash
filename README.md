@@ -242,7 +242,7 @@ Fill in `X402Z_MERCHANT_UA`, `X402Z_RECEIPT_PUBKEY`, `X402Z_FACILITATOR_URL` and
 
 These are checked in order. The first denial wins, so a payment that would be denied never reaches an approval prompt.
 
-1. **Host allowlist.** Hosts are denied by default. An entry is an exact host or a `*.suffix` wildcard; `*.data.test` matches `x.data.test` but not `data.test` or `evildata.test`. Host matching ignores case, ports and trailing dots.
+1. **Host allowlist.** Hosts are denied by default. An entry is an exact host or a `*.suffix` wildcard; `*.data.test` matches `x.data.test` but not `data.test` or `evildata.test`. Matching ignores case and trailing dots. An entry with a port allows only that port (`127.0.0.1:4020` does not allow `127.0.0.1:9999`; a URL without a port is taken at 80/443), and an entry with a scheme allows only that scheme (`https://api.example.com`). An entry without them allows any port and scheme. The agent checks the allowlist **before its first request**, so a host it may not pay never gets a request (or the agent's IP), and it refuses a plain-HTTP URL to a non-loopback host, where anyone on the path could rewrite `payTo` (`X402Z_AGENT_ALLOW_HTTP=1` lifts that on a network you trust). Answer bodies are read up to `X402Z_AGENT_MAX_BODY_BYTES` (1 MiB).
 2. **Amount must be > 0.**
 3. **Daily cap** per agent, measured per UTC day. The cap is inclusive, and sums use checked arithmetic so an overflow counts as a denial.
 4. **Approval threshold** (inclusive): at or above it, the result is `NeedsApproval`.

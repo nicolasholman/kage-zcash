@@ -245,7 +245,7 @@ async fn fetch_offer(http: &reqwest::Client, url: &str) -> Result<(PaymentRequir
     let resp = http.get(url).send().await.map_err(|e| PayError::Runtime(format!("GET {url} failed: {e}")))?;
     pay::refuse_redirect(url, &resp)?;
     let status = resp.status();
-    let body = resp.text().await.unwrap_or_default();
+    let body = pay::read_body(resp, url).await?;
     if status.as_u16() != 402 {
         return Err(PayError::Runtime(format!("{url} answered {status}, expected a 402 with a tab offer: {body}")));
     }
@@ -336,7 +336,7 @@ async fn issue_and_store(
             Err(e) => format!("POST {issue} failed: {e}"),
             Ok(resp) => {
                 let status = resp.status();
-                let body = resp.text().await.unwrap_or_default();
+                let body = pay::read_body(resp, &issue).await?;
                 match status.as_u16() {
                     200 => {
                         break serde_json::from_str(&body)
@@ -424,7 +424,7 @@ pub async fn buy(cfg: &AgentConfig, url: &str, n: u32, approve: &(dyn Fn(&str, u
 /// [`BuyOutcome::Pending`] while the payment confirms (MCP). It never pays while a paid tab for
 /// the same origin is still waiting to be issued.
 pub async fn buy_or_resume(cfg: &AgentConfig, url: &str, n: u32, approve: &(dyn Fn(&str, u64, u64) -> bool + Sync), wait: bool) -> Result<BuyOutcome, PayError> {
-    let host = pay::host_of(url)?;
+    let host = pay::preflight(cfg, url, true)?;
     let origin = origin_of(url)?;
     let tab_file = tab_path(cfg)?;
     let http = pay::http_client()?;
@@ -519,7 +519,7 @@ async fn collect(cfg: &AgentConfig, http: &reqwest::Client, p: PendingPurchase, 
 /// Authorise a tab of `n` tokens through spendguard and return the ZIP 321 request for any
 /// wallet to pay. Nothing counts against the cap until [`finish_external`] records the txid.
 pub async fn start_external(cfg: &AgentConfig, url: &str, n: u32, approve: &(dyn Fn(&str, u64, u64) -> bool + Sync)) -> Result<PendingPurchase, PayError> {
-    let host = pay::host_of(url)?;
+    let host = pay::preflight(cfg, url, true)?;
     let http = pay::http_client()?;
     let (ch, offer) = accepted_offer(cfg, &http, url).await?;
     let amount = check_n(&offer, n)?;
@@ -606,6 +606,7 @@ pub struct TabFetched {
 
 /// GET `url` spending one stored token. `Ok(None)` when there is no token for its origin.
 pub async fn fetch(cfg: &AgentConfig, url: &str) -> Result<Option<TabFetched>, PayError> {
+    pay::preflight(cfg, url, false)?;
     let origin = origin_of(url)?;
     let path = tab_path(cfg)?;
     let token = {
@@ -636,7 +637,7 @@ pub async fn fetch(cfg: &AgentConfig, url: &str) -> Result<Option<TabFetched>, P
     };
     let status = resp.status();
     let settlement = pay::settlement_header(&resp);
-    let body = resp.text().await.unwrap_or_default();
+    let body = pay::read_body(resp, url).await?;
     let elapsed_ms = started.elapsed().as_millis();
     let remaining = TabFile::open(&path, cfg.key()?)?.count(&origin, now());
     if !status.is_success() {

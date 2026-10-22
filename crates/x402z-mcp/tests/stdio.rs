@@ -306,7 +306,13 @@ fn spendguard_refusals_are_tool_errors_and_land_in_the_ledger() {
     assert_eq!(t["total"], 3);
     let decisions: Vec<&str> = t["entries"].as_array().unwrap().iter().map(|e| e["decision"].as_str().unwrap()).collect();
     assert_eq!(decisions, ["denied", "denied", "needs_approval"]);
-    assert!(t["entries"].as_array().unwrap().iter().all(|e| e.get("txid").is_none() && e["memoNonce"] == "x402z-fixture"));
+    let entries = t["entries"].as_array().unwrap();
+    assert!(entries.iter().all(|e| e.get("txid").is_none()));
+    // the cap and approval refusals answered the fixture's 402; the allowlist refusal came before
+    // any request, so it has no nonce and says nothing was requested
+    assert_eq!((entries[0]["memoNonce"].as_str(), entries[2]["memoNonce"].as_str()), (Some("x402z-fixture"), Some("x402z-fixture")));
+    assert!(entries[1].get("memoNonce").is_none(), "{}", entries[1]);
+    assert!(entries[1]["reason"].as_str().unwrap().contains("nothing requested"), "{}", entries[1]);
     let t = structured(&m.call("ledger_tail", json!({ "n": 1 })));
     assert_eq!(t["entries"].as_array().unwrap().len(), 1);
     assert_eq!(structured(&m.call("ledger_tail", json!({ "n": 0 })))["error"], "invalid_arguments");

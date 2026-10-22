@@ -196,6 +196,103 @@ pub fn host_of(url: &str) -> Result<String, PayError> {
     }
 }
 
+/// `scheme://host[:port]` of a URL: what spendguard's allowlist is matched against (an entry
+/// may pin the scheme and the port).
+pub fn target_of(url: &str) -> Result<String, PayError> {
+    let u = reqwest::Url::parse(url).map_err(|e| PayError::Config(format!("invalid URL {url}: {e}")))?;
+    Ok(format!("{}://{}", u.scheme(), host_of(url)?))
+}
+
+fn is_loopback_host(host: &str) -> bool {
+    let h = host.trim_start_matches('[').trim_end_matches(']');
+    h.eq_ignore_ascii_case("localhost") || h.parse::<std::net::IpAddr>().is_ok_and(|ip| ip.is_loopback())
+}
+
+/// Before the agent sends anything to `url` (a GET, an `X-PAYMENT`, a tab token): the URL must
+/// be https, or http to a loopback host (`X402Z_AGENT_ALLOW_HTTP=1` lifts that for a trusted
+/// network), because over plain HTTP anyone on the path could rewrite the 402's `payTo`; and its
+/// host must be on the allowlist, so a host the agent may not pay never even sees a request (or
+/// the agent's IP). A refusal is [`PayError::Refused`]; with `record` it is also written to the
+/// ledger. Returns the spendguard target ([`target_of`]).
+pub fn preflight(cfg: &AgentConfig, url: &str, record: bool) -> Result<String, PayError> {
+    let u = reqwest::Url::parse(url).map_err(|e| PayError::Config(format!("invalid URL {url}: {e}")))?;
+    if u.scheme() != "http" && u.scheme() != "https" {
+        return Err(PayError::Config(format!("{url}: only http and https URLs can be paid")));
+    }
+    let host = u.host_str().ok_or_else(|| PayError::Config(format!("URL {url} has no host")))?;
+    let target = target_of(url)?;
+    let allow_http = optional("X402Z_AGENT_ALLOW_HTTP").is_some_and(|v| v == "1");
+    let refusal = if u.scheme() == "http" && !is_loopback_host(host) && !allow_http {
+        Some(format!(
+            "{url} is plain HTTP to a non-loopback host, where anyone on the path could rewrite the 402's payTo and \
+             amount; use https (or set X402Z_AGENT_ALLOW_HTTP=1 on a network you trust)"
+        ))
+    } else if !spendguard::host_allowed(&cfg.policy.allowed_hosts, &target) {
+        Some(spendguard::Denial::HostNotAllowed { host: spendguard::normalize_host(&target) }.to_string())
+    } else {
+        None
+    };
+    let Some(reason) = refusal else { return Ok(target) };
+    if record {
+        record_denial(cfg, &host_of(url)?, url, &reason)?;
+    }
+    Err(PayError::Refused(format!(
+        "spendguard refused the payment: {reason}. Nothing was requested from {url}, and no transaction was built or broadcast."
+    )))
+}
+
+/// A refusal made before any request: one ledger line, no nonce (no 402 was asked for).
+fn record_denial(cfg: &AgentConfig, host: &str, url: &str, reason: &str) -> Result<(), PayError> {
+    let ledger_path = cfg
+        .ledger_path
+        .as_ref()
+        .ok_or_else(|| PayError::Config("X402Z_AGENT_LEDGER not configured: spendguard needs it to enforce the daily cap. Not paying.".into()))?;
+    let key = cfg.key()?;
+    let _lock = LedgerFile::lock(ledger_path).map_err(PayError::Config)?;
+    let mut ledger = LedgerFile::load(ledger_path, key).map_err(PayError::Config)?;
+    let t = now();
+    let spent = ledger.guard(&cfg.agent, &cfg.policy, t).spent_today(&cfg.agent, t);
+    ledger.upsert_agent(&cfg.agent, &cfg.policy, spent);
+    ledger.append(AuditEntry {
+        ts: t,
+        agent: cfg.agent.clone(),
+        host: host.to_string(),
+        amount_zat: 0,
+        decision: "denied".into(),
+        reason: Some(format!("{reason}; nothing requested or broadcast")),
+        memo_nonce: None,
+        txid: None,
+        url: Some(url.to_string()),
+        settled: None,
+    });
+    ledger.save().map_err(PayError::Runtime)
+}
+
+/// Default cap on an answer body the agent reads (`X402Z_AGENT_MAX_BODY_BYTES`).
+pub const DEFAULT_MAX_BODY_BYTES: usize = 1 << 20;
+
+/// Read `resp`'s body, at most `X402Z_AGENT_MAX_BODY_BYTES` (default 1 MiB): a server can't
+/// make the agent (or the MCP server) hold an unbounded answer in memory.
+pub(crate) async fn read_body(mut resp: reqwest::Response, url: &str) -> Result<String, PayError> {
+    let limit = optional("X402Z_AGENT_MAX_BODY_BYTES").and_then(|v| v.parse::<usize>().ok()).unwrap_or(DEFAULT_MAX_BODY_BYTES);
+    let too_big = |n: String| {
+        PayError::Runtime(format!(
+            "{url} answered with a body of {n} bytes, over the agent's limit of {limit} bytes (X402Z_AGENT_MAX_BODY_BYTES); not read"
+        ))
+    };
+    if let Some(len) = resp.content_length().filter(|&l| l > limit as u64) {
+        return Err(too_big(len.to_string()));
+    }
+    let mut buf: Vec<u8> = Vec::new();
+    while let Some(chunk) = resp.chunk().await.map_err(|e| PayError::Runtime(format!("reading the answer from {url} failed: {e}")))? {
+        if buf.len() + chunk.len() > limit {
+            return Err(too_big(format!("more than {limit}")));
+        }
+        buf.extend_from_slice(&chunk);
+    }
+    Ok(String::from_utf8_lossy(&buf).into_owned())
+}
+
 /// Parse an x402 402 body and pick the payable `zcash-shielded` option.
 pub fn challenge_from_402(body: &str, now_unix: u64) -> Result<PaymentRequired, PayError> {
     let r: PaymentRequiredResponse = serde_json::from_str(body)
@@ -395,7 +492,8 @@ pub fn spendguard_gate_or<R>(
     let mut audit = AuditEntry {
         ts: t,
         agent: agent.to_string(),
-        host: host.to_string(),
+        // the ledger shows host[:port]; the scheme only matters to the allowlist
+        host: host.split_once("://").map_or(host, |(_, h)| h).to_string(),
         amount_zat,
         decision: "allowed".into(),
         reason: None,
@@ -582,7 +680,7 @@ pub async fn redeem_payment(cfg: &AgentConfig, url: &str, txid: &str, memo_nonce
     if !x402z_protocol::valid_txid(&txid) || !x402z_protocol::valid_nonce(memo_nonce.trim()) {
         return Err(PayError::Config("txid must be 64 hex characters and memoNonce 1-64 of [A-Za-z0-9_-]".into()));
     }
-    host_of(url)?;
+    preflight(cfg, url, true)?;
     let amount = ledger_entry(cfg, &txid).map(|e| e.amount_zat).unwrap_or(0);
     let http = http_client()?;
     settle(cfg, &http, url, &txid, memo_nonce.trim(), amount, false, true).await
@@ -614,7 +712,8 @@ fn update_ledger(cfg: &AgentConfig, txid: &str, f: impl FnOnce(&mut LedgerFile) 
 }
 
 async fn fetch_or_pay(cfg: &AgentConfig, url: &str, approve: &(dyn Fn(&str, u64, u64) -> bool + Sync), wait: bool) -> Result<PaidFetch, PayError> {
-    let host = host_of(url)?;
+    // Before anything is sent: https (or loopback) and an allowlisted host.
+    let host = preflight(cfg, url, true)?;
     let http = http_client()?;
 
     // 0. A payment for this URL that was broadcast and never settled is presented again; paying
@@ -634,14 +733,14 @@ async fn fetch_or_pay(cfg: &AgentConfig, url: &str, approve: &(dyn Fn(&str, u64,
     let status = resp.status();
     if status.is_success() {
         eprintln!("{url} answered {status} without payment");
-        let body = resp.text().await.unwrap_or_default();
+        let body = read_body(resp, url).await?;
         return Ok(PaidFetch::Done(Fetched { status: status.as_u16(), body, paid: None, settlement: None }));
     }
     if status.as_u16() != 402 {
-        let body = resp.text().await.unwrap_or_default();
+        let body = read_body(resp, url).await?;
         return Err(PayError::Runtime(format!("{url} answered {status}, expected 402: {body}")));
     }
-    let ch = challenge_from_402(&resp.text().await.unwrap_or_default(), now())?;
+    let ch = challenge_from_402(&read_body(resp, url).await?, now())?;
     eprintln!(
         "402 challenge: pay {} zat to {}… memo {} (expires in {}s)",
         ch.amount_zat,
@@ -701,12 +800,15 @@ async fn settle(
             Ok(resp) => {
                 let status = resp.status();
                 let settlement = settlement_header(&resp);
-                let body = resp.text().await.unwrap_or_default();
                 if status.is_success() {
                     eprintln!("{url} answered {status}: paid content delivered");
                     mark_settled(cfg, txid, true);
+                    let body = read_body(resp, url).await.map_err(|e| {
+                        PayError::Runtime(format!("tx {txid} is settled (do not pay again), but its content was not read: {e}"))
+                    })?;
                     return Ok(PaidFetch::Done(Fetched { status: status.as_u16(), body, paid, settlement }));
                 }
+                let body = read_body(resp, url).await.unwrap_or_else(|e| e.to_string());
                 let why = settlement.as_ref().and_then(|s| s.error_reason.clone()).unwrap_or_default();
                 let detail = serde_json::from_str::<serde_json::Value>(&body)
                     .ok()
@@ -764,6 +866,9 @@ mod tests {
         assert_eq!(host_of("http://127.0.0.1:4020/api/quote").unwrap(), "127.0.0.1:4020");
         assert_eq!(host_of("https://api.example.com/x").unwrap(), "api.example.com");
         assert!(matches!(host_of("not a url"), Err(PayError::Config(_))));
+        assert_eq!(target_of("http://127.0.0.1:4020/api/quote").unwrap(), "http://127.0.0.1:4020");
+        assert!(is_loopback_host("127.0.0.1") && is_loopback_host("[::1]") && is_loopback_host("LOCALHOST"));
+        assert!(!is_loopback_host("10.0.0.1") && !is_loopback_host("api.example.com"));
     }
 
     fn gate_cfg(name: &str) -> AgentConfig {
