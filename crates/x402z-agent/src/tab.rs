@@ -165,6 +165,7 @@ fn check_n(offer: &TabOffer, n: u32) -> Result<u64, PayError> {
 
 async fn fetch_offer(http: &reqwest::Client, url: &str) -> Result<(PaymentRequired, TabOffer), PayError> {
     let resp = http.get(url).send().await.map_err(|e| PayError::Runtime(format!("GET {url} failed: {e}")))?;
+    pay::refuse_redirect(url, &resp)?;
     let status = resp.status();
     let body = resp.text().await.unwrap_or_default();
     if status.as_u16() != 402 {
@@ -173,9 +174,19 @@ async fn fetch_offer(http: &reqwest::Client, url: &str) -> Result<(PaymentRequir
     offer_from_402(&body, now())
 }
 
+/// Where to post the blinded messages: `issuePath` resolved against the resource, which must stay
+/// on the resource's own origin (the paid challenge and txid go there).
 fn issue_url(url: &str, offer: &TabOffer) -> Result<String, PayError> {
     let base = reqwest::Url::parse(url).map_err(|e| PayError::Config(format!("invalid URL {url}: {e}")))?;
-    base.join(&offer.issue_path).map(|u| u.to_string()).map_err(|e| PayError::Runtime(format!("bad issuePath {}: {e}", offer.issue_path)))
+    let issue = base.join(&offer.issue_path).map_err(|e| PayError::Runtime(format!("bad issuePath {}: {e}", offer.issue_path)))?;
+    if issue.origin() != base.origin() {
+        return Err(PayError::Runtime(format!(
+            "tab offer's issuePath {} leaves {}; refusing to send the payment to another origin",
+            offer.issue_path,
+            base.origin().ascii_serialization()
+        )));
+    }
+    Ok(issue.to_string())
 }
 
 /// What a finished purchase produced.
@@ -468,6 +479,11 @@ mod tests {
         assert_eq!(check_n(&offer, 5).unwrap(), 500_000);
         assert!(check_n(&offer, 0).is_err() && check_n(&offer, 21).is_err());
         assert_eq!(issue_url("http://127.0.0.1:4020/api/quote", &offer).unwrap(), "http://127.0.0.1:4020/tab/issue");
+        // an issuePath on another origin (absolute or scheme-relative) is refused
+        for off in ["http://evil.example/tab/issue", "//evil.example/tab/issue", "https://127.0.0.1:4020/tab/issue", "http://127.0.0.1:4021/tab/issue"] {
+            let o = TabOffer { issue_path: off.into(), ..offer.clone() };
+            assert!(matches!(issue_url("http://127.0.0.1:4020/api/quote", &o), Err(PayError::Runtime(m)) if m.contains("another origin")), "{off}");
+        }
         assert_eq!(origin_of("http://127.0.0.1:4020/api/quote").unwrap(), "http://127.0.0.1:4020");
         // epoch already over
         assert!(offer_from_402(body, 2_050_000_000).is_err());

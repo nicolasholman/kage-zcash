@@ -167,8 +167,28 @@ pub fn challenge_from_402(body: &str, now_unix: u64) -> Result<PaymentRequired, 
     Ok(ch)
 }
 
+/// The agent's HTTP client. It never follows redirects: spendguard checks the host of the URL it
+/// was given, so a redirect would let another host's 402 be paid under this host's allowlist entry
+/// and budget, and would carry `X-PAYMENT` to that host too.
 pub(crate) fn http_client() -> Result<reqwest::Client, PayError> {
-    reqwest::Client::builder().timeout(Duration::from_secs(120)).build().map_err(|e| PayError::Runtime(e.to_string()))
+    reqwest::Client::builder()
+        .timeout(Duration::from_secs(120))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .map_err(|e| PayError::Runtime(e.to_string()))
+}
+
+/// A 3xx answer is an error naming where it pointed; nothing is followed or paid.
+pub(crate) fn refuse_redirect(url: &str, resp: &reqwest::Response) -> Result<(), PayError> {
+    if !resp.status().is_redirection() {
+        return Ok(());
+    }
+    let to = resp.headers().get("location").and_then(|v| v.to_str().ok()).unwrap_or("(no Location)");
+    Err(PayError::Runtime(format!(
+        "{url} answered {} redirecting to {to}; the agent does not follow redirects for paid requests (spendguard \
+         checked the host you gave, not the redirect target). Call the final URL directly if you trust it. Nothing was paid.",
+        resp.status()
+    )))
 }
 
 pub(crate) fn settlement_header(resp: &reqwest::Response) -> Option<SettlementResponse> {
@@ -369,6 +389,7 @@ pub async fn paid_fetch(cfg: &AgentConfig, url: &str, approve: &dyn Fn(&str, u64
 
     // 1. Ask for the resource.
     let resp = http.get(url).send().await.map_err(|e| PayError::Runtime(format!("GET {url} failed: {e}")))?;
+    refuse_redirect(url, &resp)?;
     let status = resp.status();
     if status.is_success() {
         eprintln!("{url} answered {status} without payment");
