@@ -388,8 +388,8 @@
           <p>A Rust workspace pinned to toolchain 1.89.0. Run the tests one crate at a time; the Zcash crates are large.</p>
           <div class="code"><div class="bar"><span>shell</span><button class="copy" type="button" data-copy="#qs">Copy</button></div>
 <pre id="qs">cargo test -p spendguard -p x402z-protocol -p x402z-server   <span class="c"># 11 + 14 + 26</span>
-cargo test -p x402z-agent                                      <span class="c"># 8</span>
-cargo test -p x402z-mcp                                        <span class="c"># 3, drives the binary over stdio</span>
+cargo test -p x402z-agent                                      <span class="c"># 12</span>
+cargo test -p x402z-mcp                                        <span class="c"># 4, drives the binary over stdio</span>
 cargo test -p x402z-facilitator                                <span class="c"># 13: 6 build Halo2 proofs, 3 hit testnet</span></pre></div>
           <p>Nothing is mocked. Without a key, a wallet or funds, each binary stops with a readable error and a non-zero exit code:</p>
           <div class="term" role="group" aria-label="Terminal output"><div class="bar"><span>zsh · 2026-10-21</span><span>no .env, then cap below the price</span></div>
