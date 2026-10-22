@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# Starts the real Kage stack for the browser E2E run, bound to 127.0.0.1:
-#   4021  x402z-facilitator  (published demo UIVK only, a throwaway receipt key made here)
-#   4020  x402z-server       (merchant view, the default)
-#   4030  x402z-server       (facilitator URL points at a closed port: the "unreachable" state)
-#   4040  x402z-server       (X402Z_DEMO_AGENT_LEDGER = a ledger the real agent wrote here)
-#   4041  x402z-server       (X402Z_DEMO_AGENT_LEDGER = a missing file: the Setup required state)
-#   4042  x402z-server       (X402Z_CHALLENGE_RATE_PER_MIN=1: the 429 state)
-#   4050  landing/           (served under /zec-shielded-x402/, like GitHub Pages)
+# Starts the real Kage stack for the browser E2E run, bound to 127.0.0.1. Each x402z-server has a
+# public port (paid API only) and an admin port (dashboard, feed, status, plus the paid API):
+#   4021        x402z-facilitator  (published demo UIVK only, a throwaway receipt key made here)
+#   4020 / 4120 x402z-server       (merchant view, the default)
+#   4030 / 4130 x402z-server       (facilitator URL points at a closed port: the "unreachable" state)
+#   4040 / 4140 x402z-server       (X402Z_DEMO_AGENT_LEDGER = a ledger the real agent wrote here)
+#   4041 / 4141 x402z-server       (X402Z_DEMO_AGENT_LEDGER = a missing file: the Setup required state)
+#   4042 / 4142 x402z-server       (X402Z_CHALLENGE_RATE_PER_MIN=1: the 429 state)
+#   4050        landing/           (served under /zec-shielded-x402/, like GitHub Pages)
 # No seed and no spending key is used anywhere. PIDs go to e2e/.run/pids; `stack.sh stop` kills them.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -43,20 +44,21 @@ start facilitator env X402Z_MERCHANT_UIVK="$UIVK" X402Z_FACILITATOR_BIND=127.0.0
   X402Z_FACILITATOR_DB="$RUN/facilitator.sqlite" \
   bash -c 'set -a; . "$0"; set +a; exec "$1"' "$RUN/receipt.env" "$BIN/x402z-facilitator"
 
-server() { # name port extra-env...
-  local name=$1 port=$2; shift 2
+server() { # name public-port admin-port extra-env...
+  local name=$1 port=$2 admin=$3; shift 3
   start "$name" env X402Z_MERCHANT_UA="$UA" X402Z_RECEIPT_PUBKEY="$PUB" X402Z_FACILITATOR_URL=http://127.0.0.1:4021 \
-    X402Z_BIND=127.0.0.1:$port X402Z_SERVER_DB="$RUN/$name.sqlite" X402Z_CHALLENGE_RATE_PER_MIN=200 "$@" "$BIN/x402z-server"
+    X402Z_BIND=127.0.0.1:$port X402Z_ADMIN_BIND=127.0.0.1:$admin X402Z_SERVER_DB="$RUN/$name.sqlite" \
+    X402Z_CHALLENGE_RATE_PER_MIN=200 "$@" "$BIN/x402z-server"
 }
-server server 4020
-server server-nofac 4030 X402Z_FACILITATOR_URL=http://127.0.0.1:4039
-server server-ledger 4040 X402Z_DEMO_AGENT_LEDGER="$PWD/$RUN/agent-ledger.json"
-server server-badledger 4041 X402Z_DEMO_AGENT_LEDGER="$PWD/$RUN/no-such-ledger.json"
-server server-ratelimit 4042 X402Z_CHALLENGE_RATE_PER_MIN=1
+server server 4020 4120
+server server-nofac 4030 4130 X402Z_FACILITATOR_URL=http://127.0.0.1:4039
+server server-ledger 4040 4140 X402Z_DEMO_AGENT_LEDGER="$PWD/$RUN/agent-ledger.json"
+server server-badledger 4041 4141 X402Z_DEMO_AGENT_LEDGER="$PWD/$RUN/no-such-ledger.json"
+server server-ratelimit 4042 4142 X402Z_CHALLENGE_RATE_PER_MIN=1
 start landing node e2e/serve-landing.mjs 4050
 
 wait_http() { for _ in $(seq 1 100); do curl -fs -o /dev/null "$1" && return 0; sleep 0.3; done; echo "error: $1 never came up" >&2; return 1; }
-for p in 4020 4030 4040 4041 4042; do wait_http "http://127.0.0.1:$p/api/status"; done
+for p in 4120 4130 4140 4141 4142; do wait_http "http://127.0.0.1:$p/api/status"; done
 wait_http http://127.0.0.1:4050/zec-shielded-x402/
 for _ in $(seq 1 100); do grep -q "listening" "$RUN/facilitator.log" 2>/dev/null && break; sleep 0.3; done
 

@@ -66,12 +66,22 @@ impl PaymentRequired {
         if self.amount_zat == 0 {
             return Err(InvalidChallenge::ZeroAmount);
         }
-        let n = &self.memo_nonce;
-        if n.is_empty() || n.len() > MAX_NONCE_LEN || !n.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+        if !valid_nonce(&self.memo_nonce) {
             return Err(InvalidChallenge::BadNonce);
         }
         Ok(())
     }
+}
+
+/// A memo nonce as challenges carry it: 1 to [`MAX_NONCE_LEN`] characters of `[A-Za-z0-9_-]`.
+/// Servers check this before a client-supplied nonce reaches a database, a facilitator or a log.
+pub fn valid_nonce(n: &str) -> bool {
+    !n.is_empty() && n.len() <= MAX_NONCE_LEN && n.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
+/// A display-order transaction id: exactly 64 hex characters.
+pub fn valid_txid(t: &str) -> bool {
+    t.len() == 64 && t.chars().all(|c| c.is_ascii_hexdigit())
 }
 
 /// Was a payment made in time? `paid_at` is the mined block's time (or, for a mempool-only

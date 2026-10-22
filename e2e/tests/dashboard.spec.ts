@@ -2,7 +2,9 @@ import { test, expect, expectNoHorizontalScroll, isMobile } from './fixtures';
 import type { Page } from '@playwright/test';
 
 const at = (port: number) => `http://127.0.0.1:${port}/`;
-const SERVER = 4020, NO_FAC = 4030, DEMO_LEDGER = 4040, BAD_LEDGER = 4041, RATE_LIMITED = 4042;
+// Dashboards live on each x402z-server's admin port; PUBLIC_API is the same server's public port.
+const SERVER = 4120, NO_FAC = 4130, DEMO_LEDGER = 4140, BAD_LEDGER = 4141, RATE_LIMITED = 4142;
+const PUBLIC_API = 4020;
 // A real mined Kage payment (block 4,524,586) to the published demo merchant. Its memo is a
 // different, already-used nonce, so against a fresh challenge the honest answer is a refusal.
 const MINED_TXID = 'ccb4214c6a1fdf183c086ae5b4f559d181ead4c1c61dc7e711fc4a08b95b0ed3';
@@ -157,6 +159,14 @@ test.describe('merchant dashboard', () => {
     await expect(page.locator('#feed li').filter({ hasText: nonce })).toBeVisible({ timeout: 5000 });
     const events = await (await request.get(at(SERVER) + 'api/events?since=0')).json();
     await expect(page.locator('#feed li')).toHaveCount(events.length);
+  });
+
+  test('the public port serves the paid API only: no dashboard, feed or status', async ({ request }) => {
+    for (const path of ['', 'api/events?since=0', 'api/status']) {
+      expect((await request.get(at(PUBLIC_API) + path)).status(), `/${path} on the public port`).toBe(404);
+      expect((await request.get(at(SERVER) + path)).status(), `/${path} on the admin port`).toBe(200);
+    }
+    expect((await request.get(at(PUBLIC_API) + 'api/quote')).status()).toBe(402);
   });
 
   test('empty state on a fresh server: no requests yet', async ({ page }) => {

@@ -1,6 +1,15 @@
 //! Paywalled demo API + dashboard.
-//! `GET /api/quote` returns a 402 challenge until it gets a valid facilitator-signed
-//! `X-PAYMENT-RECEIPT`. `GET /` serves the dashboard; `/api/events` and `/api/status` feed it.
+//! `GET /api/quote` returns a 402 challenge until it gets a valid `X-PAYMENT` (settled through the
+//! facilitator) or a facilitator-signed `X-PAYMENT-RECEIPT`.
+//!
+//! Two listeners:
+//! - public (`X402Z_BIND`, default 127.0.0.1:4020): `/api/quote`, `/api/redeem`, `/tab/issue` and
+//!   the challenge QR, nothing else;
+//! - admin (`X402Z_ADMIN_BIND`, default 127.0.0.1:4029, `off` to disable): the merchant dashboard
+//!   `/`, its feed `/api/events` and `/api/status`, plus the public routes so the dashboard can
+//!   send a request from the same origin. The feed is the merchant's own: it never leaves the
+//!   admin port, and even there a pending or refused attempt shows only a nonce prefix.
+//!
 //! Nothing here touches the chain: payment proof is the facilitator's ed25519 receipt.
 //! Issued challenges and redeemed nonces live in SQLite (`X402Z_SERVER_DB`), so a restart
 //! neither loses an open challenge nor un-burns a redeemed one.
@@ -29,7 +38,7 @@ use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use x402z_protocol::{
-    challenge_uri, decode_header, encode_header, paid_in_time, reason, FacilitatorRequest, Network, PaymentPayload, PaymentRequired,
+    challenge_uri, decode_header, encode_header, paid_in_time, reason, valid_nonce, valid_txid, FacilitatorRequest, Network, PaymentPayload, PaymentRequired,
     PaymentRequiredResponse, PaymentRequirements, ReceiptClaims, SettleResponse, SettlementResponse, VerifyStatus,
     DEFAULT_EXPIRY_GRACE_SECS, PAYMENT_HEADER, PAYMENT_RESPONSE_HEADER, RECEIPT_HEADER, SCHEME, SETTLE_PATH, X402_VERSION,
     TabIssueRequest, TabIssueResponse, TAB_ISSUE_PATH, TAB_SCHEME,
@@ -49,6 +58,10 @@ const DEFAULT_REDEEM_WINDOW_SECS: u64 = 24 * 60 * 60;
 const DEFAULT_CHALLENGE_RATE_PER_MIN: u32 = 30;
 /// Forget idle buckets once the table grows past this many client IPs.
 const MAX_TRACKED_IPS: usize = 10_000;
+/// Default admin listener (dashboard, feed, status); loopback only unless configured otherwise.
+const DEFAULT_ADMIN_BIND: &str = "127.0.0.1:4029";
+/// Longest feed `detail` kept; anything a client sent is cut here.
+const MAX_DETAIL_CHARS: usize = 160;
 
 fn require(var: &str) -> String {
     match std::env::var(var) {
@@ -94,6 +107,9 @@ struct Config {
     /// Kage Tab: most tokens one payment may buy (0 turns the tab off) and the key epoch.
     tab_max_tokens: u32,
     tab_epoch_secs: u64,
+    /// Reverse proxies whose `X-Forwarded-For` is believed for the per-client limiter
+    /// (`X402Z_TRUSTED_PROXIES`); empty means the TCP peer is the client.
+    trusted_proxies: Vec<IpAddr>,
 }
 
 /// Live event feed for the dashboard (in memory; the durable state is in [`Store`]).
@@ -103,6 +119,27 @@ struct Book {
     next_id: u64,
 }
 
+/// First characters of a nonce, for feed rows about a nonce that may still be unspent: enough for
+/// the merchant to tell attempts apart, not enough to present the nonce with a payment.
+fn nonce_hint(nonce: &str) -> String {
+    let head: String = nonce.chars().take(12).collect();
+    if head.len() < nonce.len() {
+        format!("{head}…")
+    } else {
+        head
+    }
+}
+
+/// Feed text is capped: parts of it (error messages about a malformed header) come from clients.
+fn clip(detail: String) -> String {
+    if detail.chars().count() <= MAX_DETAIL_CHARS {
+        return detail;
+    }
+    let mut d: String = detail.chars().take(MAX_DETAIL_CHARS).collect();
+    d.push('…');
+    d
+}
+
 impl Book {
     fn push(&mut self, kind: &'static str, nonce: Option<&str>, amount: Option<u64>, txid: Option<&str>, detail: String) {
         self.next_id += 1;
@@ -110,10 +147,10 @@ impl Book {
             id: self.next_id,
             ts: now(),
             kind,
-            memo_nonce: nonce.map(str::to_string),
+            memo_nonce: nonce.map(|n| clip(n.to_string())),
             amount_zat: amount,
-            txid: txid.map(str::to_string),
-            detail,
+            txid: txid.map(|t| clip(t.to_string())),
+            detail: clip(detail),
         });
         if self.events.len() > MAX_EVENTS {
             let extra = self.events.len() - MAX_EVENTS;
@@ -128,6 +165,30 @@ impl Book {
 struct ChallengeLimiter {
     per_min: u32,
     buckets: HashMap<IpAddr, (f64, Instant)>,
+}
+
+/// The limiter's key for a request: the TCP peer, or, when the peer is a configured trusted proxy,
+/// the right-most `X-Forwarded-For` hop that is not one of those proxies. IPv6 clients are keyed
+/// by their /64, since one host usually holds a whole /64.
+fn client_key(peer: IpAddr, headers: &HeaderMap, trusted: &[IpAddr]) -> IpAddr {
+    let mut ip = peer;
+    if trusted.contains(&peer) {
+        let hops = headers.get_all("x-forwarded-for").iter().filter_map(|v| v.to_str().ok()).flat_map(|v| v.split(','));
+        let hops: Vec<IpAddr> = hops.filter_map(|h| h.trim().parse().ok()).collect();
+        if let Some(c) = hops.iter().rev().find(|h| !trusted.contains(h)) {
+            ip = *c;
+        }
+    }
+    match ip {
+        IpAddr::V6(v6) => match v6.to_ipv4_mapped() {
+            Some(v4) => IpAddr::V4(v4),
+            None => {
+                let s = v6.segments();
+                IpAddr::from([s[0], s[1], s[2], s[3], 0, 0, 0, 0])
+            }
+        },
+        v4 => v4,
+    }
 }
 
 impl ChallengeLimiter {
@@ -356,20 +417,39 @@ fn paid_response(c: &ReceiptClaims) -> Response {
     with_header(resp, PAYMENT_RESPONSE_HEADER, &encode_header(&SettlementResponse::ok(&c.txid)))
 }
 
-/// Mint a new challenge (rate limited per client IP) and answer 402 with it.
-fn mint(app: &App, peer: SocketAddr, resource: &str, detail: &str, error: Option<String>, settlement: Option<SettlementResponse>) -> Response {
-    let mut book = app.book.lock().unwrap();
-    if let Err(wait) = app.limiter.lock().unwrap().try_acquire(peer.ip(), Instant::now()) {
-        book.push("rejected", None, None, None, format!("rate limited {} (retry in {}s)", peer.ip(), wait.as_secs().max(1)));
-        let mut resp = too_many_challenges(wait);
-        if let Some(e) = &error {
-            resp = with_header(resp, "x-payment-error", e);
-        }
-        if let Some(s) = &settlement {
-            resp = with_header(resp, PAYMENT_RESPONSE_HEADER, &encode_header(s));
-        }
-        return resp;
+/// Take one token of `client`'s budget. On refusal the feed gets a row (without the client's
+/// address) and the caller gets the 429 to send.
+fn charge(app: &App, client: IpAddr, error: Option<&String>, settlement: Option<&SettlementResponse>) -> Result<(), Response> {
+    let Err(wait) = app.limiter.lock().unwrap().try_acquire(client, Instant::now()) else {
+        return Ok(());
+    };
+    app.book.lock().unwrap().push("rejected", None, None, None, format!("rate limited (retry in {}s)", wait.as_secs().max(1)));
+    let mut resp = too_many_challenges(wait);
+    if let Some(e) = error {
+        resp = with_header(resp, "x-payment-error", e);
     }
+    if let Some(s) = settlement {
+        resp = with_header(resp, PAYMENT_RESPONSE_HEADER, &encode_header(s));
+    }
+    Err(resp)
+}
+
+/// Whether [`mint`] still has to take a limiter token: `Charge` for a fresh request, `Charged`
+/// when the request already paid for its attempt (an `X-PAYMENT` takes its token up front).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Budget {
+    Charge,
+    Charged,
+}
+
+/// Mint a new challenge (rate limited per client) and answer 402 with it.
+fn mint(app: &App, client: IpAddr, budget: Budget, resource: &str, detail: &str, error: Option<String>, settlement: Option<SettlementResponse>) -> Response {
+    if budget == Budget::Charge {
+        if let Err(resp) = charge(app, client, error.as_ref(), settlement.as_ref()) {
+            return resp;
+        }
+    }
+    let mut book = app.book.lock().unwrap();
     let ch = match issue_challenge(app) {
         Ok(ch) => ch,
         Err(e) => return storage_error(e),
@@ -491,39 +571,78 @@ fn record_paid(app: &App, c: &ReceiptClaims, via: &str) {
     app.book.lock().unwrap().push("paid", Some(&c.memo_nonce), Some(c.amount_zat), Some(&c.txid), format!("unlocked via {via} ({conf})"));
 }
 
+/// A client-supplied (memoNonce, txid) must have the shape the server issues and the chain uses
+/// before it reaches the store, the facilitator or the feed.
+fn check_pair_shape(nonce: &str, txid: &str) -> Result<(), String> {
+    if !valid_nonce(nonce) {
+        return Err(format!("memoNonce must be 1 to {} characters of [A-Za-z0-9_-]", x402z_protocol::MAX_NONCE_LEN));
+    }
+    if !valid_txid(txid) {
+        return Err("txid must be 64 hex characters".into());
+    }
+    Ok(())
+}
+
+/// 400 for an `X-PAYMENT` whose nonce or txid can't be real. Nothing is stored, asked or logged.
+fn malformed_payment(msg: String) -> Response {
+    let resp = (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": msg }))).into_response();
+    let resp = with_header(resp, "x-payment-error", &msg);
+    with_header(resp, PAYMENT_RESPONSE_HEADER, &encode_header(&SettlementResponse::failed(reason::INVALID_PAYLOAD)))
+}
+
 /// `X-PAYMENT` (x402 v1): base64 `{x402Version, scheme, network, payload: {txid, memoNonce}}`.
-async fn x_payment(app: &App, peer: SocketAddr, resource: &str, header: &str) -> Response {
-    if let Ok(p) = decode_header::<PaymentPayload>(header) {
+///
+/// Every attempt costs one token of the client's budget before the facilitator (and through it
+/// lightwalletd) is asked anything, so a client can't make the server poll the chain without
+/// limit by presenting payments that stay pending.
+async fn x_payment(app: &App, client: IpAddr, resource: &str, header: &str) -> Response {
+    let decoded = decode_header::<PaymentPayload>(header);
+    if let Ok(p) = &decoded {
         if p.scheme == TAB_SCHEME {
-            return tab_payment(app, peer, resource, &p);
+            return tab_payment(app, client, resource, p);
         }
     }
-    let payload = decode_header::<PaymentPayload>(header).map_err(|e| (e.reason(), format!("{PAYMENT_HEADER} {e}"))).and_then(|p| {
+    let payload = decoded.map_err(|e| (e.reason(), format!("{PAYMENT_HEADER} {e}"))).and_then(|p| {
         p.zcash_payload().map_err(|e| (e.reason(), format!("{PAYMENT_HEADER} {e}")))
     });
     let p = match payload {
-        Ok(p) => p,
+        Ok(mut p) => {
+            p.memo_nonce = p.memo_nonce.trim().to_string();
+            p.txid = p.txid.trim().to_ascii_lowercase();
+            if let Err(msg) = check_pair_shape(&p.memo_nonce, &p.txid) {
+                return malformed_payment(format!("{PAYMENT_HEADER} {msg}"));
+            }
+            p
+        }
         Err((why, msg)) => {
+            let settlement = SettlementResponse::failed(why);
+            if let Err(resp) = charge(app, client, Some(&msg), Some(&settlement)) {
+                return resp;
+            }
             app.book.lock().unwrap().push("rejected", None, None, None, msg.clone());
-            return mint(app, peer, resource, "402 re-issued after a malformed X-PAYMENT", Some(msg), Some(SettlementResponse::failed(why)));
+            return mint(app, client, Budget::Charged, resource, "402 re-issued after a malformed X-PAYMENT", Some(msg), Some(settlement));
         }
     };
+    if let Err(resp) = charge(app, client, None, None) {
+        return resp;
+    }
     match redeem(app, &p.memo_nonce, &p.txid, resource).await {
         Redeem::Paid(c) => {
             record_paid(app, &c, PAYMENT_HEADER);
             paid_response(&c)
         }
         Redeem::Pending { challenge, message } => {
-            app.book.lock().unwrap().push("pending", Some(&challenge.memo_nonce), Some(challenge.amount_zat), Some(&p.txid), message.clone());
+            // The nonce is still unspent: the feed shows only its prefix next to the txid.
+            app.book.lock().unwrap().push("pending", Some(&nonce_hint(&challenge.memo_nonce)), Some(challenge.amount_zat), Some(&p.txid), message.clone());
             // Same challenge again: the payer retries the same X-PAYMENT once the tx confirms.
             payment_required(app, &challenge, resource, Some(message), Some(SettlementResponse::failed(reason::PENDING)))
         }
         Redeem::Refused { reason: why, message } => {
-            app.book.lock().unwrap().push("rejected", Some(&p.memo_nonce), None, Some(&p.txid), message.clone());
-            mint(app, peer, resource, "402 re-issued after rejection", Some(message), Some(SettlementResponse::failed(&why)))
+            app.book.lock().unwrap().push("rejected", Some(&nonce_hint(&p.memo_nonce)), None, Some(&p.txid), message.clone());
+            mint(app, client, Budget::Charged, resource, "402 re-issued after rejection", Some(message), Some(SettlementResponse::failed(&why)))
         }
         Redeem::Unavailable(message) => {
-            app.book.lock().unwrap().push("rejected", Some(&p.memo_nonce), None, Some(&p.txid), message.clone());
+            app.book.lock().unwrap().push("rejected", Some(&nonce_hint(&p.memo_nonce)), None, Some(&p.txid), message.clone());
             let resp = (StatusCode::BAD_GATEWAY, Json(serde_json::json!({ "error": message }))).into_response();
             with_header(resp, PAYMENT_RESPONSE_HEADER, &encode_header(&SettlementResponse::failed(reason::FACILITATOR_ERROR)))
         }
@@ -531,7 +650,7 @@ async fn x_payment(app: &App, peer: SocketAddr, resource: &str, header: &str) ->
 }
 
 /// `X-PAYMENT` with scheme `zcash-shielded-tab`: spend one blind-signed tab token.
-fn tab_payment(app: &App, peer: SocketAddr, resource: &str, p: &PaymentPayload) -> Response {
+fn tab_payment(app: &App, client: IpAddr, resource: &str, p: &PaymentPayload) -> Response {
     let result = match (p.tab_payload(), tab_key(app)) {
         (Err(e), _) => Err((e.reason(), format!("{PAYMENT_HEADER} {e}"))),
         (_, Err(e)) => return storage_error(e),
@@ -559,7 +678,7 @@ fn tab_payment(app: &App, peer: SocketAddr, resource: &str, p: &PaymentPayload) 
         }
         Err((why, msg)) => {
             app.book.lock().unwrap().push("rejected", None, None, None, msg.clone());
-            mint(app, peer, resource, "402 re-issued after a refused tab token", Some(msg), Some(SettlementResponse::failed(why)))
+            mint(app, client, Budget::Charge, resource, "402 re-issued after a refused tab token", Some(msg), Some(SettlementResponse::failed(why)))
         }
     }
 }
@@ -592,14 +711,16 @@ async fn tab_issue(State(app): State<Arc<App>>, ConnectInfo(peer): ConnectInfo<S
         Err(e) => return fail(StatusCode::BAD_REQUEST, reason::INVALID_PAYLOAD, e),
     };
     let txid = req.txid.trim().to_ascii_lowercase();
-    if txid.len() != 64 || !txid.chars().all(|c| c.is_ascii_hexdigit()) {
-        return fail(StatusCode::BAD_REQUEST, reason::INVALID_PAYLOAD, "txid must be 64 hex characters".into());
+    let nonce = req.memo_nonce.trim();
+    if let Err(msg) = check_pair_shape(nonce, &txid) {
+        return fail(StatusCode::BAD_REQUEST, reason::INVALID_PAYLOAD, msg);
     }
-    if let Err(wait) = app.limiter.lock().unwrap().try_acquire(peer.ip(), Instant::now()) {
+    let client = client_key(peer.ip(), &headers, &app.cfg.trusted_proxies);
+    if let Err(wait) = app.limiter.lock().unwrap().try_acquire(client, Instant::now()) {
         return too_many_challenges(wait);
     }
     let resource = resource_url(&headers);
-    let (row, c) = match confirmed_receipt(&app, req.memo_nonce.trim(), &txid, &resource).await {
+    let (row, c) = match confirmed_receipt(&app, nonce, &txid, &resource).await {
         Ok(x) => x,
         Err(Redeem::Pending { message, .. }) => {
             return (StatusCode::ACCEPTED, Json(serde_json::json!({ "status": "pending", "reason": reason::PENDING, "message": message }))).into_response()
@@ -638,13 +759,14 @@ async fn tab_issue(State(app): State<Arc<App>>, ConnectInfo(peer): ConnectInfo<S
 
 async fn quote(State(app): State<Arc<App>>, ConnectInfo(peer): ConnectInfo<SocketAddr>, headers: HeaderMap) -> Response {
     let resource = resource_url(&headers);
+    let client = client_key(peer.ip(), &headers, &app.cfg.trusted_proxies);
     if let Some(h) = headers.get(PAYMENT_HEADER) {
         let h = h.to_str().unwrap_or_default().to_string();
-        return x_payment(&app, peer, &resource, &h).await;
+        return x_payment(&app, client, &resource, &h).await;
     }
     // Back-compat: a facilitator receipt presented directly (`X-PAYMENT-RECEIPT`).
     let Some(receipt) = headers.get(RECEIPT_HEADER).and_then(|v| v.to_str().ok()) else {
-        return mint(&app, peer, &resource, "402 issued", None, None);
+        return mint(&app, client, Budget::Charge, &resource, "402 issued", None, None);
     };
     let result = decode_receipt(&app.cfg.receipt_key, receipt).and_then(|c| {
         // Checked before settle so an unconfirmed payment doesn't burn the nonce and can retry.
@@ -660,7 +782,7 @@ async fn quote(State(app): State<Arc<App>>, ConnectInfo(peer): ConnectInfo<Socke
         }
         Err(e) => {
             app.book.lock().unwrap().push("rejected", None, None, None, e.reason());
-            mint(&app, peer, &resource, "402 re-issued after rejection", Some(e.reason()), None)
+            mint(&app, client, Budget::Charge, &resource, "402 re-issued after rejection", Some(e.reason()), None)
         }
     }
 }
@@ -691,15 +813,16 @@ async fn redeem_api(
         }
     };
     let txid = req.txid.trim().to_ascii_lowercase();
-    if txid.len() != 64 || !txid.chars().all(|c| c.is_ascii_hexdigit()) {
-        return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "status": "rejected", "reason": reason::INVALID_PAYLOAD, "message": "txid must be 64 hex characters" })))
-            .into_response();
+    let nonce = req.memo_nonce.trim().to_string();
+    if let Err(msg) = check_pair_shape(&nonce, &txid) {
+        return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "status": "rejected", "reason": reason::INVALID_PAYLOAD, "message": msg }))).into_response();
     }
-    if let Err(wait) = app.limiter.lock().unwrap().try_acquire(peer.ip(), Instant::now()) {
+    let client = client_key(peer.ip(), &headers, &app.cfg.trusted_proxies);
+    if let Err(wait) = app.limiter.lock().unwrap().try_acquire(client, Instant::now()) {
         return too_many_challenges(wait);
     }
     let resource = resource_url(&headers);
-    match redeem(&app, req.memo_nonce.trim(), &txid, &resource).await {
+    match redeem(&app, &nonce, &txid, &resource).await {
         Redeem::Paid(c) => {
             record_paid(&app, &c, "pasted txid");
             let content = paid_response(&c);
@@ -708,11 +831,11 @@ async fn redeem_api(
             Json(serde_json::json!({ "status": "paid", "settlement": SettlementResponse::ok(&c.txid), "content": content })).into_response()
         }
         Redeem::Pending { challenge, message } => {
-            app.book.lock().unwrap().push("pending", Some(&challenge.memo_nonce), Some(challenge.amount_zat), Some(&txid), message.clone());
+            app.book.lock().unwrap().push("pending", Some(&nonce_hint(&challenge.memo_nonce)), Some(challenge.amount_zat), Some(&txid), message.clone());
             (StatusCode::ACCEPTED, Json(serde_json::json!({ "status": "pending", "reason": reason::PENDING, "message": message }))).into_response()
         }
         Redeem::Refused { reason: why, message } => {
-            app.book.lock().unwrap().push("rejected", Some(req.memo_nonce.trim()), None, Some(&txid), message.clone());
+            app.book.lock().unwrap().push("rejected", Some(&nonce_hint(&nonce)), None, Some(&txid), message.clone());
             (StatusCode::UNPROCESSABLE_ENTITY, Json(serde_json::json!({ "status": "rejected", "reason": why, "message": message }))).into_response()
         }
         Redeem::Unavailable(message) => {
@@ -810,16 +933,32 @@ fn parse_key(hex_key: &str) -> Result<VerifyingKey, String> {
     VerifyingKey::from_bytes(&arr).map_err(|e| e.to_string())
 }
 
-fn router(app: Arc<App>) -> Router {
+/// What the world may reach: the paid resource, the paste-txid redeem, tab issuance and the QR.
+fn public_router(app: Arc<App>) -> Router {
     Router::new()
-        .route("/", get(|| async { Html(DASHBOARD) }))
         .route(QUOTE_PATH, get(quote))
         .route("/api/redeem", axum::routing::post(redeem_api))
         .route(TAB_ISSUE_PATH, axum::routing::post(tab_issue))
         .route("/api/challenge/{nonce}/qr.svg", get(challenge_qr))
+        .with_state(app)
+}
+
+/// The merchant's console: dashboard, feed and status, plus the public routes so the dashboard's
+/// "Send request" and redeem work from the same origin.
+fn admin_router(app: Arc<App>) -> Router {
+    Router::new()
+        .route("/", get(|| async { Html(DASHBOARD) }))
         .route("/api/events", get(events))
         .route("/api/status", get(status))
-        .with_state(app)
+        .with_state(app.clone())
+        .merge(public_router(app))
+}
+
+fn is_loopback_bind(bind: &str) -> bool {
+    match bind.parse::<SocketAddr>() {
+        Ok(a) => a.ip().is_loopback(),
+        Err(_) => bind.starts_with("localhost:"),
+    }
 }
 
 #[tokio::main]
@@ -843,6 +982,28 @@ async fn main() {
         }
     };
     let bind = optional("X402Z_BIND").unwrap_or_else(|| "127.0.0.1:4020".into());
+    let admin_bind = match optional("X402Z_ADMIN_BIND").unwrap_or_else(|| DEFAULT_ADMIN_BIND.into()) {
+        b if b.eq_ignore_ascii_case("off") => None,
+        b if b == bind => {
+            eprintln!("error: X402Z_ADMIN_BIND must differ from X402Z_BIND: the dashboard, feed and status stay off the public port");
+            exit(2);
+        }
+        b => Some(b),
+    };
+    let trusted_proxies: Vec<IpAddr> = match optional("X402Z_TRUSTED_PROXIES") {
+        None => Vec::new(),
+        Some(list) => list
+            .split(',')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(|s| {
+                s.parse().unwrap_or_else(|_| {
+                    eprintln!("error: X402Z_TRUSTED_PROXIES must be a comma-separated list of IP addresses ('{s}' is not one)");
+                    exit(2);
+                })
+            })
+            .collect(),
+    };
     let min_confirmations = match optional("X402Z_MIN_CONFIRMATIONS").map(|s| s.parse::<u32>()) {
         None => 1,
         Some(Ok(n)) => n,
@@ -873,6 +1034,7 @@ async fn main() {
         redeem_window_secs: nonneg("X402Z_REDEEM_WINDOW_SECS", DEFAULT_REDEEM_WINDOW_SECS),
         tab_max_tokens: u32::try_from(nonneg("X402Z_TAB_MAX_TOKENS", tab::DEFAULT_MAX_TOKENS as u64)).unwrap_or(u32::MAX),
         tab_epoch_secs: nonneg("X402Z_TAB_EPOCH_SECS", tab::DEFAULT_EPOCH_SECS).max(60),
+        trusted_proxies,
     };
     let db_path = PathBuf::from(optional("X402Z_SERVER_DB").unwrap_or_else(|| "x402z-server.sqlite".into()));
     let store = Store::open(&db_path).unwrap_or_else(|e| {
@@ -915,13 +1077,31 @@ async fn main() {
             exit(2);
         }
     }
-    let router = router(app).into_make_service_with_connect_info::<SocketAddr>();
-    let listener = tokio::net::TcpListener::bind(&bind).await.unwrap_or_else(|e| {
-        eprintln!("error: cannot bind {bind}: {e}");
-        exit(1);
-    });
-    eprintln!("x402z-server listening on http://{bind} (402 challenges limited to {rate}/min per IP)");
-    if let Err(e) = axum::serve(listener, router).await {
+    let bind_or_die = |addr: String| async move {
+        tokio::net::TcpListener::bind(&addr).await.unwrap_or_else(|e| {
+            eprintln!("error: cannot bind {addr}: {e}");
+            exit(1);
+        })
+    };
+    let listener = bind_or_die(bind.clone()).await;
+    if let Some(admin) = admin_bind {
+        if !is_loopback_bind(&admin) {
+            eprintln!("warning: X402Z_ADMIN_BIND={admin} is not loopback: anyone who can reach it sees the payment feed and status");
+        }
+        let admin_listener = bind_or_die(admin.clone()).await;
+        let admin_app = admin_router(app.clone()).into_make_service_with_connect_info::<SocketAddr>();
+        eprintln!("x402z-server dashboard (feed, status) on http://{admin} (X402Z_ADMIN_BIND)");
+        tokio::spawn(async move {
+            if let Err(e) = axum::serve(admin_listener, admin_app).await {
+                eprintln!("error: admin listener stopped: {e}");
+                exit(1);
+            }
+        });
+    } else {
+        eprintln!("x402z-server dashboard off (X402Z_ADMIN_BIND=off)");
+    }
+    eprintln!("x402z-server listening on http://{bind} (paid API only; X-PAYMENT attempts and 402 challenges limited to {rate}/min per client)");
+    if let Err(e) = axum::serve(listener, public_router(app).into_make_service_with_connect_info::<SocketAddr>()).await {
         eprintln!("error: server stopped: {e}");
         exit(1);
     }
@@ -1134,6 +1314,7 @@ mod tests {
             redeem_window_secs: DEFAULT_REDEEM_WINDOW_SECS,
             tab_max_tokens: 5,
             tab_epoch_secs: tab::DEFAULT_EPOCH_SECS,
+            trusted_proxies: Vec::new(),
         };
         let store = Store::open(db).unwrap();
         // One RSA key for the whole test binary (generation is slow); a store that already
@@ -1188,7 +1369,7 @@ mod tests {
         for (k, v) in headers {
             req = req.header(*k, *v);
         }
-        router(app)
+        admin_router(app)
             .layer(MockConnectInfo(SocketAddr::from((from, 40000))))
             .oneshot(req.body(Body::empty()).unwrap())
             .await
@@ -1450,7 +1631,7 @@ mod tests {
     async fn call(app: Arc<App>, req: axum::http::Request<axum::body::Body>) -> Response {
         use axum::extract::connect_info::MockConnectInfo;
         use tower::ServiceExt;
-        router(app).layer(MockConnectInfo(SocketAddr::from(([10, 0, 0, 1], 40000)))).oneshot(req).await.unwrap()
+        admin_router(app).layer(MockConnectInfo(SocketAddr::from(([10, 0, 0, 1], 40000)))).oneshot(req).await.unwrap()
     }
 
     async fn post_redeem(app: Arc<App>, body: serde_json::Value) -> Response {
@@ -1712,5 +1893,163 @@ mod tests {
         assert_eq!(tab_offer_and_nonce(&app).await.0.key_id, offer.key_id, "same key after restart");
         assert_eq!(spend_token(&app, &tokens[1]).await.status(), StatusCode::OK);
         assert_eq!(body_json(spend_token(&app, &tokens[0]).await).await["error"], "tab token already spent");
+    }
+
+    // -- public port, feed hygiene and the X-PAYMENT budget ---------------------------------------
+
+    async fn get_on(router: Router, path: &str) -> StatusCode {
+        use axum::{body::Body, extract::connect_info::MockConnectInfo, http::Request};
+        use tower::ServiceExt;
+        router
+            .layer(MockConnectInfo(SocketAddr::from(([203, 0, 113, 9], 40000))))
+            .oneshot(Request::get(path).header("host", "kage.test").body(Body::empty()).unwrap())
+            .await
+            .unwrap()
+            .status()
+    }
+
+    #[tokio::test]
+    async fn the_public_port_serves_no_dashboard_feed_or_status() {
+        let app = test_app(5);
+        for path in ["/", "/api/events?since=0", "/api/status"] {
+            assert_eq!(get_on(public_router(app.clone()), path).await, StatusCode::NOT_FOUND, "{path} on the public port");
+            assert_eq!(get_on(admin_router(app.clone()), path).await, StatusCode::OK, "{path} on the admin port");
+        }
+        // the paid resource itself is on both
+        assert_eq!(get_on(public_router(app.clone()), "/api/quote").await, StatusCode::PAYMENT_REQUIRED);
+        assert_eq!(get_on(admin_router(app), "/api/quote").await, StatusCode::PAYMENT_REQUIRED);
+    }
+
+    fn feed(app: &App) -> Vec<Event> {
+        app.book.lock().unwrap().events.clone()
+    }
+
+    #[tokio::test]
+    async fn pending_and_rate_limited_feed_rows_carry_no_full_nonce_and_no_client_address() {
+        let app = {
+            let mut a = Arc::try_unwrap(app_with_stand_in().await).ok().unwrap();
+            a.limiter = Mutex::new(ChallengeLimiter::new(2));
+            Arc::new(a)
+        };
+        let v = body_json(get_quote(app.clone(), [10, 0, 0, 1], None).await).await;
+        let nonce = v["accepts"][0]["extra"]["memoNonce"].as_str().unwrap().to_string();
+        let r = get_quote_with(app.clone(), [10, 0, 0, 1], &[(PAYMENT_HEADER, &x_payment_header(TX_PENDING, &nonce))]).await;
+        assert_eq!(settlement_of(&r).error_reason.as_deref(), Some(reason::PENDING));
+        // budget of 2 is spent: the next attempt is a 429 row
+        let r = get_quote_with(app.clone(), [10, 0, 0, 1], &[(PAYMENT_HEADER, &x_payment_header(TX_PENDING, &nonce))]).await;
+        assert_eq!(r.status(), StatusCode::TOO_MANY_REQUESTS);
+
+        let events = feed(&app);
+        let pending: Vec<_> = events.iter().filter(|e| e.kind == "pending").collect();
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].txid.as_deref(), Some(TX_PENDING));
+        let shown = pending[0].memo_nonce.clone().unwrap();
+        assert_ne!(shown, nonce, "an unspent nonce never sits next to its txid in the feed");
+        assert!(nonce.starts_with(shown.trim_end_matches('…')) && shown.chars().count() < nonce.len(), "{shown}");
+        let all = serde_json::to_string(&events).unwrap();
+        assert!(!all.contains("10.0.0.1"), "client address in the feed: {all}");
+        assert!(events.iter().any(|e| e.kind == "rejected" && e.detail.starts_with("rate limited")), "{all}");
+    }
+
+    /// A stand-in facilitator that counts every `/settle` it is asked and always answers pending.
+    async fn counting_pending_facilitator() -> (String, Arc<std::sync::atomic::AtomicUsize>) {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let hits = Arc::new(AtomicUsize::new(0));
+        let h = hits.clone();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let handler = move |Json(_): Json<FacilitatorRequest>| {
+            let h = h.clone();
+            async move {
+                h.fetch_add(1, Ordering::SeqCst);
+                Json(SettleResponse {
+                    settlement: SettlementResponse::failed(reason::NOT_FOUND),
+                    status: VerifyStatus::NotFound,
+                    receipt: None,
+                    claims: None,
+                    confirmations: None,
+                    min_confirmations: None,
+                    error: Some("lightwalletd does not know tx".into()),
+                })
+            }
+        };
+        tokio::spawn(async move {
+            axum::serve(listener, Router::new().route(SETTLE_PATH, axum::routing::post(handler))).await.unwrap();
+        });
+        (format!("http://{addr}"), hits)
+    }
+
+    #[tokio::test]
+    async fn x_payment_attempts_that_stay_pending_share_the_client_budget() {
+        use std::sync::atomic::Ordering;
+        let (url, hits) = counting_pending_facilitator().await;
+        let mut a = Arc::try_unwrap(test_app(2)).ok().unwrap();
+        a.cfg.facilitator_url = url;
+        let app = Arc::new(a);
+        let v = body_json(get_quote(app.clone(), [10, 0, 0, 7], None).await).await;
+        let nonce = v["accepts"][0]["extra"]["memoNonce"].as_str().unwrap().to_string();
+        let mut codes = Vec::new();
+        for i in 0..40u32 {
+            let txid = format!("{:064x}", 0xfeed_0000u64 + u64::from(i));
+            codes.push(get_quote_with(app.clone(), [10, 0, 0, 7], &[(PAYMENT_HEADER, &x_payment_header(&txid, &nonce))]).await.status());
+        }
+        assert_eq!(codes[0], StatusCode::PAYMENT_REQUIRED, "the first attempt is checked and stays pending");
+        assert!(codes[1..].iter().all(|c| *c == StatusCode::TOO_MANY_REQUESTS), "{codes:?}");
+        assert_eq!(hits.load(Ordering::SeqCst), 1, "the facilitator (and lightwalletd behind it) was asked once");
+        // another client still has its own budget
+        assert_eq!(get_quote(app.clone(), [10, 0, 0, 8], None).await.status(), StatusCode::PAYMENT_REQUIRED);
+    }
+
+    #[tokio::test]
+    async fn an_impossible_nonce_or_txid_is_a_400_with_no_feed_row_and_no_facilitator_call() {
+        use std::sync::atomic::Ordering;
+        let (url, hits) = counting_pending_facilitator().await;
+        let mut a = Arc::try_unwrap(test_app(100)).ok().unwrap();
+        a.cfg.facilitator_url = url;
+        let app = Arc::new(a);
+        let before = feed(&app).len();
+        let huge = "n".repeat(60_000);
+        for (txid, nonce) in [(TX_OK, huge.as_str()), (TX_OK, "x402z bad nonce"), ("zz", "x402z-ok"), (&*"a".repeat(65), "x402z-ok")] {
+            let r = get_quote_with(app.clone(), [10, 0, 0, 1], &[(PAYMENT_HEADER, &x_payment_header(txid, nonce))]).await;
+            assert_eq!(r.status(), StatusCode::BAD_REQUEST);
+            assert_eq!(settlement_of(&r).error_reason.as_deref(), Some(reason::INVALID_PAYLOAD));
+        }
+        assert_eq!(feed(&app).len(), before, "nothing logged");
+        assert_eq!(hits.load(Ordering::SeqCst), 0, "nothing asked");
+        // the paste-txid path checks the nonce the same way
+        let r = post_redeem(app.clone(), serde_json::json!({"memoNonce": huge, "txid": TX_OK})).await;
+        assert_eq!(r.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(feed(&app).len(), before);
+    }
+
+    #[test]
+    fn feed_rows_are_clipped() {
+        let mut b = Book::default();
+        b.push("rejected", Some(&"n".repeat(500)), None, Some(&"t".repeat(500)), "x".repeat(10_000));
+        let e = &b.events[0];
+        assert!(e.detail.chars().count() <= MAX_DETAIL_CHARS + 1);
+        assert!(e.memo_nonce.as_ref().unwrap().chars().count() <= MAX_DETAIL_CHARS + 1);
+        assert!(e.txid.as_ref().unwrap().chars().count() <= MAX_DETAIL_CHARS + 1);
+    }
+
+    #[test]
+    fn limiter_key_trusts_forwarded_for_only_from_configured_proxies_and_groups_ipv6_by_64() {
+        let proxy: IpAddr = "10.9.9.9".parse().unwrap();
+        let mut h = HeaderMap::new();
+        h.insert("x-forwarded-for", HeaderValue::from_static("6.6.6.6, 198.51.100.4, 10.9.9.9"));
+        // not a trusted proxy: the header is ignored
+        assert_eq!(client_key("192.0.2.1".parse().unwrap(), &h, &[proxy]), "192.0.2.1".parse::<IpAddr>().unwrap());
+        // trusted proxy: the right-most hop that isn't a proxy (the client can't spoof past it)
+        assert_eq!(client_key(proxy, &h, &[proxy]), "198.51.100.4".parse::<IpAddr>().unwrap());
+        // no header from a trusted proxy: the proxy itself
+        assert_eq!(client_key(proxy, &HeaderMap::new(), &[proxy]), proxy);
+        // IPv6: one /64 shares one bucket
+        let a = client_key("2001:db8:1:2:aaaa::1".parse().unwrap(), &HeaderMap::new(), &[]);
+        let b = client_key("2001:db8:1:2:bbbb::2".parse().unwrap(), &HeaderMap::new(), &[]);
+        let c = client_key("2001:db8:1:3::1".parse().unwrap(), &HeaderMap::new(), &[]);
+        assert_eq!(a, b);
+        assert_ne!(a, c);
+        // IPv4-mapped IPv6 is the IPv4 client
+        assert_eq!(client_key("::ffff:192.0.2.7".parse().unwrap(), &HeaderMap::new(), &[]), "192.0.2.7".parse::<IpAddr>().unwrap());
     }
 }
