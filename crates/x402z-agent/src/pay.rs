@@ -284,16 +284,44 @@ pub struct Gate {
     pub spent_before: u64,
     agent: String,
     policy: Policy,
+    /// Index of the audit row written by [`Gate::record_broadcasting`], replaced by the outcome.
+    broadcasting: Option<usize>,
 }
 
+/// Reason on the audit row written just before a broadcast. If the process dies before the
+/// outcome is recorded, the row stays: the payment counts against the cap and is resumed.
+pub const BROADCASTING: &str = "broadcasting; the outcome was not recorded (the process stopped?), counted against the cap";
+
 impl Gate {
+    /// Put `a` in the ledger: in place of the broadcasting row if there is one, else appended.
+    fn put(&mut self, a: AuditEntry) {
+        match self.broadcasting.and_then(|i| self.ledger.data.audit.get_mut(i)) {
+            Some(row) => *row = a,
+            None => self.ledger.append(a),
+        }
+    }
+
     /// Record that the allowed payment was not made (`why`), then release the lock.
     pub fn record_failure(mut self, why: &str) {
         let mut a = self.audit.clone();
+        a.txid = None;
         a.reason = Some(format!("allowed, but not paid: {why}"));
         self.ledger.upsert_agent(&self.agent, &self.policy, self.spent_before);
-        self.ledger.append(a);
+        self.put(a);
         let _ = self.ledger.save();
+    }
+
+    /// Write the payment with its `txid` to the ledger *before* it is broadcast, still under the
+    /// lock: a crash or a cancelled call between the broadcast and [`Gate::record_paid`] then
+    /// leaves a charged, resumable entry instead of no trace of a payment that may be on chain.
+    pub fn record_broadcasting(&mut self, txid: &str) -> Result<(), PayError> {
+        let mut a = self.audit.clone();
+        a.txid = Some(txid.to_string());
+        a.reason = Some(BROADCASTING.into());
+        self.ledger.upsert_agent(&self.agent, &self.policy, self.spent_before.saturating_add(a.amount_zat));
+        self.ledger.append(a);
+        self.broadcasting = Some(self.ledger.data.audit.len() - 1);
+        self.ledger.save().map_err(PayError::Runtime)
     }
 
     /// Record a broadcast payment (counts against today's cap), then release the lock.
@@ -307,9 +335,18 @@ impl Gate {
         }
         let total = self.spent_before.saturating_add(self.audit.amount_zat);
         self.ledger.upsert_agent(&self.agent, &self.policy, total);
-        self.ledger.append(self.audit.clone());
+        let a = self.audit.clone();
+        self.put(a);
         self.ledger.save().map_err(PayError::Runtime)
     }
+}
+
+/// What [`spendguard_gate_or`] found under the ledger lock.
+pub enum Gated<R> {
+    /// Spendguard allowed a new payment.
+    Pay(Gate),
+    /// An earlier payment for the same thing exists; present or collect it instead of paying.
+    Resume(R),
 }
 
 /// Spendguard, before any wallet work: allowlist, cap and approval threshold for paying
@@ -323,6 +360,23 @@ pub fn spendguard_gate(
     memo_nonce: &str,
     approve: &(dyn Fn(&str, u64, u64) -> bool + Sync),
 ) -> Result<Gate, PayError> {
+    match spendguard_gate_or(cfg, host, amount_zat, memo_nonce, approve, |_| Ok(None::<std::convert::Infallible>))? {
+        Gated::Pay(g) => Ok(g),
+        Gated::Resume(never) => match never {},
+    }
+}
+
+/// [`spendguard_gate`] that first asks `resume`, under the same ledger lock, whether an earlier
+/// payment covers this one. Concurrent calls (MCP runs tool calls in parallel) serialize on that
+/// lock, so the second one sees the first one's broadcast and resumes it instead of paying again.
+pub fn spendguard_gate_or<R>(
+    cfg: &AgentConfig,
+    host: &str,
+    amount_zat: u64,
+    memo_nonce: &str,
+    approve: &(dyn Fn(&str, u64, u64) -> bool + Sync),
+    resume: impl FnOnce(&LedgerFile) -> Result<Option<R>, PayError>,
+) -> Result<Gated<R>, PayError> {
     let ledger_path = cfg
         .ledger_path
         .as_ref()
@@ -330,6 +384,9 @@ pub fn spendguard_gate(
     let key = cfg.key()?;
     let lock = LedgerFile::lock(ledger_path).map_err(PayError::Config)?;
     let mut ledger = LedgerFile::load(ledger_path, key).map_err(PayError::Config)?;
+    if let Some(r) = resume(&ledger)? {
+        return Ok(Gated::Resume(r));
+    }
     let agent = cfg.agent.as_str();
     let policy = &cfg.policy;
     let t = now();
@@ -374,7 +431,7 @@ pub fn spendguard_gate(
         )));
     }
     eprintln!("spendguard: allowed {amount_zat} zat ({} of {} zat already spent today)", spent_before, policy.daily_cap_zat);
-    Ok(Gate { _lock: lock, ledger, audit, spent_before, agent: agent.to_string(), policy: policy.clone() })
+    Ok(Gated::Pay(Gate { _lock: lock, ledger, audit, spent_before, agent: agent.to_string(), policy: policy.clone(), broadcasting: None }))
 }
 
 /// Record what a broadcast came to, under the [`Gate`] that allowed it.
@@ -443,6 +500,20 @@ async fn prepare_payment(
 /// (`X402Z_AGENT_SEED`), under an allowed [`Gate`], and record the outcome in the ledger: every
 /// allowed decision ends in exactly one audit line. Returns the txid.
 pub async fn pay_from_agent_wallet(cfg: &AgentConfig, gate: Gate, pay_to: &str, amount_zat: u64, memo: &str) -> Result<String, PayError> {
+    pay_from_agent_wallet_then(cfg, gate, pay_to, amount_zat, memo, |_| Ok(())).await
+}
+
+/// [`pay_from_agent_wallet`] that calls `before_broadcast(txid)` once the transaction exists and
+/// its ledger row is written, right before it is sent (a caller records its own pending state
+/// there). An error from it stops the payment: nothing is broadcast.
+pub async fn pay_from_agent_wallet_then(
+    cfg: &AgentConfig,
+    mut gate: Gate,
+    pay_to: &str,
+    amount_zat: u64,
+    memo: &str,
+    before_broadcast: impl FnOnce(&str) -> Result<(), PayError>,
+) -> Result<String, PayError> {
     let Some(seed) = cfg.seed.as_ref() else {
         gate.record_failure("X402Z_AGENT_SEED not configured");
         return Err(PayError::Wallet(format!(
@@ -464,6 +535,14 @@ pub async fn pay_from_agent_wallet(cfg: &AgentConfig, gate: Gate, pay_to: &str, 
         return Err(PayError::Runtime("the payment proposal produced no transaction".into()));
     };
     let (last, txid) = (*last, last.to_string());
+    if let Err(e) = gate.record_broadcasting(&txid) {
+        gate.record_failure(&format!("could not write the ledger before broadcasting: {e}"));
+        return Err(e);
+    }
+    if let Err(e) = before_broadcast(&txid) {
+        gate.record_failure(e.message());
+        return Err(e);
+    }
     let outcome = wallet::broadcast(&mut client, &txs).await;
     let seen = match &outcome {
         wallet::Broadcast::Unknown(_) => wallet::seen_by_lightwalletd(&mut client, &last).await,
@@ -509,7 +588,7 @@ pub async fn redeem_payment(cfg: &AgentConfig, url: &str, txid: &str, memo_nonce
     settle(cfg, &http, url, &txid, memo_nonce.trim(), amount, false, true).await
 }
 
-fn ledger_entry(cfg: &AgentConfig, txid: &str) -> Option<AuditEntry> {
+pub(crate) fn ledger_entry(cfg: &AgentConfig, txid: &str) -> Option<AuditEntry> {
     let l = LedgerFile::load(cfg.ledger_path.as_ref()?, cfg.ledger_key.as_ref()?).ok()?;
     l.data.audit.iter().rev().find(|e| e.txid.as_deref() == Some(txid)).cloned()
 }
@@ -573,7 +652,17 @@ async fn fetch_or_pay(cfg: &AgentConfig, url: &str, approve: &(dyn Fn(&str, u64,
 
     // 2. spendguard, before any wallet work. 3. Pay from the wallet (the ledger entry names the
     //    URL, so a retry resumes this payment).
-    let mut gate = spendguard_gate(cfg, &host, ch.amount_zat, &ch.memo_nonce, approve)?;
+    //    The unresolved check runs again under the ledger lock: a concurrent call for the same URL
+    //    may have paid since step 0.
+    let resume = |l: &LedgerFile| Ok(l.unresolved_payment(&cfg.agent, url, now()).cloned());
+    let mut gate = match spendguard_gate_or(cfg, &host, ch.amount_zat, &ch.memo_nonce, approve, resume)? {
+        Gated::Pay(g) => g,
+        Gated::Resume(e) => {
+            let (txid, nonce) = (e.txid.clone().unwrap_or_default(), e.memo_nonce.clone().unwrap_or_default());
+            eprintln!("resuming tx {txid} (memo {nonce}) for {url}: another call paid for it meanwhile; not paying again");
+            return settle(cfg, &http, url, &txid, &nonce, e.amount_zat, wait, true).await;
+        }
+    };
     gate.audit.url = Some(url.to_string());
     let txid = pay_from_agent_wallet(cfg, gate, &ch.pay_to, ch.amount_zat, &ch.memo_nonce).await?;
 
@@ -733,6 +822,39 @@ mod tests {
         assert_eq!(spent, 100_000, "a definite rejection is not charged");
         assert_eq!(last.txid, None);
         assert!(last.reason.as_deref().unwrap().starts_with("allowed, but not paid: lightwalletd rejected"), "{last:?}");
+        let _ = std::fs::remove_file(cfg.ledger_path.as_ref().unwrap());
+    }
+
+    #[test]
+    fn a_crash_between_broadcast_and_its_record_leaves_a_charged_resumable_entry() {
+        let cfg = gate_cfg("crash");
+        let url = "http://127.0.0.1:4020/api/quote";
+        let tx = "9a".repeat(32);
+        let mut gate = spendguard_gate(&cfg, "127.0.0.1:4020", 200_000, "x402z-c1", &|_, _, _| false).unwrap();
+        gate.audit.url = Some(url.into());
+        gate.record_broadcasting(&tx).unwrap();
+        drop(gate); // the process dies here: the broadcast may have happened, its outcome is unknown
+        let (spent, last) = spent_and_last(&cfg);
+        assert_eq!(spent, 200_000, "counted against the cap");
+        assert_eq!((last.txid.as_deref(), last.reason.as_deref()), (Some(tx.as_str()), Some(BROADCASTING)));
+        let l = LedgerFile::load(cfg.ledger_path.as_ref().unwrap(), cfg.key().unwrap()).unwrap();
+        assert_eq!(l.unresolved_payment(&cfg.agent, url, now()).and_then(|e| e.txid.clone()), Some(tx.clone()), "the next call resumes it");
+
+        // with the outcome recorded, the broadcasting row is replaced, not duplicated
+        let mut gate = spendguard_gate(&cfg, "127.0.0.1:4020", 100_000, "x402z-c2", &|_, _, _| false).unwrap();
+        gate.record_broadcasting("ab").unwrap();
+        record_broadcast(gate, "ab", wallet::Broadcast::Sent, None).unwrap();
+        let mut gate = spendguard_gate(&cfg, "127.0.0.1:4020", 100_000, "x402z-c3", &|_, _, _| false).unwrap();
+        gate.record_broadcasting("cd").unwrap();
+        record_broadcast(gate, "cd", wallet::Broadcast::Rejected("bad-txns".into()), None).unwrap_err();
+        let l = LedgerFile::load(cfg.ledger_path.as_ref().unwrap(), cfg.key().unwrap()).unwrap();
+        let rows: Vec<(Option<&str>, &str)> =
+            l.data.audit.iter().map(|e| (e.txid.as_deref(), e.reason.as_deref().unwrap_or_default())).collect();
+        assert_eq!(rows.len(), 3, "{rows:?}");
+        assert_eq!(rows[1], (Some("ab"), "paid"));
+        assert_eq!(rows[2].0, None, "a rejected broadcast loses its txid and is not charged");
+        assert!(rows[2].1.starts_with("allowed, but not paid: bad-txns"), "{rows:?}");
+        assert_eq!(l.guard(&cfg.agent, &cfg.policy, now()).spent_today(&cfg.agent, now()), 300_000);
         let _ = std::fs::remove_file(cfg.ledger_path.as_ref().unwrap());
     }
 

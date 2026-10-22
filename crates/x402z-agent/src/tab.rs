@@ -428,14 +428,7 @@ pub async fn buy_or_resume(cfg: &AgentConfig, url: &str, n: u32, approve: &(dyn 
     let origin = origin_of(url)?;
     let tab_file = tab_path(cfg)?;
     let http = pay::http_client()?;
-    let paid_earlier = TabFile::open(&tab_file, cfg.key()?)?
-        .state
-        .pending
-        .iter()
-        .filter(|p| p.txid.is_some() && origin_of(&p.url).ok().as_deref() == Some(origin.as_str()))
-        .max_by_key(|p| p.created_at)
-        .cloned();
-    if let Some(p) = paid_earlier {
+    if let Some(p) = paid_tab(cfg, &tab_file, &origin)? {
         eprintln!("tab already paid by tx {} for {origin}; collecting it instead of paying again", p.txid.as_deref().unwrap_or_default());
         return collect(cfg, &http, p, wait).await;
     }
@@ -443,27 +436,68 @@ pub async fn buy_or_resume(cfg: &AgentConfig, url: &str, n: u32, approve: &(dyn 
     let amount = check_n(&offer, n)?;
     eprintln!("tab offer: key {} at {} zat a token; buying {n} for {amount} zat (memo {})", offer.key_id, offer.unit_price_zat, ch.memo_nonce);
     drop(TabFile::open(&tab_file, cfg.key()?)?); // fail on an unusable token file before paying
-    let gate = pay::spendguard_gate(cfg, &host, amount, &ch.memo_nonce, approve)?;
-    let txid = pay::pay_from_agent_wallet(cfg, gate, &ch.pay_to, amount, &ch.memo_nonce).await?;
-    // Remember the paid purchase before asking for the tokens, so a timeout or a crash can't
-    // lead to paying for it again.
-    let p = PendingPurchase {
+    // Asked again under the ledger lock: a concurrent call for the same origin may have paid a
+    // tab since the check above (the lock is held from here until the payment is recorded).
+    let gate = match pay::spendguard_gate_or(cfg, &host, amount, &ch.memo_nonce, approve, |_| paid_tab(cfg, &tab_file, &origin))? {
+        pay::Gated::Pay(g) => g,
+        pay::Gated::Resume(p) => {
+            eprintln!("tab paid by tx {} for {origin} meanwhile; collecting it instead of paying again", p.txid.as_deref().unwrap_or_default());
+            return collect(cfg, &http, p, wait).await;
+        }
+    };
+    let mut p = PendingPurchase {
         url: url.to_string(),
         n,
         amount_zat: amount,
         payment_uri: zip321_uri(&ch.pay_to, amount, &ch.memo_nonce),
-        pay_to: ch.pay_to,
-        memo_nonce: ch.memo_nonce,
+        pay_to: ch.pay_to.clone(),
+        memo_nonce: ch.memo_nonce.clone(),
         expires_at: ch.expires_at,
         offer,
         created_at: now(),
-        txid: Some(txid),
+        txid: None,
     };
-    let mut f = TabFile::open(&tab_file, cfg.key()?)?;
-    f.state.pending.push(p.clone());
-    f.save()?;
-    drop(f);
+    // The paid purchase is in the token file before the transaction is sent, so a timeout, a
+    // cancelled call or a crash after the broadcast collects this tab instead of buying another.
+    let pending = p.clone();
+    let paid = pay::pay_from_agent_wallet_then(cfg, gate, &ch.pay_to, amount, &ch.memo_nonce, |txid| {
+        let mut f = TabFile::open(&tab_file, cfg.key()?)?;
+        f.state.pending.push(PendingPurchase { txid: Some(txid.to_string()), ..pending });
+        f.save()
+    })
+    .await;
+    let txid = match paid {
+        Ok(txid) => txid,
+        Err(e) => {
+            forget_unpaid(cfg, &tab_file, &ch.memo_nonce);
+            return Err(e);
+        }
+    };
+    p.txid = Some(txid);
     collect(cfg, &http, p, wait).await
+}
+
+/// The newest tab this agent paid for at `origin` that the server has not issued yet.
+fn paid_tab(cfg: &AgentConfig, tab_file: &Path, origin: &str) -> Result<Option<PendingPurchase>, PayError> {
+    Ok(TabFile::open(tab_file, cfg.key()?)?
+        .state
+        .pending
+        .iter()
+        .filter(|p| p.txid.is_some() && origin_of(&p.url).ok().as_deref() == Some(origin))
+        .max_by_key(|p| p.created_at)
+        .cloned())
+}
+
+/// After a failed purchase: drop its pending entry unless the ledger charged its txid (an
+/// unknown broadcast outcome may still be mined, so that tab stays collectable).
+fn forget_unpaid(cfg: &AgentConfig, tab_file: &Path, memo_nonce: &str) {
+    let Ok(key) = cfg.key() else { return };
+    let Ok(mut f) = TabFile::open(tab_file, key) else { return };
+    let before = f.state.pending.len();
+    f.state.pending.retain(|p| p.memo_nonce != memo_nonce || p.txid.as_deref().is_some_and(|t| pay::ledger_entry(cfg, t).is_some()));
+    if f.state.pending.len() != before {
+        let _ = f.save();
+    }
 }
 
 /// Ask the server for the tokens of a paid purchase.
@@ -489,9 +523,12 @@ pub async fn start_external(cfg: &AgentConfig, url: &str, n: u32, approve: &(dyn
     let http = pay::http_client()?;
     let (ch, offer) = accepted_offer(cfg, &http, url).await?;
     let amount = check_n(&offer, n)?;
-    let mut f = TabFile::open(&tab_path(cfg)?, cfg.key()?)?;
+    drop(TabFile::open(&tab_path(cfg)?, cfg.key()?)?); // fail on an unusable token file first
+    // The ledger lock is never taken while the tab file's is held (buy_or_resume takes them in
+    // the other order), so the gate is closed before the token file is opened again.
     let gate = pay::spendguard_gate(cfg, &host, amount, &ch.memo_nonce, approve)?;
     gate.record_failure("awaiting payment from an external wallet (ZIP 321)");
+    let mut f = TabFile::open(&tab_path(cfg)?, cfg.key()?)?;
     let p = PendingPurchase {
         url: url.to_string(),
         n,
