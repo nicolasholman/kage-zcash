@@ -3,14 +3,23 @@
 //!
 //! Tools:
 //! - `paid_fetch {url}`: GET the URL; on an x402 402, pay it from the agent's own wallet if
-//!   spendguard allows (cap, allowlist, approval threshold), then retry with `X-PAYMENT`.
-//!   Spendguard refusals, wallet problems and rejected payments come back as tool errors
+//!   spendguard allows (cap, allowlist, approval threshold), then present `X-PAYMENT` once. It
+//!   returns right after the broadcast with `status: "settlement_pending"` and the txid when the
+//!   payment still needs its block (MCP clients time requests out at about 60 s; a block takes
+//!   about 75 s). Calling it again for the same URL presents that payment again and never pays
+//!   twice. Spendguard refusals, wallet problems and rejected payments come back as tool errors
 //!   (`isError: true`) naming the reason; nothing is paid in those cases.
+//! - `redeem_payment {url, txid, memoNonce}`: present an earlier payment with `X-PAYMENT` once.
+//!   Never pays.
 //! - `spend_status {}`: today's spend against the daily cap, allowlist, approval threshold.
 //! - `ledger_tail {n?}`: the last n spendguard decisions (default 10, max 100).
 //! - `tab_fetch {url, buy?}`: GET the URL spending one Kage Tab token (one shielded payment
 //!   bought N unlinkable blind-signed tokens). With no token left it buys a tab of `buy` tokens
-//!   (default `X402Z_AGENT_TAB_SIZE`, 5) from the agent's own wallet, inside spendguard, first.
+//!   (default `X402Z_AGENT_TAB_SIZE`, 5) from the agent's own wallet, inside spendguard, first,
+//!   and returns `status: "tab_pending"` while that payment confirms; the next call collects the
+//!   tokens without paying again.
+//!
+//! Requests are served concurrently; stdout carries one JSON-RPC message per line.
 //!
 //! Configuration is the agent's (`X402Z_AGENT_*`, `ZCASH_LWD_URL`; see `.env.example`), read on
 //! every call so a missing variable is reported as "Setup required" instead of a crash.
@@ -34,11 +43,26 @@ fn tools() -> Value {
         {
             "name": "paid_fetch",
             "title": "Fetch a URL, paying its x402 402 with shielded Zcash (testnet)",
-            "description": "GET an HTTP URL. If it answers HTTP 402 with an x402 zcash-shielded offer, pay it from the agent's own Zcash testnet wallet (memo = the challenge nonce) when spendguard allows it (daily cap, host allowlist, approval threshold), then retry with X-PAYMENT and return the paid response. Refusals are errors and nothing is paid. A payment waits for 1 block confirmation (about 75 s, sometimes several minutes).",
+            "description": "GET an HTTP URL. If it answers HTTP 402 with an x402 zcash-shielded offer, pay it from the agent's own Zcash testnet wallet (memo = the challenge nonce) when spendguard allows it (daily cap, host allowlist, approval threshold), then present X-PAYMENT. The server settles a payment once it has 1 block confirmation (about 75 s, sometimes several minutes), so this usually returns status \"settlement_pending\" with the txid right after paying: then call redeem_payment (or paid_fetch again for the same URL) a minute later. Neither pays a second time. Refusals are errors and nothing is paid.",
             "inputSchema": {
                 "type": "object",
                 "properties": { "url": { "type": "string", "description": "http(s) URL of the paid resource" } },
                 "required": ["url"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "redeem_payment",
+            "title": "Present an earlier payment again (never pays)",
+            "description": "Present a payment this agent already broadcast (txid and memoNonce from paid_fetch) to the URL with X-PAYMENT, once. Returns the paid response with X-PAYMENT-RESPONSE when the server settles it, or status \"settlement_pending\" while the transaction still waits for its block. Never builds or broadcasts a transaction.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "url": { "type": "string", "description": "the URL paid_fetch was called with" },
+                    "txid": { "type": "string", "description": "64-hex transaction id from paid_fetch" },
+                    "memoNonce": { "type": "string", "description": "the challenge nonce from paid_fetch" }
+                },
+                "required": ["url", "txid", "memoNonce"],
                 "additionalProperties": false
             }
         },
@@ -97,6 +121,29 @@ fn decline(host: &str, amount: u64, threshold: u64) -> bool {
     false
 }
 
+fn paid_result(r: Result<pay::PaidFetch, PayError>) -> Value {
+    match r {
+        Ok(pay::PaidFetch::Done(f)) => {
+            let body = serde_json::from_str::<Value>(&f.body).unwrap_or(Value::String(f.body.clone()));
+            let paid = f.paid.map(|(txid, amount, nonce)| {
+                json!({ "txid": txid, "amountZat": amount, "memoNonce": nonce, "explorer": format!("https://testnet.zecblock.com/tx/{txid}") })
+            });
+            text_result(&json!({ "status": f.status, "paid": paid, "settlement": f.settlement, "body": body }), false)
+        }
+        Ok(pay::PaidFetch::Pending(p)) => text_result(
+            &json!({
+                "status": "settlement_pending",
+                "url": p.url, "txid": p.txid, "memoNonce": p.memo_nonce, "amountZat": p.amount_zat,
+                "resumed": p.resumed, "message": p.message,
+                "explorer": format!("https://testnet.zecblock.com/tx/{}", p.txid),
+                "next": "The payment is broadcast and waits for its block (about 75 s). Call redeem_payment with this url, txid and memoNonce in about a minute, or paid_fetch again for the same URL; neither pays a second time."
+            }),
+            false,
+        ),
+        Err(e) => tool_error(e.kind(), e.message()),
+    }
+}
+
 async fn paid_fetch(args: &Value) -> Value {
     let Some(url) = args.get("url").and_then(Value::as_str) else {
         return tool_error("invalid_arguments", "paid_fetch needs {\"url\": \"http(s)://...\"}");
@@ -105,15 +152,21 @@ async fn paid_fetch(args: &Value) -> Value {
         Ok(c) => c,
         Err(e) => return setup_required(&e),
     };
-    match pay::paid_fetch(&cfg, url, &decline).await {
-        Ok(f) => {
-            let body = serde_json::from_str::<Value>(&f.body).unwrap_or(Value::String(f.body.clone()));
-            let paid = f.paid.map(|(txid, amount, nonce)| {
-                json!({ "txid": txid, "amountZat": amount, "memoNonce": nonce, "explorer": format!("https://testnet.zecblock.com/tx/{txid}") })
-            });
-            text_result(&json!({ "status": f.status, "paid": paid, "settlement": f.settlement, "body": body }), false)
-        }
-        Err(e) => tool_error(e.kind(), e.message()),
+    paid_result(pay::paid_fetch_nowait(&cfg, url, &decline).await)
+}
+
+async fn redeem_payment(args: &Value) -> Value {
+    let field = |k: &str| args.get(k).and_then(Value::as_str);
+    let (Some(url), Some(txid), Some(nonce)) = (field("url"), field("txid"), field("memoNonce")) else {
+        return tool_error("invalid_arguments", "redeem_payment needs {\"url\", \"txid\", \"memoNonce\"}");
+    };
+    let cfg = match AgentConfig::from_env() {
+        Ok(c) => c,
+        Err(e) => return setup_required(&e),
+    };
+    match pay::redeem_payment(&cfg, url, txid, nonce).await {
+        Err(PayError::Config(m)) if m.contains("txid must be") => tool_error("invalid_arguments", &m),
+        r => paid_result(r),
     }
 }
 
@@ -142,9 +195,22 @@ async fn tab_fetch(args: &Value) -> Value {
     let fetched = match tab::fetch(&cfg, url).await {
         Ok(Some(f)) => f,
         Ok(None) => {
-            eprintln!("x402z-mcp: no tab token for {url}; buying a tab of {size}");
-            let b = match tab::buy(&cfg, url, size, &decline).await {
-                Ok(b) => b,
+            eprintln!("x402z-mcp: no tab token for {url}; collecting a paid tab or buying one of {size}");
+            let b = match tab::buy_or_resume(&cfg, url, size, &decline, false).await {
+                Ok(tab::BuyOutcome::Bought(b)) => b,
+                Ok(tab::BuyOutcome::Pending { purchase: p, message }) => {
+                    let txid = p.txid.unwrap_or_default();
+                    return text_result(
+                        &json!({
+                            "status": "tab_pending",
+                            "tokens": p.n, "amountZat": p.amount_zat, "txid": txid, "memoNonce": p.memo_nonce, "keyId": p.offer.key_id,
+                            "message": message,
+                            "explorer": format!("https://testnet.zecblock.com/tx/{txid}"),
+                            "next": "The tab is paid and the server issues its tokens once the payment has its block (about 75 s). Call tab_fetch again for this URL in about a minute; it collects the tokens and does not pay again."
+                        }),
+                        false,
+                    );
+                }
                 Err(e) => return tool_error(e.kind(), &format!("no tab token left, and buying a tab of {size} failed: {}", e.message())),
             };
             bought = Some(json!({
@@ -243,6 +309,7 @@ async fn handle(msg: Value) -> Option<Value> {
             let args = params.get("arguments").cloned().unwrap_or(json!({}));
             match name {
                 "paid_fetch" => Ok(paid_fetch(&args).await),
+                "redeem_payment" => Ok(redeem_payment(&args).await),
                 "tab_fetch" => Ok(tab_fetch(&args).await),
                 "spend_status" => Ok(spend_status()),
                 "ledger_tail" => Ok(ledger_tail(&args)),
@@ -260,22 +327,41 @@ async fn handle(msg: Value) -> Option<Value> {
 #[tokio::main]
 async fn main() {
     let mut lines = BufReader::new(tokio::io::stdin()).lines();
-    let mut out = tokio::io::stdout();
-    eprintln!("x402z-mcp: ready on stdio (tools: paid_fetch, tab_fetch, spend_status, ledger_tail)");
-    while let Ok(Some(line)) = lines.next_line().await {
-        if line.trim().is_empty() {
-            continue;
-        }
-        let reply = match serde_json::from_str::<Value>(&line) {
-            Ok(msg) => handle(msg).await,
-            Err(e) => Some(json!({ "jsonrpc": "2.0", "id": null, "error": { "code": -32700, "message": format!("parse error: {e}") } })),
-        };
-        if let Some(r) = reply {
+    // One writer owns stdout; each request runs in its own task, so a slow tool call (wallet
+    // sync, proving) doesn't hold up ping, spend_status or another call.
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Value>();
+    let writer = tokio::spawn(async move {
+        let mut out = tokio::io::stdout();
+        while let Some(r) = rx.recv().await {
             let mut s = serde_json::to_string(&r).unwrap_or_default();
             s.push('\n');
             if out.write_all(s.as_bytes()).await.is_err() || out.flush().await.is_err() {
                 break;
             }
         }
+    });
+    eprintln!("x402z-mcp: ready on stdio (tools: paid_fetch, redeem_payment, tab_fetch, spend_status, ledger_tail)");
+    let mut tasks = tokio::task::JoinSet::new();
+    while let Ok(Some(line)) = lines.next_line().await {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let tx = tx.clone();
+        match serde_json::from_str::<Value>(&line) {
+            Ok(msg) => {
+                tasks.spawn(async move {
+                    if let Some(r) = handle(msg).await {
+                        let _ = tx.send(r);
+                    }
+                });
+            }
+            Err(e) => {
+                let _ = tx.send(json!({ "jsonrpc": "2.0", "id": null, "error": { "code": -32700, "message": format!("parse error: {e}") } }));
+            }
+        }
     }
+    // stdin closed: let calls in flight finish and their answers go out.
+    while tasks.join_next().await.is_some() {}
+    drop(tx);
+    let _ = writer.await;
 }

@@ -134,6 +134,28 @@ impl AgentConfig {
     }
 }
 
+/// A payment that was broadcast and is waiting for the server to settle it (the tx needs its
+/// confirmation). Present it again with [`redeem_payment`] or by calling the paid fetch again for
+/// the same URL; neither pays a second time.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PendingPayment {
+    pub url: String,
+    pub txid: String,
+    pub memo_nonce: String,
+    pub amount_zat: u64,
+    /// The server's latest word on it ("payment found ... with 0 confirmation(s); need 1").
+    pub message: String,
+    /// True when this call presented an earlier payment instead of making one.
+    pub resumed: bool,
+}
+
+/// What a non-waiting paid fetch returns.
+#[derive(Debug, Clone)]
+pub enum PaidFetch {
+    Done(Fetched),
+    Pending(PendingPayment),
+}
+
 /// What a paid fetch returns.
 #[derive(Debug, Clone)]
 pub struct Fetched {
@@ -280,7 +302,7 @@ pub fn spendguard_gate(
     host: &str,
     amount_zat: u64,
     memo_nonce: &str,
-    approve: &dyn Fn(&str, u64, u64) -> bool,
+    approve: &(dyn Fn(&str, u64, u64) -> bool + Sync),
 ) -> Result<Gate, PayError> {
     let ledger_path = cfg
         .ledger_path
@@ -302,6 +324,8 @@ pub fn spendguard_gate(
         reason: None,
         memo_nonce: Some(memo_nonce.to_string()),
         txid: None,
+        url: None,
+        settled: None,
     };
     let spent_before = guard.spent_today(agent, t);
     let refusal = match guard.check(&req) {
@@ -430,12 +454,76 @@ pub async fn pay_from_agent_wallet(cfg: &AgentConfig, gate: Gate, pay_to: &str, 
     Ok(txid)
 }
 
-/// Fetch `url`, paying its x402 402 with a shielded testnet payment if spendguard allows it.
-/// `approve(host, amount_zat, threshold_zat)` is asked only for payments at or above the
+/// Fetch `url`, paying its x402 402 with a shielded testnet payment if spendguard allows it, and
+/// wait (up to `X402Z_AGENT_CONFIRM_TIMEOUT_SECS`) until the server settles it. If an earlier
+/// payment for `url` was broadcast and never settled, that one is presented instead of paying
+/// again. `approve(host, amount_zat, threshold_zat)` is asked only for payments at or above the
 /// approval threshold.
-pub async fn paid_fetch(cfg: &AgentConfig, url: &str, approve: &dyn Fn(&str, u64, u64) -> bool) -> Result<Fetched, PayError> {
+pub async fn paid_fetch(cfg: &AgentConfig, url: &str, approve: &(dyn Fn(&str, u64, u64) -> bool + Sync)) -> Result<Fetched, PayError> {
+    match fetch_or_pay(cfg, url, approve, true).await? {
+        PaidFetch::Done(f) => Ok(f),
+        PaidFetch::Pending(p) => Err(PayError::Runtime(format!(
+            "tx {} not settled before timeout; it may still confirm. Retry later: the next paid fetch of {} presents \
+             it again (memoNonce {}) and does not pay twice",
+            p.txid, p.url, p.memo_nonce
+        ))),
+    }
+}
+
+/// [`paid_fetch`] that returns as soon as the payment is broadcast (or an earlier one is
+/// presented and still pending), for callers with a request timeout such as MCP clients.
+pub async fn paid_fetch_nowait(cfg: &AgentConfig, url: &str, approve: &(dyn Fn(&str, u64, u64) -> bool + Sync)) -> Result<PaidFetch, PayError> {
+    fetch_or_pay(cfg, url, approve, false).await
+}
+
+/// Present (memoNonce, txid) for `url` once with `X-PAYMENT`. Never pays. A 200 or a final
+/// refusal is written to the ledger entry of that txid, if there is one.
+pub async fn redeem_payment(cfg: &AgentConfig, url: &str, txid: &str, memo_nonce: &str) -> Result<PaidFetch, PayError> {
+    let txid = txid.trim().to_ascii_lowercase();
+    if !x402z_protocol::valid_txid(&txid) || !x402z_protocol::valid_nonce(memo_nonce.trim()) {
+        return Err(PayError::Config("txid must be 64 hex characters and memoNonce 1-64 of [A-Za-z0-9_-]".into()));
+    }
+    host_of(url)?;
+    let amount = ledger_entry(cfg, &txid).map(|e| e.amount_zat).unwrap_or(0);
+    let http = http_client()?;
+    settle(cfg, &http, url, &txid, memo_nonce.trim(), amount, false, true).await
+}
+
+fn ledger_entry(cfg: &AgentConfig, txid: &str) -> Option<AuditEntry> {
+    let l = LedgerFile::load(cfg.ledger_path.as_ref()?).ok()?;
+    l.data.audit.iter().rev().find(|e| e.txid.as_deref() == Some(txid)).cloned()
+}
+
+/// Write the server's final answer for `txid` into the ledger (best effort: the answer itself
+/// is what the caller gets either way).
+fn mark_settled(cfg: &AgentConfig, txid: &str, settled: bool) {
+    let Some(path) = cfg.ledger_path.as_ref() else { return };
+    let result = LedgerFile::lock(path).and_then(|_lock| {
+        let mut l = LedgerFile::load(path)?;
+        if l.mark_settled(txid, settled) {
+            l.save()?;
+        }
+        Ok(())
+    });
+    if let Err(e) = result {
+        eprintln!("warning: could not record the outcome of tx {txid} in the ledger: {e}");
+    }
+}
+
+async fn fetch_or_pay(cfg: &AgentConfig, url: &str, approve: &(dyn Fn(&str, u64, u64) -> bool + Sync), wait: bool) -> Result<PaidFetch, PayError> {
     let host = host_of(url)?;
     let http = http_client()?;
+
+    // 0. A payment for this URL that was broadcast and never settled is presented again; paying
+    //    a second time would only be a second payment for the same thing.
+    if let Some(path) = cfg.ledger_path.as_ref() {
+        let ledger = LedgerFile::load(path).map_err(PayError::Config)?;
+        if let Some(e) = ledger.unresolved_payment(&cfg.agent, url, now()) {
+            let (txid, nonce) = (e.txid.clone().unwrap_or_default(), e.memo_nonce.clone().unwrap_or_default());
+            eprintln!("resuming tx {txid} (memo {nonce}) for {url}: broadcast earlier and not settled yet; not paying again");
+            return settle(cfg, &http, url, &txid, &nonce, e.amount_zat, wait, true).await;
+        }
+    }
 
     // 1. Ask for the resource.
     let resp = http.get(url).send().await.map_err(|e| PayError::Runtime(format!("GET {url} failed: {e}")))?;
@@ -444,7 +532,7 @@ pub async fn paid_fetch(cfg: &AgentConfig, url: &str, approve: &dyn Fn(&str, u64
     if status.is_success() {
         eprintln!("{url} answered {status} without payment");
         let body = resp.text().await.unwrap_or_default();
-        return Ok(Fetched { status: status.as_u16(), body, paid: None, settlement: None });
+        return Ok(PaidFetch::Done(Fetched { status: status.as_u16(), body, paid: None, settlement: None }));
     }
     if status.as_u16() != 402 {
         let body = resp.text().await.unwrap_or_default();
@@ -459,46 +547,72 @@ pub async fn paid_fetch(cfg: &AgentConfig, url: &str, approve: &dyn Fn(&str, u64
         ch.expires_at.saturating_sub(now())
     );
 
-    // 2. spendguard, before any wallet work. 3. Pay from the wallet.
-    let gate = spendguard_gate(cfg, &host, ch.amount_zat, &ch.memo_nonce, approve)?;
+    // 2. spendguard, before any wallet work. 3. Pay from the wallet (the ledger entry names the
+    //    URL, so a retry resumes this payment).
+    let mut gate = spendguard_gate(cfg, &host, ch.amount_zat, &ch.memo_nonce, approve)?;
+    gate.audit.url = Some(url.to_string());
     let txid = pay_from_agent_wallet(cfg, gate, &ch.pay_to, ch.amount_zat, &ch.memo_nonce).await?;
 
-    // 4. Retry with X-PAYMENT until the server settles it (it asks the facilitator, which waits
-    //    for the confirmation policy).
-    let x_payment = encode_header(&PaymentPayload::zcash(&txid, &ch.memo_nonce));
+    // 4. Present it with X-PAYMENT: until settled (CLI), or once (MCP).
+    settle(cfg, &http, url, &txid, &ch.memo_nonce, ch.amount_zat, wait, false).await
+}
+
+/// Present `X-PAYMENT` for (txid, memo_nonce) until the server settles it, or once if `!wait`.
+/// Pending answers (402 settlement_pending, 502, 429, a network error) are retried while
+/// waiting; any other answer is final and is written to the ledger.
+#[allow(clippy::too_many_arguments)]
+async fn settle(
+    cfg: &AgentConfig,
+    http: &reqwest::Client,
+    url: &str,
+    txid: &str,
+    memo_nonce: &str,
+    amount_zat: u64,
+    wait: bool,
+    resumed: bool,
+) -> Result<PaidFetch, PayError> {
+    let x_payment = encode_header(&PaymentPayload::zcash(txid, memo_nonce));
     let deadline = now() + cfg.confirm_timeout_secs;
-    let paid = Some((txid.clone(), ch.amount_zat, ch.memo_nonce.clone()));
+    let paid = Some((txid.to_string(), amount_zat, memo_nonce.to_string()));
+    let pending = |message: String| PendingPayment {
+        url: url.to_string(),
+        txid: txid.to_string(),
+        memo_nonce: memo_nonce.to_string(),
+        amount_zat,
+        message,
+        resumed,
+    };
     loop {
-        match http.get(url).header(PAYMENT_HEADER, &x_payment).send().await {
-            Err(e) => eprintln!("GET {url} with X-PAYMENT failed: {e}; retrying"),
+        let message = match http.get(url).header(PAYMENT_HEADER, &x_payment).send().await {
+            Err(e) => format!("GET {url} with X-PAYMENT failed: {e}"),
             Ok(resp) => {
                 let status = resp.status();
                 let settlement = settlement_header(&resp);
                 let body = resp.text().await.unwrap_or_default();
                 if status.is_success() {
                     eprintln!("{url} answered {status}: paid content delivered");
-                    return Ok(Fetched { status: status.as_u16(), body, paid, settlement });
+                    mark_settled(cfg, txid, true);
+                    return Ok(PaidFetch::Done(Fetched { status: status.as_u16(), body, paid, settlement }));
                 }
                 let why = settlement.as_ref().and_then(|s| s.error_reason.clone()).unwrap_or_default();
                 let detail = serde_json::from_str::<serde_json::Value>(&body)
                     .ok()
                     .and_then(|v| v.get("error").and_then(|e| e.as_str()).map(str::to_string))
                     .unwrap_or(body);
-                let retry = (status.as_u16() == 402 && why == reason::PENDING) || status.as_u16() == 502;
+                let retry = (status.as_u16() == 402 && why == reason::PENDING) || matches!(status.as_u16(), 429 | 502 | 503);
                 if !retry {
-                    return Err(PayError::Rejected(format!(
-                        "server refused payment tx {txid} ({status}, {why}): {detail}"
-                    )));
+                    mark_settled(cfg, txid, false);
+                    return Err(PayError::Rejected(format!("server refused payment tx {txid} ({status}, {why}): {detail}")));
                 }
-                eprintln!("not settled yet ({status}, {why}): {detail}");
+                format!("not settled yet ({status}, {why}): {detail}")
             }
+        };
+        eprintln!("{message}");
+        if !wait {
+            return Ok(PaidFetch::Pending(pending(message)));
         }
         if now() >= deadline {
-            return Err(PayError::Runtime(format!(
-                "tx {txid} not settled before timeout; it may still confirm. Retry later with the same X-PAYMENT \
-                 (txid {txid}, memoNonce {})",
-                ch.memo_nonce
-            )));
+            return Ok(PaidFetch::Pending(pending(message)));
         }
         tokio::time::sleep(Duration::from_secs(cfg.poll_secs)).await;
     }

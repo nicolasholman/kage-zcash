@@ -48,7 +48,18 @@ pub struct AuditEntry {
     /// Set only once a payment was actually broadcast.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub txid: Option<String>,
+    /// The resource a `paid_fetch` payment was for, so a retry can resume it instead of paying again.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    /// For a broadcast payment: `Some(true)` once the server answered 200 for it, `Some(false)`
+    /// once it refused it for good, `None` while that is not known yet.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub settled: Option<bool>,
 }
+
+/// How long a broadcast but unsettled payment is resumed instead of paying again: the server
+/// keeps a challenge redeemable this long by default (`X402Z_REDEEM_WINDOW_SECS`).
+pub const RESUME_WINDOW_SECS: u64 = 24 * 60 * 60;
 
 /// Exclusive advisory lock on the ledger, released when dropped (or when the process exits).
 pub struct LedgerLock {
@@ -138,6 +149,29 @@ impl LedgerFile {
     pub fn append(&mut self, e: AuditEntry) {
         self.data.audit.push(e);
     }
+
+    /// The newest payment `agent` broadcast for `url` that the server has neither settled nor
+    /// refused, within [`RESUME_WINDOW_SECS`]. A retry must present this one, not pay again.
+    pub fn unresolved_payment(&self, agent: &str, url: &str, now: u64) -> Option<&AuditEntry> {
+        self.data.audit.iter().rev().find(|e| {
+            e.agent == agent
+                && e.url.as_deref() == Some(url)
+                && e.txid.is_some()
+                && e.memo_nonce.is_some()
+                && e.settled.is_none()
+                && e.ts.saturating_add(RESUME_WINDOW_SECS) > now
+        })
+    }
+
+    /// Record the server's final answer for the payment `txid`. False if no entry has that txid.
+    pub fn mark_settled(&mut self, txid: &str, settled: bool) -> bool {
+        let mut found = false;
+        for e in self.data.audit.iter_mut().filter(|e| e.txid.as_deref() == Some(txid)) {
+            e.settled = Some(settled);
+            found = true;
+        }
+        found
+    }
 }
 
 #[cfg(test)]
@@ -161,6 +195,8 @@ mod tests {
             reason: None,
             memo_nonce: None,
             txid: txid.map(str::to_string),
+            url: None,
+            settled: None,
         }
     }
 
@@ -248,6 +284,27 @@ mod tests {
         assert_eq!(l.guard("agent-1", &policy(), DAY0 + 10).spent_today("agent-1", DAY0 + 10), 250_000);
         let _ = std::fs::remove_file(&path);
         let _ = std::fs::remove_file(path.with_extension("json.lock"));
+    }
+
+    #[test]
+    fn unresolved_payments_are_found_per_url_until_settled_or_stale() {
+        let mut l = LedgerFile::load(&tmp("resume")).unwrap();
+        let mut paid = entry(DAY0, 100_000, Some("tx1"));
+        paid.memo_nonce = Some("x402z-1".into());
+        paid.url = Some("http://127.0.0.1:4020/api/quote".into());
+        l.append(paid.clone());
+        let mut other = paid.clone();
+        other.url = Some("http://127.0.0.1:4020/other".into());
+        other.txid = Some("tx2".into());
+        l.append(other);
+        l.append(entry(DAY0 + 1, 100_000, None)); // allowed, never broadcast: nothing to resume
+        let u = "http://127.0.0.1:4020/api/quote";
+        assert_eq!(l.unresolved_payment("agent-1", u, DAY0 + 10).unwrap().txid.as_deref(), Some("tx1"));
+        assert!(l.unresolved_payment("agent-2", u, DAY0 + 10).is_none(), "per agent");
+        assert!(l.unresolved_payment("agent-1", u, DAY0 + RESUME_WINDOW_SECS + 1).is_none(), "stale");
+        assert!(l.mark_settled("tx1", true));
+        assert!(l.unresolved_payment("agent-1", u, DAY0 + 10).is_none(), "settled");
+        assert!(!l.mark_settled("nope", true));
     }
 
     #[test]

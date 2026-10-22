@@ -46,7 +46,8 @@ pub struct StoredToken {
     pub sig: String,
 }
 
-/// A tab the agent has authorised and is waiting for an external wallet to pay.
+/// A tab the agent has authorised: waiting for an external wallet to pay it (`txid` unset), or
+/// paid and waiting for the server to issue its tokens (`txid` set; never paid again).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PendingPurchase {
@@ -59,6 +60,9 @@ pub struct PendingPurchase {
     pub payment_uri: String,
     pub offer: TabOffer,
     pub created_at: u64,
+    /// The payment, once broadcast by the agent's own wallet.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub txid: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -189,6 +193,15 @@ fn issue_url(url: &str, offer: &TabOffer) -> Result<String, PayError> {
     Ok(issue.to_string())
 }
 
+/// What a tab purchase came to.
+#[derive(Debug, Clone)]
+pub enum BuyOutcome {
+    Bought(Bought),
+    /// Paid, and the server will issue once the payment confirms. Calling [`buy`] again for the
+    /// same origin collects it; it never pays twice.
+    Pending { purchase: PendingPurchase, message: String },
+}
+
 /// What a finished purchase produced.
 #[derive(Debug, Clone)]
 pub struct Bought {
@@ -202,7 +215,9 @@ pub struct Bought {
 }
 
 /// Blind `n` fresh messages, have the server sign them for the paid challenge (retrying while the
-/// payment confirms), unblind and verify each signature, and store the tokens.
+/// payment confirms, or asking once if `!wait`), unblind and verify each signature, and store the
+/// tokens. `Ok(Err(message))` means "not issued yet" (only when `!wait`).
+#[allow(clippy::too_many_arguments)]
 async fn issue_and_store(
     cfg: &AgentConfig,
     http: &reqwest::Client,
@@ -211,7 +226,8 @@ async fn issue_and_store(
     n: u32,
     memo_nonce: &str,
     txid: &str,
-) -> Result<u64, PayError> {
+    wait: bool,
+) -> Result<Result<u64, String>, PayError> {
     let pk = Pk::from_spki(&b64_any(&offer.public_key).ok_or_else(|| PayError::Runtime("tab publicKey is not base64".into()))?)
         .map_err(|e| PayError::Runtime(format!("tab publicKey is not an RSA SPKI: {e:?}")))?;
     let mut blinded: Vec<(Vec<u8>, BlindingResult)> = Vec::with_capacity(n as usize);
@@ -231,8 +247,8 @@ async fn issue_and_store(
     let started = Instant::now();
     let deadline = now() + cfg.confirm_timeout_secs;
     let answer: TabIssueResponse = loop {
-        match http.post(&issue).json(&req).send().await {
-            Err(e) => eprintln!("POST {issue} failed: {e}; retrying"),
+        let message = match http.post(&issue).json(&req).send().await {
+            Err(e) => format!("POST {issue} failed: {e}"),
             Ok(resp) => {
                 let status = resp.status();
                 let body = resp.text().await.unwrap_or_default();
@@ -241,10 +257,14 @@ async fn issue_and_store(
                         break serde_json::from_str(&body)
                             .map_err(|e| PayError::Runtime(format!("tab issue answer is not {{keyId, blindSignatures}}: {e}")))?
                     }
-                    202 | 502 | 503 => eprintln!("tab issue: not yet ({status}): {body}"),
+                    202 | 429 | 502 | 503 => format!("tab issue: not yet ({status}): {body}"),
                     _ => return Err(PayError::Rejected(format!("tab issue for tx {txid} refused ({status}): {body}"))),
                 }
             }
+        };
+        eprintln!("{message}");
+        if !wait {
+            return Ok(Err(message));
         }
         if now() >= deadline {
             return Err(PayError::Runtime(format!(
@@ -283,27 +303,88 @@ async fn issue_and_store(
     f.state.tokens.extend(tokens);
     f.state.pending.retain(|p| p.memo_nonce != memo_nonce);
     f.save()?;
-    Ok(started.elapsed().as_secs())
+    Ok(Ok(started.elapsed().as_secs()))
 }
 
-/// Buy a tab of `n` tokens for `url`'s server, paying from the agent's own wallet.
-pub async fn buy(cfg: &AgentConfig, url: &str, n: u32, approve: &dyn Fn(&str, u64, u64) -> bool) -> Result<Bought, PayError> {
+/// Buy a tab of `n` tokens for `url`'s server, paying from the agent's own wallet, and wait for
+/// the tokens (CLI `tab-buy`).
+pub async fn buy(cfg: &AgentConfig, url: &str, n: u32, approve: &(dyn Fn(&str, u64, u64) -> bool + Sync)) -> Result<Bought, PayError> {
+    match buy_or_resume(cfg, url, n, approve, true).await? {
+        BuyOutcome::Bought(b) => Ok(b),
+        BuyOutcome::Pending { purchase, message } => Err(PayError::Runtime(format!(
+            "tab paid by tx {} but not issued before timeout ({message}); `x402z-agent tab-buy` for the same server collects it \
+             without paying again",
+            purchase.txid.unwrap_or_default()
+        ))),
+    }
+}
+
+/// Collect a tab this agent already paid for at `url`'s origin, or else buy one of `n` tokens.
+/// With `wait` it waits for the tokens; without, it asks the server once and returns
+/// [`BuyOutcome::Pending`] while the payment confirms (MCP). It never pays while a paid tab for
+/// the same origin is still waiting to be issued.
+pub async fn buy_or_resume(cfg: &AgentConfig, url: &str, n: u32, approve: &(dyn Fn(&str, u64, u64) -> bool + Sync), wait: bool) -> Result<BuyOutcome, PayError> {
     let host = pay::host_of(url)?;
+    let origin = origin_of(url)?;
     let tab_file = tab_path(cfg)?;
     let http = pay::http_client()?;
+    let paid_earlier = TabFile::open(&tab_file)?
+        .state
+        .pending
+        .iter()
+        .filter(|p| p.txid.is_some() && origin_of(&p.url).ok().as_deref() == Some(origin.as_str()))
+        .max_by_key(|p| p.created_at)
+        .cloned();
+    if let Some(p) = paid_earlier {
+        eprintln!("tab already paid by tx {} for {origin}; collecting it instead of paying again", p.txid.as_deref().unwrap_or_default());
+        return collect(cfg, &http, p, wait).await;
+    }
     let (ch, offer) = fetch_offer(&http, url).await?;
     let amount = check_n(&offer, n)?;
     eprintln!("tab offer: key {} at {} zat a token; buying {n} for {amount} zat (memo {})", offer.key_id, offer.unit_price_zat, ch.memo_nonce);
     drop(TabFile::open(&tab_file)?); // fail on an unusable token file before paying
     let gate = pay::spendguard_gate(cfg, &host, amount, &ch.memo_nonce, approve)?;
     let txid = pay::pay_from_agent_wallet(cfg, gate, &ch.pay_to, amount, &ch.memo_nonce).await?;
-    let wait = issue_and_store(cfg, &http, url, &offer, n, &ch.memo_nonce, &txid).await?;
-    Ok(Bought { txid, memo_nonce: ch.memo_nonce, n, amount_zat: amount, key_id: offer.key_id, issue_wait_secs: wait })
+    // Remember the paid purchase before asking for the tokens, so a timeout or a crash can't
+    // lead to paying for it again.
+    let p = PendingPurchase {
+        url: url.to_string(),
+        n,
+        amount_zat: amount,
+        payment_uri: zip321_uri(&ch.pay_to, amount, &ch.memo_nonce),
+        pay_to: ch.pay_to,
+        memo_nonce: ch.memo_nonce,
+        expires_at: ch.expires_at,
+        offer,
+        created_at: now(),
+        txid: Some(txid),
+    };
+    let mut f = TabFile::open(&tab_file)?;
+    f.state.pending.push(p.clone());
+    f.save()?;
+    drop(f);
+    collect(cfg, &http, p, wait).await
+}
+
+/// Ask the server for the tokens of a paid purchase.
+async fn collect(cfg: &AgentConfig, http: &reqwest::Client, p: PendingPurchase, wait: bool) -> Result<BuyOutcome, PayError> {
+    let txid = p.txid.clone().unwrap_or_default();
+    match issue_and_store(cfg, http, &p.url, &p.offer, p.n, &p.memo_nonce, &txid, wait).await? {
+        Ok(issue_wait_secs) => Ok(BuyOutcome::Bought(Bought {
+            txid,
+            memo_nonce: p.memo_nonce,
+            n: p.n,
+            amount_zat: p.amount_zat,
+            key_id: p.offer.key_id,
+            issue_wait_secs,
+        })),
+        Err(message) => Ok(BuyOutcome::Pending { purchase: p, message }),
+    }
 }
 
 /// Authorise a tab of `n` tokens through spendguard and return the ZIP 321 request for any
 /// wallet to pay. Nothing counts against the cap until [`finish_external`] records the txid.
-pub async fn start_external(cfg: &AgentConfig, url: &str, n: u32, approve: &dyn Fn(&str, u64, u64) -> bool) -> Result<PendingPurchase, PayError> {
+pub async fn start_external(cfg: &AgentConfig, url: &str, n: u32, approve: &(dyn Fn(&str, u64, u64) -> bool + Sync)) -> Result<PendingPurchase, PayError> {
     let host = pay::host_of(url)?;
     let http = pay::http_client()?;
     let (ch, offer) = fetch_offer(&http, url).await?;
@@ -321,6 +402,7 @@ pub async fn start_external(cfg: &AgentConfig, url: &str, n: u32, approve: &dyn 
         expires_at: ch.expires_at,
         offer,
         created_at: now(),
+        txid: None,
     };
     f.state.pending.push(p.clone());
     f.save()?;
@@ -360,6 +442,8 @@ pub async fn finish_external(cfg: &AgentConfig, txid: &str, memo_nonce: Option<&
                 reason: Some(format!("tab of {} tokens, paid by an external wallet", p.n)),
                 memo_nonce: Some(p.memo_nonce.clone()),
                 txid: Some(txid.clone()),
+                url: None,
+                settled: None,
             });
             let spent = ledger.guard(&cfg.agent, &cfg.policy, t).spent_today(&cfg.agent, t);
             ledger.upsert_agent(&cfg.agent, &cfg.policy, spent);
@@ -367,7 +451,9 @@ pub async fn finish_external(cfg: &AgentConfig, txid: &str, memo_nonce: Option<&
         }
     }
     let http = pay::http_client()?;
-    let wait = issue_and_store(cfg, &http, &p.url, &p.offer, p.n, &p.memo_nonce, &txid).await?;
+    let wait = issue_and_store(cfg, &http, &p.url, &p.offer, p.n, &p.memo_nonce, &txid, true)
+        .await?
+        .map_err(|m| PayError::Runtime(format!("tab for tx {txid} not issued: {m}")))?;
     Ok(Bought { txid, memo_nonce: p.memo_nonce, n: p.n, amount_zat: p.amount_zat, key_id: p.offer.key_id, issue_wait_secs: wait })
 }
 
