@@ -17,28 +17,57 @@ test.describe('landing', () => {
     await page.screenshot({ path: test.info().outputPath('landing-hero.png') });
   });
 
-  test('hero tabs 402 / X-PAYMENT / pending / 200: click, arrow keys, one panel at a time', async ({ page }) => {
+  test('hero leads with the LLM-over-MCP run: its tool calls, txid f037d597 and payer ""', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto(URL_);
+    await expect(page.getByRole('tab', { name: /MCP/ })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('#recDate')).toContainText('2026-10-22');
+    await expect(page.locator('#recWhat')).toHaveText('LLM over MCP');
+    await expect(page.locator('#footMcp')).toBeVisible();
+    await expect(page.locator('#footMcp a')).toHaveAttribute('href', 'https://testnet.zecblock.com/tx/f037d5978fec7817340ff118d328995288f0a575a1850b083ca05f7d71d4e22a');
+    await expect(page.locator('#footExchange')).toBeHidden();
+    const calls = page.locator('#mcptape li');
+    await expect(calls).toHaveCount(11);
+    await expect(calls.nth(1)).toContainText('paid_fetch');
+    await expect(calls.nth(1)).toContainText('"status":"settlement_pending"');
+    await expect(calls.nth(1)).toContainText('f037d597');
+    await expect(calls.nth(2)).toContainText('redeem_payment f037d597');
+    await expect(calls.nth(2)).toContainText('"payer":""');
+    await expect(calls.nth(2).locator('.c')).toHaveText('200');
+    await expect(page.locator('#p0 a', { hasText: 'mcp-paid-run.jsonl' })).toHaveAttribute('href', 'https://github.com/nickthelegend/zec-shielded-x402/blob/main/docs/mcp-paid-run.jsonl');
+    // the exchange tabs bring back their own run's header
+    await page.getByRole('tab', { name: /402/ }).click();
+    await expect(page.locator('#recDate')).toContainText('2026-10-21');
+    await expect(page.locator('#recWhat')).toHaveText('GET /api/quote');
+    await expect(page.locator('#footExchange')).toContainText('25a8b324');
+    await expect(page.locator('#footMcp')).toBeHidden();
+    await expectNoHorizontalScroll(page);
+    await page.getByRole('tab', { name: /MCP/ }).click();
+    await page.locator('.wire').screenshot({ path: test.info().outputPath('landing-mcp-tape.png') });
+  });
+
+  test('hero tabs MCP / 402 / X-PAYMENT / pending / 200: click, arrow keys, one panel at a time', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' }); // no autoplay racing the clicks
     await page.goto(URL_);
     const tabs = page.getByRole('tab');
-    await expect(tabs).toHaveCount(4);
-    const panels = ['#p1', '#p2', '#p3', '#p4'];
-    for (let i = 0; i < 4; i++) {
+    await expect(tabs).toHaveCount(5);
+    const panels = ['#p0', '#p1', '#p2', '#p3', '#p4'];
+    for (let i = 0; i < 5; i++) {
       await tabs.nth(i).click();
       await expect(tabs.nth(i)).toHaveAttribute('aria-selected', 'true');
-      for (let k = 0; k < 4; k++) await (k === i ? expect(page.locator(panels[k])).toBeVisible() : expect(page.locator(panels[k])).toBeHidden());
+      for (let k = 0; k < 5; k++) await (k === i ? expect(page.locator(panels[k])).toBeVisible() : expect(page.locator(panels[k])).toBeHidden());
     }
     await expect(page.locator('#p4')).toContainText('HTTP/1.1 200 OK');
     await expect(page.locator('#p4')).toContainText('"payer":""');
-    // Keyboard: ArrowRight wraps from 200 back to 402, ArrowLeft goes back.
-    await tabs.nth(3).focus();
+    // Keyboard: ArrowRight wraps from 200 back to MCP, ArrowLeft goes back.
+    await tabs.nth(4).focus();
     await page.keyboard.press('ArrowRight');
     await expect(tabs.nth(0)).toHaveAttribute('aria-selected', 'true');
     await expect(tabs.nth(0)).toBeFocused();
     await page.keyboard.press('ArrowLeft');
-    await expect(tabs.nth(3)).toHaveAttribute('aria-selected', 'true');
+    await expect(tabs.nth(4)).toHaveAttribute('aria-selected', 'true');
     // The pending tape: ten settlement_pending retries, then the 200.
-    await tabs.nth(2).click();
+    await tabs.nth(3).click();
     await expect(page.locator('#tape li')).toHaveCount(11);
     await expect(page.locator('#tape li .c').filter({ hasText: '402' })).toHaveCount(10);
     await expect(page.locator('#tape li.win')).toContainText('"success":true');
@@ -48,11 +77,11 @@ test.describe('landing', () => {
   test('the recorded exchange autoplays once without reduced motion, and stays put with it', async ({ page }) => {
     await page.goto(URL_);
     await page.mouse.move(1, 1);
-    await expect(page.getByRole('tab', { name: /X-PAYMENT/ })).toHaveAttribute('aria-selected', 'true', { timeout: 6000 });
+    await expect(page.getByRole('tab', { name: /402/ })).toHaveAttribute('aria-selected', 'true', { timeout: 6000 });
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.reload();
     await page.waitForTimeout(5000);
-    await expect(page.getByRole('tab', { name: /402/ })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('tab', { name: /MCP/ })).toHaveAttribute('aria-selected', 'true');
     // Reduced motion also switches CSS animation off on the tape.
     await page.getByRole('tab', { name: /pending/ }).click();
     const anim = await page.locator('#tape li').first().evaluate(el => getComputedStyle(el).animationName);
@@ -81,12 +110,12 @@ test.describe('landing', () => {
     ]);
   });
 
-  test('quickstart test counts agree with the Tests table and the 117 headline', async ({ page }) => {
+  test('quickstart test counts agree with the Tests table and the 137 headline', async ({ page }) => {
     await page.goto(URL_);
     const table = Object.fromEntries(await page.locator('#tests tbody tr').evaluateAll(rows =>
       rows.map(r => [r.querySelector('code')!.textContent, Number(r.querySelector('.num')!.textContent)])));
     const total = Object.values(table).reduce((a, b) => a + b, 0);
-    expect(total).toBe(117);
+    expect(total).toBe(137);
     await expect(page.locator('.facts b').nth(1)).toHaveText(String(total));
     const qs = await page.locator('#qs').innerText();
     const nums = (crate: string) => (new RegExp(`-p ${crate}\\s+# ([\\d +]+)`).exec(qs)?.[1] || '').split('+').map(s => Number(s.trim()));

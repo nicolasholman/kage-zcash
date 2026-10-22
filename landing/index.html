@@ -110,6 +110,7 @@
       .clock .bar { flex: 1; height: 4px; background: var(--code-line); border-radius: 2px; overflow: hidden; }
       .clock .bar i { display: block; height: 100%; width: 100%; background: var(--gold); transform-origin: left; }
       .wire-foot { display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 12px 18px; border-top: 1px solid var(--code-line); font: 12px/1.4 var(--mono); color: var(--code-dim); }
+      .wire-foot[hidden] { display: none; }
       .wire-foot a { color: var(--code-text); text-decoration: none; border-bottom: 1px solid #3a3a3e; }
       .wire-foot a:hover { border-bottom-color: var(--gold); }
 
@@ -255,27 +256,46 @@
             <span aria-hidden="true">$</span><code id="clone">git clone https://github.com/nickthelegend/zec-shielded-x402 &amp;&amp; cd zec-shielded-x402 &amp;&amp; cargo test -p x402z-server</code>
             <button class="copy" type="button" data-copy="#clone">Copy</button>
           </div>
-          <p class="install-note">35 server tests, including the Kage Tab attacks and the public/admin port split. A first build took about 2 minutes on a laptop at 2 build jobs, with no Zcash crates involved. The agent and MCP crates compile librustzcash, which took about 4 more minutes. This page is docs and recorded output, not a hosted paywall; the <a href="#quickstart">Quickstart</a> runs the whole stack on your machine.</p>
+          <p class="install-note">40 server tests, including the Kage Tab attacks, the public/admin port split and the admin port's Host check. A first build took about 2 minutes on a laptop at 2 build jobs, with no Zcash crates involved. The agent and MCP crates compile librustzcash, which took about 4 more minutes. This page is docs and recorded output, not a hosted paywall; the <a href="#quickstart">Quickstart</a> runs the whole stack on your machine.</p>
           <div class="facts">
             <div><b>10</b><span>paid testnet txs, verifiable with a published UIVK; 2 paid by an LLM</span></div>
-            <div><b>117</b><span>tests, 6 against live testnet</span></div>
+            <div><b>137</b><span>tests, 5 against live testnet</span></div>
             <div><b>0</b><span>spend keys on the merchant side</span></div>
           </div>
         </div>
 
-        <figure class="wire" aria-label="A recorded x402 exchange on Zcash testnet" style="margin: 0">
+        <figure class="wire" aria-label="Recorded x402 runs on Zcash testnet: an LLM paying over MCP, and one exchange step by step" style="margin: 0">
           <div class="wire-head">
-            <span class="rec">recorded run · <b>2026-10-21</b> <span class="hide-xs">05:54:41–05:58:47 UTC</span></span>
-            <span>GET <b>/api/quote</b></span>
+            <span class="rec" id="recDate">recorded run · <b>2026-10-22</b> <span class="hide-xs">15:34:30–15:36:22 UTC</span></span>
+            <span id="recWhat">LLM over <b>MCP</b></span>
           </div>
-          <div class="tabs" role="tablist" aria-label="Steps of the exchange">
-            <button class="tab" role="tab" id="t1" aria-controls="p1" aria-selected="true"><span class="n">1</span>402</button>
+          <div class="tabs" role="tablist" aria-label="Recorded runs and the steps of one exchange">
+            <button class="tab" role="tab" id="t0" aria-controls="p0" aria-selected="true" data-rec="recorded run · &lt;b&gt;2026-10-22&lt;/b&gt; &lt;span class=&quot;hide-xs&quot;&gt;15:34:30–15:36:22 UTC&lt;/span&gt;" data-what="LLM over &lt;b&gt;MCP&lt;/b&gt;"><span class="n">AI</span>MCP</button>
+            <button class="tab" role="tab" id="t1" aria-controls="p1" aria-selected="false" tabindex="-1"><span class="n">1</span>402</button>
             <button class="tab" role="tab" id="t2" aria-controls="p2" aria-selected="false" tabindex="-1"><span class="n">2</span>X-PAYMENT</button>
             <button class="tab" role="tab" id="t3" aria-controls="p3" aria-selected="false" tabindex="-1"><span class="n">3</span>pending ×10</button>
             <button class="tab" role="tab" id="t4" aria-controls="p4" aria-selected="false" tabindex="-1"><span class="n">4</span>200</button>
           </div>
 
-          <div class="pane" role="tabpanel" id="p1" aria-labelledby="t1">
+          <div class="pane" role="tabpanel" id="p0" aria-labelledby="t0">
+            <p class="label">An LLM (opencode, nemotron-3-ultra) calling x402z-mcp; the agent pays from its own wallet. Tool calls in order, from docs/mcp-paid-run.jsonl.</p>
+            <ol class="tape" id="mcptape" aria-label="The model's tool calls and what each returned">
+              <li><span class="t">15:34:30</span><span class="c">call</span><span class="r">spend_status → cap 600000 zat, spent 0, allowedHosts ["127.0.0.1:4220"]</span></li>
+              <li><span class="t">15:34:47</span><span class="c">402</span><span class="r">paid_fetch /api/quote → "status":"settlement_pending", "txid":"f037d597…e22a", 100000 zat</span></li>
+              <li class="win"><span class="t">15:35:18</span><span class="c">200</span><span class="r">redeem_payment f037d597…e22a → {"success":true,"transaction":"f037d597…e22a","payer":""}</span></li>
+              <li><span class="t">15:35:31</span><span class="c">202</span><span class="r">tab_fetch {"buy":3} → "status":"tab_pending", "txid":"b75b2415…4b91", 300000 zat</span></li>
+              <li><span class="t">15:35:35</span><span class="c">202</span><span class="r">tab_fetch → tab_pending, the same txid b75b2415…4b91 (not paid again)</span></li>
+              <li><span class="t">15:35:39</span><span class="c">202</span><span class="r">tab_fetch → tab_pending, the same txid b75b2415…4b91 (not paid again)</span></li>
+              <li><span class="t">15:35:43</span><span class="c">202</span><span class="r">tab_fetch → tab_pending, the same txid b75b2415…4b91 (not paid again)</span></li>
+              <li class="win"><span class="t">15:36:08</span><span class="c">200</span><span class="r">tab_fetch → {"success":true,"transaction":"tab:f64cf56451454ddc","payer":""}, 1 ms, 2 tokens left</span></li>
+              <li class="win"><span class="t">15:36:12</span><span class="c">200</span><span class="r">tab_fetch → "tab:268c28cae693f124", 1 ms, 1 left</span></li>
+              <li class="win"><span class="t">15:36:14</span><span class="c">200</span><span class="r">tab_fetch → "tab:3dc634365b4e2de9", 0 ms, 0 left</span></li>
+              <li><span class="t">15:36:22</span><span class="c">call</span><span class="r">ledger_tail → 2 payments: f037d597… 100000 zat settled, b75b2415… 300000 zat</span></li>
+            </ol>
+            <p class="label">Shortened here: txids, and the fields each call returned. Unedited events: <a href="https://github.com/nickthelegend/zec-shielded-x402/blob/main/docs/mcp-paid-run.jsonl">mcp-paid-run.jsonl</a>. The other tabs replay one X-PAYMENT exchange step by step.</p>
+          </div>
+
+          <div class="pane" role="tabpanel" id="p1" aria-labelledby="t1" hidden>
 <pre><span class="req">GET <b>/api/quote</b> HTTP/1.1</span>
 <span class="st402">HTTP/1.1 402 Payment Required</span>
 <span class="d">content-type: application/json</span>
@@ -343,7 +363,12 @@
             <p class="label">Shortened here: the body's "quote" text. payer is always "": nobody learns the payer's address.</p>
           </div>
 
-          <div class="wire-foot">
+          <div class="wire-foot" id="footMcp">
+            <span>tx <a href="https://testnet.zecblock.com/tx/f037d5978fec7817340ff118d328995288f0a575a1850b083ca05f7d71d4e22a">f037d597…e22a ↗</a></span>
+            <span>block 4,529,425</span>
+            <span>payer: the agent's own wallet, chosen by the LLM</span>
+          </div>
+          <div class="wire-foot" id="footExchange" hidden>
             <span>tx <a href="https://testnet.zecblock.com/tx/25a8b324bebee30220382113c6fb9cc3be1144b036117c34778bde3b1d8b689d">25a8b324…689d ↗</a></span>
             <span>block 4,524,602</span>
             <span>payer: a separate zingo-cli demo wallet</span>
@@ -380,7 +405,7 @@
             <div class="role"><h3>Facilitator <span class="pill p-ok">x402z-facilitator</span></h3><dl><dt>holds</dt><dd>the merchant's unified incoming viewing key (UIVK), an ed25519 receipt key</dd><dt>never</dt><dd>a spending key or a full viewing key</dd></dl></div>
             <div class="role"><h3>lightwalletd <span class="pill p-wait">testnet.zec.rocks</span></h3><dl><dt>holds</dt><dd>the public chain</dd><dt>never</dt><dd>anything shielded</dd></dl></div>
           </div>
-          <p><b>Prior art.</b> coinbase/x402 v1 defines the 402 body, <code>X-PAYMENT</code> and the facilitator endpoints for EVM payments; Kage keeps that wire format and adds a <code>zcash-shielded</code> scheme. A Zcash Community Grants application, "Shielded x402" (forum topic 57826), proposed private machine payments over x402 and was rejected on 2026-09-28; Kage is a separate build that uses none of its code. Kage adds a facilitator that holds only the incoming viewing key, spendguard before the wallet, Kage Tab blind-RSA batching, and ten live testnet payments anyone can check.</p>
+          <p><b>Prior art.</b> coinbase/x402 v1 defines the 402 body, <code>X-PAYMENT</code> and the facilitator endpoints for EVM payments; Kage keeps that wire format and adds a <code>zcash-shielded</code> scheme. A Zcash Community Grants application, "Shielded x402" (forum topic 57826, posted 2026-09-25 by the forum user baby-zack-agent), proposed private machine payments over x402 and was rejected on 2026-09-28. That application is another applicant's: Kage is a separate build by Nivesh Gajengi and shares none of its code. Kage adds a facilitator that holds only the incoming viewing key, spendguard before the wallet, Kage Tab blind-RSA batching, and ten live testnet payments anyone can check.</p>
         </section>
 
         <section class="doc" id="quickstart" aria-labelledby="h-quick">
@@ -388,11 +413,11 @@
           <h2 id="h-quick">Quickstart<a class="anchor" href="#quickstart" aria-label="Link to Quickstart">#</a></h2>
           <p>A Rust workspace pinned to toolchain 1.89.0. Run the tests one crate at a time; the Zcash crates are large.</p>
           <div class="code"><div class="bar"><span>shell</span><button class="copy" type="button" data-copy="#qs">Copy</button></div>
-<pre id="qs">cargo test -p spendguard -p x402z-protocol -p x402z-server   <span class="c"># 14 + 14 + 35</span>
-cargo test -p x402z-agent                                      <span class="c"># 24</span>
+<pre id="qs">cargo test -p spendguard -p x402z-protocol -p x402z-server   <span class="c"># 16 + 14 + 40</span>
+cargo test -p x402z-agent                                      <span class="c"># 32</span>
 cargo test -p x402z-mcp                                        <span class="c"># 7, drives the binary over stdio</span>
-cargo test -p x402z-facilitator                                <span class="c"># 16: 6 build Halo2 proofs, 3 hit testnet</span>
-cd packages/x402-zcash &amp;&amp; npm test                             <span class="c"># 7: TypeScript, 3 hit the binaries and testnet</span></pre></div>
+cargo test -p x402z-facilitator                                <span class="c"># 17: 6 build Halo2 proofs, 3 hit testnet</span>
+cd packages/x402-zcash &amp;&amp; npm test                             <span class="c"># 11: TypeScript, 2 hit the binaries and testnet</span></pre></div>
           <p>Nothing is mocked. Without a key, a wallet or funds, each binary stops with a readable error and a non-zero exit code:</p>
           <div class="term" role="group" aria-label="Terminal output"><div class="bar"><span>zsh · 2026-10-21</span><span>no .env, then cap below the price</span></div>
 <pre><span class="ps">$ </span>target/debug/x402z-facilitator
@@ -405,7 +430,7 @@ cd packages/x402-zcash &amp;&amp; npm test                             <span cla
 <span class="no">error: spendguard refused the payment: daily cap exceeded: spent 0 + requested 100000 &gt; cap 50000 zat. No transaction was built or broadcast.</span>
 <span class="ps">$ </span>echo $?
 <span class="o">3</span></pre></div>
-          <p>One command runs the whole stack locally with the published demo UIVK and no wallet: <code>cd e2e &amp;&amp; npm ci &amp;&amp; npm run stack</code> (dashboard on <code>127.0.0.1:4120</code>), then pay the QR from any testnet wallet. A paid agent run needs a funded testnet wallet for the agent, a merchant UA and UIVK, a receipt key pair from <code>x402z-facilitator keygen</code> and a shared <code>X402Z_FACILITATOR_TOKEN</code>. The README walks through it; <code>x402z-server</code> serves the paid API on <code>127.0.0.1:4020</code> and the dashboard on a separate loopback port, <code>127.0.0.1:4029</code>.</p>
+          <p>After a <code>cargo build</code>, <code>cd e2e &amp;&amp; npm ci &amp;&amp; npm run stack</code> runs the whole stack locally with the published demo UIVK and no wallet (dashboard on <code>127.0.0.1:4120</code>; <code>npm run test:e2e</code> then drives it in Google Chrome), then pay the QR from any testnet wallet. A paid agent run needs a funded testnet wallet for the agent, a merchant UA and UIVK, a receipt key pair from <code>x402z-facilitator keygen</code> and a shared <code>X402Z_FACILITATOR_TOKEN</code>. The README walks through it; <code>x402z-server</code> serves the paid API on <code>127.0.0.1:4020</code> and the dashboard on a separate loopback port, <code>127.0.0.1:4029</code>.</p>
         </section>
 
         <section class="doc" id="the-402" aria-labelledby="h-402">
@@ -432,7 +457,7 @@ cd packages/x402-zcash &amp;&amp; npm test                             <span cla
           <h2 id="h-sg">spendguard<a class="anchor" href="#spendguard" aria-label="Link to spendguard">#</a></h2>
           <p>The agent checks every payment before it touches the wallet. Rules run in order, and the first denial wins:</p>
           <ol>
-            <li><b>Host allowlist.</b> Deny by default. Exact host or <code>*.suffix</code>; <code>*.data.test</code> matches <code>x.data.test</code>, not <code>evildata.test</code>.</li>
+            <li><b>Host allowlist.</b> Deny by default. Exact host or <code>*.suffix</code>; <code>*.data.test</code> matches <code>x.data.test</code>, not <code>evildata.test</code>. An entry with a port (<code>127.0.0.1:4020</code>) or a scheme (<code>https://…</code>) allows only that. Checked before the agent's first request, with plain HTTP to a non-loopback host refused.</li>
             <li><b>Amount &gt; 0.</b></li>
             <li><b>Daily cap</b> per agent and UTC day, inclusive, with checked arithmetic: an overflow is a denial.</li>
             <li><b>Approval threshold</b>, inclusive. The CLI asks the operator; the MCP server always declines.</li>
@@ -543,7 +568,7 @@ cd packages/x402-zcash &amp;&amp; npm test                             <span cla
           <ul>
             <li><b>The client's IP</b> reaches the merchant. The paid request is ordinary HTTP; use Tor or a proxy if it matters.</li>
             <li><b>lightwalletd</b> sees which txid is looked up, and when.</li>
-            <li><b><code>X-PAYMENT</code></b> is a bearer credential: whoever presents a paid (nonce, txid) first gets the content. The server's feed now lives on a loopback admin port and shows only a nonce prefix next to a txid.</li>
+            <li><b><code>X-PAYMENT</code></b> is a bearer credential: whoever presents a paid (nonce, txid) first gets the content, and the server serves the same pair again for 10 minutes so a lost 200 is not a refusal. The server's feed lives on a loopback admin port that answers only to its own Host, and shows only a nonce prefix next to a txid.</li>
             <li><b>Kage Tab</b> unlinkability assumes one key per epoch for every buyer; the agent pins the key it saw, but can't see what other buyers got.</li>
             <li><b>The agent ledger and tab tokens</b> are sealed at rest (XChaCha20-Poly1305); anyone with the ledger key or the agent seed can read them.</li>
             <li><b>Timing.</b> The 402 and the next block can be linked by time, even though the transaction reveals nothing.</li>
@@ -581,17 +606,17 @@ cd packages/x402-zcash &amp;&amp; npm test                             <span cla
         <section class="doc" id="tests" aria-labelledby="h-tests">
           <span class="path">trust / tests</span>
           <h2 id="h-tests">Tests<a class="anchor" href="#tests" aria-label="Link to Tests">#</a></h2>
-          <p>117 tests: 110 in Rust, 7 in TypeScript. Six build in-process transactions with real keys, real note encryption and real Halo2 proofs for the Orchard/Ironwood parts (Sapling outputs use sapling-crypto's mock proof bytes); those are not broadcast. Three verify the ten real payments live with only the UIVK, and three run the TypeScript client and middleware against the real binaries and testnet. A Playwright suite drives the dashboard and this page in Google Chrome. The full list is in <a href="https://github.com/nickthelegend/zec-shielded-x402/blob/main/TESTING.md">TESTING.md</a>.</p>
+          <p>137 tests: 126 in Rust, 11 in TypeScript. Six build in-process transactions with real keys, real note encryption and real Halo2 proofs for the Orchard/Ironwood parts (Sapling outputs use sapling-crypto's mock proof bytes); those are not broadcast. Five reach live testnet: three verify the ten real payments with only the UIVK, and two run the TypeScript client and middleware against the real binaries and testnet. A Playwright suite drives the dashboard and this page in Google Chrome. The full list is in <a href="https://github.com/nickthelegend/zec-shielded-x402/blob/main/TESTING.md">TESTING.md</a>.</p>
           <div class="tbl"><table>
             <thead><tr><th>Crate</th><th>Tests</th><th>Runs against</th></tr></thead>
             <tbody>
-              <tr><td><code>spendguard</code></td><td class="num">14</td><td>pure logic, sealed ledger format</td></tr>
+              <tr><td><code>spendguard</code></td><td class="num">16</td><td>pure logic (allowlist ports and schemes), sealed ledger format</td></tr>
               <tr><td><code>x402z-protocol</code></td><td class="num">14</td><td>the x402 spec's own examples, ZIP 321's memo example</td></tr>
-              <tr><td><code>x402z-server</code></td><td class="num">35</td><td>in-process, incl. 6 Kage Tab attack tests and the X-PAYMENT budget</td></tr>
-              <tr><td><code>x402z-agent</code></td><td class="num">24</td><td>file-locked sealed ledger, six concurrent runs, unknown broadcasts, redirects, Tab client and key rules against a localhost RFC 9474 issuer</td></tr>
+              <tr><td><code>x402z-server</code></td><td class="num">40</td><td>in-process, incl. 6 Kage Tab attack tests, the X-PAYMENT budget, a lost 200 served again, the admin Host check</td></tr>
+              <tr><td><code>x402z-agent</code></td><td class="num">32</td><td>file-locked sealed ledger, six concurrent runs, racing calls for one URL or tab, a crash mid-broadcast, lost answers, the allowlist before any request, redirects, Tab client and key rules against a localhost RFC 9474 issuer</td></tr>
               <tr><td><code>x402z-mcp</code></td><td class="num">7</td><td>the real binary over stdio, incl. resume instead of a second payment</td></tr>
-              <tr><td><code>x402z-facilitator</code></td><td class="num">16</td><td>6 Halo2 transactions in-process, <b>3 live on Zcash testnet</b>, bearer auth</td></tr>
-              <tr><td><code>x402-zcash</code></td><td class="num">7</td><td>TypeScript; <b>3 against the real binaries and testnet</b></td></tr>
+              <tr><td><code>x402z-facilitator</code></td><td class="num">17</td><td>6 Halo2 transactions in-process, <b>3 live on Zcash testnet</b>, bearer auth, cached health</td></tr>
+              <tr><td><code>x402-zcash</code></td><td class="num">11</td><td>TypeScript; <b>2 against the real binaries and testnet</b>; paywall limits in-process</td></tr>
             </tbody>
           </table></div>
         </section>
@@ -610,18 +635,27 @@ cd packages/x402-zcash &amp;&amp; npm test                             <span cla
       const tabs = [...document.querySelectorAll('.tab')];
       const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
       let auto = null;
+      // The MCP tab has its own run; tabs 1-4 replay the Oct 21 X-PAYMENT exchange.
+      const EXCHANGE = { rec: 'recorded run · <b>2026-10-21</b> <span class="hide-xs">05:54:41–05:58:47 UTC</span>', what: 'GET <b>/api/quote</b>' };
       function show(i, focus) {
         tabs.forEach((t, k) => {
           const on = k === i;
           t.setAttribute('aria-selected', on); t.tabIndex = on ? 0 : -1;
           document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
         });
+        document.getElementById('recDate').innerHTML = tabs[i].dataset.rec || EXCHANGE.rec;
+        document.getElementById('recWhat').innerHTML = tabs[i].dataset.what || EXCHANGE.what;
+        document.getElementById('footMcp').hidden = tabs[i].id !== 't0';
+        document.getElementById('footExchange').hidden = tabs[i].id === 't0';
         if (focus) tabs[i].focus();
-        if (i === 2 && !reduce) {
+        const tape = tabs[i].id === 't0' ? '#mcptape li' : tabs[i].id === 't3' ? '#tape li' : null;
+        if (tape && !reduce) {
+          document.querySelectorAll(tape).forEach((li, k) => { li.style.animationDelay = (k * 0.22) + 's'; li.style.animation = 'none'; li.offsetHeight; li.style.animation = ''; });
+        }
+        if (tabs[i].id === 't3' && !reduce) {
           const bar = document.getElementById('clockbar');
           bar.style.transition = 'none'; bar.style.transform = 'scaleX(0)';
           requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.transition = 'transform 2.6s linear'; bar.style.transform = 'scaleX(1)'; }));
-          document.querySelectorAll('#tape li').forEach((li, k) => { li.style.animationDelay = (k * 0.22) + 's'; li.style.animation = 'none'; li.offsetHeight; li.style.animation = ''; });
         }
       }
       tabs.forEach((t, i) => {
@@ -635,6 +669,11 @@ cd packages/x402-zcash &amp;&amp; npm test                             <span cla
         let i = 0;
         auto = setInterval(() => { i += 1; if (i >= tabs.length) { clearInterval(auto); return; } show(i); }, 4200);
         document.querySelector('.wire').addEventListener('pointerenter', () => clearInterval(auto), { once: true });
+        // Once the reader scrolls or clicks anywhere, the hero stops changing height under them.
+        const stop = () => clearInterval(auto);
+        addEventListener('scroll', stop, { once: true, passive: true });
+        addEventListener('pointerdown', stop, { once: true });
+        addEventListener('keydown', stop, { once: true });
       }
 
       // Copy buttons.
