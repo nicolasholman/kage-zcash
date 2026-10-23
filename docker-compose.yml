@@ -1,0 +1,91 @@
+# Lightweight hackathon-demo deployment on the VPS behind Coolify's Traefik (network "coolify").
+# Redeploy: cd /opt/hk/kage && docker compose up -d --build
+# Secrets live only on the server in .env.server / .env.facilitator (chmod 600, gitignored), generated there:
+#   .env.facilitator: X402Z_RECEIPT_SIGNING_KEY, X402Z_FACILITATOR_TOKEN
+#   .env.server:      X402Z_RECEIPT_PUBKEY, X402Z_FACILITATOR_TOKEN (same value)
+# The merchant UA and UIVK below are the demo testnet merchant's, published in README.md / docs on purpose.
+x-merchant: &merchant
+  X402Z_MERCHANT_UA: utest100fnpp4zd4lp0vmu093gwx6p6ujv8lusunnkvrsuxyaca9avmea5fqgt0ktkvm0sf2wnn8fw7ad034fy9lvsrq0x04vn0jqq7dvnyua5zk9s30v2lcys8pk3mm7xnkdt7fyf65xe0vtnv7sswdflaltg9uesty00c6x2kvgc25ygcrzs
+  ZCASH_LWD_URL: https://testnet.zec.rocks:443
+
+services:
+  facilitator:
+    build: .
+    image: hk-kage:latest
+    command: ["x402z-facilitator"]
+    restart: unless-stopped
+    mem_limit: 256m
+    env_file: .env.facilitator
+    environment:
+      <<: *merchant
+      X402Z_MERCHANT_UIVK: uivktest1ma9hgu9cmmmkv5f5npk7aktj8tradzqyxzwerez5trhku0xxgx7vsh0azzurz44pfdhmyrzxnur3n282f5t0glhje7kay4fw79njmg64g2wupcznmpfpy0gh6wngu0qw07ry404hnh6rq9vuj264gcjfxucylma4c8cuygxezqx2xwph5x66nckx4095pgvjzuq5rudsmr9dztnyv9f2w74unppttta6cu7fr3tx494zqstn2hv
+      X402Z_FACILITATOR_BIND: 0.0.0.0:4021
+      X402Z_FACILITATOR_DB: /data/x402z-facilitator.sqlite
+    volumes:
+      - facilitator-data:/data
+    networks: [kage, coolify]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:4021/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.routers.hk-kage-facilitator.rule=Host(`kage-facilitator.201-18-198-162.sslip.io`)
+      - traefik.http.routers.hk-kage-facilitator.entrypoints=https
+      - traefik.http.routers.hk-kage-facilitator.tls=true
+      - traefik.http.routers.hk-kage-facilitator.tls.certresolver=letsencrypt
+      - traefik.http.routers.hk-kage-facilitator.middlewares=hk-kage-cors
+      - traefik.http.services.hk-kage-facilitator.loadbalancer.server.port=4021
+
+  server:
+    image: hk-kage:latest
+    command: ["x402z-server"]
+    depends_on: [facilitator]
+    restart: unless-stopped
+    mem_limit: 256m
+    env_file: .env.server
+    environment:
+      <<: *merchant
+      X402Z_FACILITATOR_URL: http://facilitator:4021
+      X402Z_BIND: 0.0.0.0:4020
+      # The merchant console stays on loopback inside the container; it is not routed.
+      X402Z_ADMIN_BIND: 127.0.0.1:4029
+      # coolify-proxy's addresses on the "coolify" network (re-check after a proxy restart).
+      X402Z_TRUSTED_PROXIES: 10.0.1.6,fd47:5992:7aaa::6
+      X402Z_SERVER_DB: /data/x402z-server.sqlite
+    volumes:
+      - server-data:/data
+    networks: [kage, coolify]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:4029/api/status"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.routers.hk-kage-api.rule=Host(`kage-api.201-18-198-162.sslip.io`)
+      - traefik.http.routers.hk-kage-api.entrypoints=https
+      - traefik.http.routers.hk-kage-api.tls=true
+      - traefik.http.routers.hk-kage-api.tls.certresolver=letsencrypt
+      - traefik.http.routers.hk-kage-api.middlewares=hk-kage-cors
+      - traefik.http.services.hk-kage-api.loadbalancer.server.port=4020
+      # CORS for the future Vercel frontends (the binaries have no CORS setting of their own).
+      - traefik.http.middlewares.hk-kage-cors.headers.accesscontrolalloworiginlistregex=^https://[a-z0-9-]+\.vercel\.app$$
+      - traefik.http.middlewares.hk-kage-cors.headers.accesscontrolallowmethods=GET,POST,OPTIONS
+      - traefik.http.middlewares.hk-kage-cors.headers.accesscontrolallowheaders=Content-Type,Authorization,X-PAYMENT
+      - traefik.http.middlewares.hk-kage-cors.headers.accesscontrolexposeheaders=X-PAYMENT-RESPONSE,Retry-After
+      - traefik.http.middlewares.hk-kage-cors.headers.accesscontrolmaxage=600
+      - traefik.http.middlewares.hk-kage-cors.headers.addvaryheader=true
+
+volumes:
+  facilitator-data:
+  server-data:
+networks:
+  kage:
+  coolify:
+    external: true

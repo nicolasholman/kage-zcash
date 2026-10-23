@@ -1,0 +1,16 @@
+# Keep secrets, local state and build output out of the image build context.
+.env
+.env.*
+*.sqlite
+*.db
+.demo/
+.loom/
+.git/
+.cargo-home/
+target/
+e2e/
+landing/
+node_modules/
+*.mp4
+*.mov
+*.webm
