@@ -14,7 +14,9 @@ services:
     image: hk-kage:latest
     command: ["x402z-facilitator"]
     restart: unless-stopped
-    mem_limit: 256m
+    mem_limit: 128m
+    memswap_limit: 256m
+    cpus: 0.5
     env_file: .env.facilitator
     environment:
       <<: *merchant
@@ -45,7 +47,9 @@ services:
     command: ["x402z-server"]
     depends_on: [facilitator]
     restart: unless-stopped
-    mem_limit: 256m
+    mem_limit: 128m
+    memswap_limit: 256m
+    cpus: 0.25
     env_file: .env.server
     environment:
       <<: *merchant
