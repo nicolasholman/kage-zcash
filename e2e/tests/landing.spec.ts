@@ -110,12 +110,12 @@ test.describe('landing', () => {
     ]);
   });
 
-  test('quickstart test counts agree with the Tests table and the 137 headline', async ({ page }) => {
+  test('quickstart test counts agree with the Tests table and the 139 headline', async ({ page }) => {
     await page.goto(URL_);
     const table = Object.fromEntries(await page.locator('#tests tbody tr').evaluateAll(rows =>
       rows.map(r => [r.querySelector('code')!.textContent, Number(r.querySelector('.num')!.textContent)])));
     const total = Object.values(table).reduce((a, b) => a + b, 0);
-    expect(total).toBe(137);
+    expect(total).toBe(139);
     await expect(page.locator('.facts b').nth(1)).toHaveText(String(total));
     const qs = await page.locator('#qs').innerText();
     const nums = (crate: string) => (new RegExp(`-p ${crate}\\s+# ([\\d +]+)`).exec(qs)?.[1] || '').split('+').map(s => Number(s.trim()));
@@ -241,5 +241,12 @@ test.describe('landing', () => {
     for (const h of await foot.evaluateAll(as => as.map(a => a.getAttribute('href')!)))
       expect(h).toMatch(/^(#evidence|https:\/\/github\.com\/nickthelegend\/zec-shielded-x402(\/blob\/main\/(docs\/spec-shielded-x402-agents\.md|TESTING\.md))?)$/);
     await expectNoHorizontalScroll(page);
+  });
+
+  test('the install note links the hosted 402 over https', async ({ page }) => {
+    await page.goto(URL_);
+    const live = page.locator('.install-note a[href*="kage-api"]');
+    await expect(live).toHaveCount(1);
+    await expect(live).toHaveAttribute('href', 'https://kage-api.201-18-198-162.sslip.io/api/quote');
   });
 });

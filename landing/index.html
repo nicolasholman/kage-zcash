@@ -256,10 +256,10 @@
             <span aria-hidden="true">$</span><code id="clone">git clone https://github.com/nickthelegend/zec-shielded-x402 &amp;&amp; cd zec-shielded-x402 &amp;&amp; cargo test -p x402z-server</code>
             <button class="copy" type="button" data-copy="#clone">Copy</button>
           </div>
-          <p class="install-note">40 server tests, including the Kage Tab attacks, the public/admin port split and the admin port's Host check. A first build took about 2 minutes on a laptop at 2 build jobs, with no Zcash crates involved. The agent and MCP crates compile librustzcash, which took about 4 more minutes. This page is docs and recorded output, not a hosted paywall; the <a href="#quickstart">Quickstart</a> runs the whole stack on your machine.</p>
+          <p class="install-note">42 server tests, including the Kage Tab attacks, the public/admin port split and the admin port's Host check. A first build took about 2 minutes on a laptop at 2 build jobs, with no Zcash crates involved. The agent and MCP crates compile librustzcash, which took about 4 more minutes. This page is docs and recorded output. A live testnet 402 answers at <a href="https://kage-api.201-18-198-162.sslip.io/api/quote">kage-api…/api/quote</a> (not paid yet; any testnet wallet can pay its ZIP 321 URI), and the <a href="#quickstart">Quickstart</a> runs the whole stack on your machine.</p>
           <div class="facts">
             <div><b>10</b><span>paid testnet txs, verifiable with a published UIVK; 2 paid by an LLM</span></div>
-            <div><b>137</b><span>tests, 5 against live testnet</span></div>
+            <div><b>139</b><span>tests, 5 against live testnet</span></div>
             <div><b>0</b><span>spend keys on the merchant side</span></div>
           </div>
         </div>
@@ -413,7 +413,7 @@
           <h2 id="h-quick">Quickstart<a class="anchor" href="#quickstart" aria-label="Link to Quickstart">#</a></h2>
           <p>A Rust workspace pinned to toolchain 1.89.0. Run the tests one crate at a time; the Zcash crates are large.</p>
           <div class="code"><div class="bar"><span>shell</span><button class="copy" type="button" data-copy="#qs">Copy</button></div>
-<pre id="qs">cargo test -p spendguard -p x402z-protocol -p x402z-server   <span class="c"># 16 + 14 + 40</span>
+<pre id="qs">cargo test -p spendguard -p x402z-protocol -p x402z-server   <span class="c"># 16 + 14 + 42</span>
 cargo test -p x402z-agent                                      <span class="c"># 32</span>
 cargo test -p x402z-mcp                                        <span class="c"># 7, drives the binary over stdio</span>
 cargo test -p x402z-facilitator                                <span class="c"># 17: 6 build Halo2 proofs, 3 hit testnet</span>
@@ -606,13 +606,13 @@ cd packages/x402-zcash &amp;&amp; npm test                             <span cla
         <section class="doc" id="tests" aria-labelledby="h-tests">
           <span class="path">trust / tests</span>
           <h2 id="h-tests">Tests<a class="anchor" href="#tests" aria-label="Link to Tests">#</a></h2>
-          <p>137 tests: 126 in Rust, 11 in TypeScript. Six build in-process transactions with real keys, real note encryption and real Halo2 proofs for the Orchard/Ironwood parts (Sapling outputs use sapling-crypto's mock proof bytes); those are not broadcast. Five reach live testnet: three verify the ten real payments with only the UIVK, and two run the TypeScript client and middleware against the real binaries and testnet. A Playwright suite drives the dashboard and this page in Google Chrome. The full list is in <a href="https://github.com/nickthelegend/zec-shielded-x402/blob/main/TESTING.md">TESTING.md</a>.</p>
+          <p>139 tests: 128 in Rust, 11 in TypeScript. Six build in-process transactions with real keys, real note encryption and real Halo2 proofs for the Orchard/Ironwood parts (Sapling outputs use sapling-crypto's mock proof bytes); those are not broadcast. Five reach live testnet: three verify the ten real payments with only the UIVK, and two run the TypeScript client and middleware against the real binaries and testnet. A Playwright suite drives the dashboard and this page in Google Chrome. The full list is in <a href="https://github.com/nickthelegend/zec-shielded-x402/blob/main/TESTING.md">TESTING.md</a>.</p>
           <div class="tbl"><table>
             <thead><tr><th>Crate</th><th>Tests</th><th>Runs against</th></tr></thead>
             <tbody>
               <tr><td><code>spendguard</code></td><td class="num">16</td><td>pure logic (allowlist ports and schemes), sealed ledger format</td></tr>
               <tr><td><code>x402z-protocol</code></td><td class="num">14</td><td>the x402 spec's own examples, ZIP 321's memo example</td></tr>
-              <tr><td><code>x402z-server</code></td><td class="num">40</td><td>in-process, incl. 6 Kage Tab attack tests, the X-PAYMENT budget, a lost 200 served again, the admin Host check</td></tr>
+              <tr><td><code>x402z-server</code></td><td class="num">42</td><td>in-process, incl. 6 Kage Tab attack tests, the X-PAYMENT budget, a lost 200 served again, the admin Host check, an https <code>resource</code> behind a TLS proxy</td></tr>
               <tr><td><code>x402z-agent</code></td><td class="num">32</td><td>file-locked sealed ledger, six concurrent runs, racing calls for one URL or tab, a crash mid-broadcast, lost answers, the allowlist before any request, redirects, Tab client and key rules against a localhost RFC 9474 issuer</td></tr>
               <tr><td><code>x402z-mcp</code></td><td class="num">7</td><td>the real binary over stdio, incl. resume instead of a second payment</td></tr>
               <tr><td><code>x402z-facilitator</code></td><td class="num">17</td><td>6 Halo2 transactions in-process, <b>3 live on Zcash testnet</b>, bearer auth, cached health</td></tr>

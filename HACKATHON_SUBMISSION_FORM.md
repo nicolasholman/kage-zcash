@@ -14,18 +14,18 @@
   4. `tab-buy 5 --external` → 5 instant `tab-fetch` calls → a replayed token refused;
   5. an MCP spendguard refusal, then the LLM-paid run (docs/mcp-paid-run.txt);
   6. `check_uivk` with the published UIVK on the new txid.
-- **Working demo URL:** https://nickthelegend.github.io/zec-shielded-x402/ once Pages is enabled and `main` is pushed (`gh api -X POST repos/nickthelegend/zec-shielded-x402/pages -f build_type=workflow`, then the push; `.github/workflows/pages.yml` publishes `landing/`). It is **docs and recorded output, not a hosted paywall**; the page says so. A judge can run the whole stack locally with four commands (a cargo build, then `cd e2e && npm ci && npm run stack`, and `npm run test:e2e` in Google Chrome). A hosted live 402 needs a hosting account (Railway, Fly or Render), which is not set up.
+- **Working demo URL:** https://nickthelegend.github.io/zec-shielded-x402/ once Pages is enabled and `main` is pushed (`gh api -X POST repos/nickthelegend/zec-shielded-x402/pages -f build_type=workflow`, then the push; `.github/workflows/pages.yml` publishes `landing/`). It is **docs and recorded output, not a hosted paywall**; the page says so. A judge can run the whole stack locally with four commands (a cargo build, then `cd e2e && npm ci && npm run stack`, and `npm run test:e2e` in Google Chrome). Hosted now: the same page at https://kage-landing.vercel.app, and a live testnet 402 at https://kage-api.201-18-198-162.sslip.io/api/quote (facilitator health: https://kage-facilitator.201-18-198-162.sslip.io/health), on a small VPS behind TLS.
 
-## Description (paste-ready, 1,779 of 2,000 characters)
+## Description (paste-ready, 1,810 of 2,000 characters)
 
 ```
 Kage lets AI agents pay for HTTP APIs with Zcash shielded payments, in the x402 v1 wire format. A server answers 402 with a zcash-shielded offer: a shielded address, an amount, a memo nonce and a ZIP 321 URI. The agent's spendguard checks a daily cap, a host allowlist and an approval threshold before any transaction exists. The agent pays, then retries with X-PAYMENT. The merchant's facilitator verifies the payment with only an incoming viewing key, never a spend key, and returns payer: "".
 
 Any wallet can pay the QR and paste the txid. An MCP server gives LLM agents paid_fetch, redeem_payment and tab_fetch. Kage Tab sells N RFC 9474 blind-RSA tokens for one shielded payment, each paying one later request the server can't link to the payment. A TypeScript client and Express middleware speak the same protocol.
 
-What is real: 10 testnet payments, each checkable with the published demo merchant UIVK and re-verified by a live test. Two were paid from the agent's own wallet by an LLM over MCP (a paid_fetch and a 3-token tab). 137 tests (126 Rust, 11 TypeScript); 6 build transactions in-process with real Halo2 proofs; 5 run against live testnet. A Playwright suite drives the dashboard in Chrome.
+What is real: 10 testnet payments, each checkable with the published demo merchant UIVK and re-verified by a live test. Two were paid from the agent's own wallet by an LLM over MCP (a paid_fetch and a 3-token tab). 139 tests (128 Rust, 11 TypeScript); 6 build transactions in-process with real Halo2 proofs; 5 run against live testnet. A Playwright suite drives the dashboard in Chrome.
 
-Not real or not done: testnet only, pre-release librustzcash crates. Sapling outputs in the in-process tests use mock proof bytes. Server tests use an in-process stand-in for our own facilitator. Every live run was on one machine; no hosted demo. Not audited.
+Not real or not done: testnet only, pre-release librustzcash crates. Sapling outputs in the in-process tests use mock proof bytes. Server tests use an in-process stand-in for our own facilitator. Every recorded live run was on one machine; the hosted 402 has not been paid yet. Not audited.
 
 Leaks: the client IP reaches the merchant; lightwalletd sees txid lookups; X-PAYMENT is a bearer credential (served again for 10 min after it settles); Kage Tab unlinkability assumes one key per epoch for every buyer; timing can link a 402 to its block. The agent ledger and tab tokens are encrypted at rest.
 ```
@@ -59,10 +59,10 @@ Leaks: the client IP reaches the merchant; lightwalletd sees txid lookups; X-PAY
 
 Anyone can check all ten with the published demo merchant UIVK. See the README, "Verified testnet runs", the `live_testnet` tests and `docs/mcp-paid-run.txt` (the LLM run, rendered from the raw opencode events in `docs/mcp-paid-run.jsonl`).
 
-137 tests, listed in TESTING.md:
-- 126 Rust: 6 build in-process transactions with real keys, real note encryption and real Halo2 proofs for the Orchard/Ironwood parts (Sapling outputs use sapling-crypto's mock proof bytes; not broadcast); 3 verify the ten real payments live against testnet.zec.rocks; 7 drive the MCP binary over stdio; 6 attack the Kage Tab on the server; 11 run the agent's Tab client, key rules, redirect refusal, racing calls, lost answers and the pre-request allowlist against localhost servers.
+139 tests, listed in TESTING.md:
+- 128 Rust: 6 build in-process transactions with real keys, real note encryption and real Halo2 proofs for the Orchard/Ironwood parts (Sapling outputs use sapling-crypto's mock proof bytes; not broadcast); 3 verify the ten real payments live against testnet.zec.rocks; 7 drive the MCP binary over stdio; 6 attack the Kage Tab on the server; 11 run the agent's Tab client, key rules, redirect refusal, racing calls, lost answers and the pre-request allowlist against localhost servers.
 - 11 TypeScript: 2 run the client and middleware against the real binaries and testnet; 9 need no chain.
-- Separately, 31 Playwright specs drive the dashboard and the landing page in Google Chrome at 1280 px and 375 px.
+- Separately, 32 Playwright specs drive the dashboard and the landing page in Google Chrome at 1280 px and 375 px.
 
 ## Honest limits
 - Testnet only. Pre-release librustzcash crates, because NU7 is live on testnet.
@@ -74,7 +74,7 @@ Anyone can check all ten with the published demo merchant UIVK. See the README, 
   - 402 → block timing can link a request to its payment;
   - the sealed agent ledger and tab tokens are readable by anyone holding the ledger key or the agent seed.
 - The merchant dashboard doesn't show the payer's spendguard ledger unless `X402Z_DEMO_AGENT_LEDGER` and its key are set, which is for a one-machine demo only.
-- Every live run had client, server and facilitator on one machine. No hosted demo.
+- Every recorded live run had client, server and facilitator on one machine. A small hosted server and facilitator answer a live testnet 402 at https://kage-api.201-18-198-162.sslip.io/api/quote; no payment has been made to it yet.
 - Not audited.
 
 ## Pre-existing work (disclosure)
