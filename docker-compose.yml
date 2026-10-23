@@ -55,6 +55,8 @@ services:
       X402Z_ADMIN_BIND: 127.0.0.1:4029
       # coolify-proxy's addresses on the "coolify" network (re-check after a proxy restart).
       X402Z_TRUSTED_PROXIES: 10.0.1.6,fd47:5992:7aaa::6
+      # The 402's `resource` names the public HTTPS URL (Traefik terminates TLS).
+      X402Z_PUBLIC_BASE_URL: https://kage-api.201-18-198-162.sslip.io
       X402Z_SERVER_DB: /data/x402z-server.sqlite
     volumes:
       - server-data:/data

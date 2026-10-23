@@ -123,6 +123,10 @@ struct Config {
     /// Reverse proxies whose `X-Forwarded-For` is believed for the per-client limiter
     /// (`X402Z_TRUSTED_PROXIES`); empty means the TCP peer is the client.
     trusted_proxies: Vec<IpAddr>,
+    /// Public origin of the paid API (`X402Z_PUBLIC_BASE_URL`, e.g. `https://api.example`), used for
+    /// the 402's `resource`. Unset: built from `Host`, with `https` only when a trusted proxy's
+    /// `X-Forwarded-Proto` says so.
+    public_base_url: Option<String>,
 }
 
 /// Live event feed for the dashboard (in memory; the durable state is in [`Store`]).
@@ -370,12 +374,39 @@ const DESCRIPTION: &str = "Kage demo quote: paid content unlocked by a shielded 
 const MIME: &str = "application/json";
 const QUOTE_PATH: &str = "/api/quote";
 
-/// Absolute URL of the paid resource, for `PaymentRequirements.resource`.
-fn resource_url(headers: &HeaderMap) -> String {
-    match headers.get("host").and_then(|h| h.to_str().ok()) {
-        Some(host) => format!("http://{host}{QUOTE_PATH}"),
-        None => QUOTE_PATH.to_string(),
+/// Absolute URL of the paid resource, for `PaymentRequirements.resource`: the configured public
+/// origin, else `Host` with the scheme a trusted TLS-terminating proxy reports in
+/// `X-Forwarded-Proto` (`http` when the peer is not a trusted proxy or sends anything else).
+fn resource_url(cfg: &Config, peer: IpAddr, headers: &HeaderMap) -> String {
+    if let Some(base) = &cfg.public_base_url {
+        return format!("{base}{QUOTE_PATH}");
     }
+    let Some(host) = headers.get("host").and_then(|h| h.to_str().ok()) else {
+        return QUOTE_PATH.to_string();
+    };
+    let forwarded_https = cfg.trusted_proxies.contains(&peer)
+        && headers
+            .get("x-forwarded-proto")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.split(',').next())
+            .is_some_and(|p| p.trim().eq_ignore_ascii_case("https"));
+    let scheme = if forwarded_https { "https" } else { "http" };
+    format!("{scheme}://{host}{QUOTE_PATH}")
+}
+
+/// `X402Z_PUBLIC_BASE_URL`: an `http(s)://host[:port]` origin, no path; a trailing `/` is dropped.
+fn parse_public_base_url(raw: &str) -> Result<String, String> {
+    let s = raw.trim().trim_end_matches('/');
+    let lower = s.to_ascii_lowercase();
+    let rest = match ["https://", "http://"].iter().find(|p| lower.starts_with(**p)) {
+        Some(p) => &s[p.len()..],
+        None => return Err(format!("'{raw}' must start with https:// or http://")),
+    };
+    if rest.is_empty() || rest.contains('/') || rest.contains('?') || rest.contains('#') || rest.chars().any(char::is_whitespace) {
+        return Err(format!("'{raw}' must be an origin like https://api.example (no path)"));
+    }
+    let scheme_len = s.len() - rest.len();
+    Ok(format!("{}{rest}", &lower[..scheme_len]))
 }
 
 /// The x402 `accepts` entry for a challenge, with a ZIP 321 URI any Zcash wallet can pay.
@@ -827,7 +858,7 @@ async fn tab_issue(State(app): State<Arc<App>>, ConnectInfo(peer): ConnectInfo<S
     if let Err(wait) = app.limiter.lock().unwrap().try_acquire(client, Instant::now()) {
         return too_many_challenges(wait);
     }
-    let resource = resource_url(&headers);
+    let resource = resource_url(&app.cfg, peer.ip(), &headers);
     let (row, c) = match confirmed_receipt(&app, nonce, &txid, &resource, Resend::Refused).await {
         Ok(x) => x,
         Err(Redeem::Pending { message, .. }) => {
@@ -866,7 +897,7 @@ async fn tab_issue(State(app): State<Arc<App>>, ConnectInfo(peer): ConnectInfo<S
 }
 
 async fn quote(State(app): State<Arc<App>>, ConnectInfo(peer): ConnectInfo<SocketAddr>, headers: HeaderMap) -> Response {
-    let resource = resource_url(&headers);
+    let resource = resource_url(&app.cfg, peer.ip(), &headers);
     let client = client_key(peer.ip(), &headers, &app.cfg.trusted_proxies);
     if let Some(h) = headers.get(PAYMENT_HEADER) {
         let h = h.to_str().unwrap_or_default().to_string();
@@ -929,7 +960,7 @@ async fn redeem_api(
     if let Err(wait) = app.limiter.lock().unwrap().try_acquire(client, Instant::now()) {
         return too_many_challenges(wait);
     }
-    let resource = resource_url(&headers);
+    let resource = resource_url(&app.cfg, peer.ip(), &headers);
     match redeem(&app, &nonce, &txid, &resource, Resend::Refused).await {
         Redeem::Resent(_) => unreachable!("the paste-txid redeem never resends"),
         Redeem::Paid(c) => {
@@ -1171,6 +1202,12 @@ async fn main() {
             })
             .collect(),
     };
+    let public_base_url = optional("X402Z_PUBLIC_BASE_URL").map(|raw| {
+        parse_public_base_url(&raw).unwrap_or_else(|e| {
+            eprintln!("error: X402Z_PUBLIC_BASE_URL {e}");
+            exit(2);
+        })
+    });
     let min_confirmations = match optional("X402Z_MIN_CONFIRMATIONS").map(|s| s.parse::<u32>()) {
         None => 1,
         Some(Ok(n)) => n,
@@ -1211,6 +1248,7 @@ async fn main() {
         tab_epoch_secs: nonneg("X402Z_TAB_EPOCH_SECS", tab::DEFAULT_EPOCH_SECS).max(60),
         tab_grace_secs: nonneg("X402Z_TAB_GRACE_SECS", tab::DEFAULT_GRACE_SECS),
         trusted_proxies,
+        public_base_url,
     };
     let db_path = PathBuf::from(optional("X402Z_SERVER_DB").unwrap_or_else(|| "x402z-server.sqlite".into()));
     let store = Store::open(&db_path).unwrap_or_else(|e| {
@@ -1499,6 +1537,7 @@ mod tests {
             // the grace period has its own test.
             tab_grace_secs: 0,
             trusted_proxies: Vec::new(),
+            public_base_url: None,
         };
         let store = Store::open(db).unwrap();
         // One RSA key for the whole test binary (generation is slow); a store that already
@@ -2419,6 +2458,38 @@ mod tests {
         assert!(e.detail.chars().count() <= MAX_DETAIL_CHARS + 1);
         assert!(e.memo_nonce.as_ref().unwrap().chars().count() <= MAX_DETAIL_CHARS + 1);
         assert!(e.txid.as_ref().unwrap().chars().count() <= MAX_DETAIL_CHARS + 1);
+    }
+
+    #[tokio::test]
+    async fn the_402_resource_is_https_behind_a_tls_proxy_or_the_configured_public_base_url() {
+        let resource = |r: serde_json::Value| r["accepts"][0]["resource"].as_str().unwrap().to_string();
+        let https = [("x-forwarded-proto", "https")];
+        // no proxy configured: X-Forwarded-Proto is a client header like any other and is ignored
+        let app = test_app(50);
+        assert_eq!(resource(body_json(get_quote_with(app.clone(), [10, 0, 0, 6], &https).await).await), "http://kage.test/api/quote");
+        // the trusted proxy terminates TLS and says so
+        let mut app = test_app(50);
+        Arc::get_mut(&mut app).unwrap().cfg.trusted_proxies = vec!["10.0.0.6".parse().unwrap()];
+        assert_eq!(resource(body_json(get_quote_with(app.clone(), [10, 0, 0, 6], &https).await).await), "https://kage.test/api/quote");
+        // the same header from any other peer is not believed
+        assert_eq!(resource(body_json(get_quote_with(app.clone(), [203, 0, 113, 9], &https).await).await), "http://kage.test/api/quote");
+        // a proxy that forwards plain HTTP, or sends junk, keeps http
+        assert_eq!(resource(body_json(get_quote_with(app.clone(), [10, 0, 0, 6], &[("x-forwarded-proto", "http")]).await).await), "http://kage.test/api/quote");
+        assert_eq!(resource(body_json(get_quote_with(app.clone(), [10, 0, 0, 6], &[("x-forwarded-proto", "gopher")]).await).await), "http://kage.test/api/quote");
+        // a configured public base URL wins over Host and forwarded headers
+        let mut app = test_app(50);
+        Arc::get_mut(&mut app).unwrap().cfg.public_base_url = Some("https://kage-api.example".into());
+        assert_eq!(resource(body_json(get_quote_with(app.clone(), [203, 0, 113, 9], &[("x-forwarded-proto", "http")]).await).await), "https://kage-api.example/api/quote");
+    }
+
+    #[test]
+    fn public_base_url_must_be_an_http_origin() {
+        assert_eq!(parse_public_base_url("https://kage-api.example/").unwrap(), "https://kage-api.example");
+        assert_eq!(parse_public_base_url("HTTP://127.0.0.1:4020").unwrap(), "http://127.0.0.1:4020");
+        assert!(parse_public_base_url("kage-api.example").is_err());
+        assert!(parse_public_base_url("ftp://kage-api.example").is_err());
+        assert!(parse_public_base_url("https://").is_err());
+        assert!(parse_public_base_url("https://kage-api.example/api").is_err());
     }
 
     #[test]
