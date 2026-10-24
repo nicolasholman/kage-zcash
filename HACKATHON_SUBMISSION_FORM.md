@@ -4,7 +4,7 @@
 **Name:** Kage: shielded x402, private machine payments for AI agents
 **One line:** AI agents pay for HTTP APIs with Zcash shielded payments in the x402 v1 wire format. The merchant verifies with an incoming viewing key alone, and a spend guard caps every agent before any transaction exists.
 **Repo:** https://github.com/nickthelegend/zec-shielded-x402 (MIT)
-**Commit to submit:** the tip of `main` after Nick's push. Before submitting, `git log origin/main -1` must equal the local tip (`git log main -1`). Do not submit `1e232bb` (what GitHub serves until the push) or any earlier hash named in older notes.
+**Commit to submit:** the tip of `main` on GitHub (`git log origin/main -1`, which must equal the local `git log main -1`). Do not submit `1e232bb` or any earlier hash named in older notes.
 
 ## Form fields still open (Nick decides)
 - **Demo video, about 2 minutes: NICK RECORDS IT on the submitted commit. Do NOT submit `x402-demo-v2.mp4`:** it is 44 s, recorded Oct 20 before x402 v1, the UIVK-only facilitator, ZIP 321, MCP and Kage Tab, and shows the old `X-PAYMENT-RECEIPT` header. Suggested order, with captions and no text-edited output:
@@ -14,7 +14,7 @@
   4. `tab-buy 5 --external` → 5 instant `tab-fetch` calls → a replayed token refused;
   5. an MCP spendguard refusal, then the LLM-paid run (docs/mcp-paid-run.txt);
   6. `check_uivk` with the published UIVK on the new txid.
-- **Working demo URL:** https://nickthelegend.github.io/zec-shielded-x402/ once Pages is enabled and `main` is pushed (`gh api -X POST repos/nickthelegend/zec-shielded-x402/pages -f build_type=workflow`, then the push; `.github/workflows/pages.yml` publishes `landing/`). It is **docs and recorded output, not a hosted paywall**; the page says so. A judge can run the whole stack locally with four commands (a cargo build, then `cd e2e && npm ci && npm run stack`, and `npm run test:e2e` in Google Chrome). Hosted now: the same page at https://kage-landing.vercel.app, and a live testnet 402 at https://kage-api.201-18-198-162.sslip.io/api/quote (facilitator health: https://kage-facilitator.201-18-198-162.sslip.io/health), on a small VPS behind TLS.
+- **Working demo URL:** https://nickthelegend.github.io/zec-shielded-x402/ (GitHub Pages; `.github/workflows/pages.yml` publishes `landing/` on every push to `main`). It is **docs and recorded output, not a hosted paywall**; the page says so. A judge can run the whole stack locally with four commands (a cargo build, then `cd e2e && npm ci && npm run stack`, and `npm run test:e2e` in Google Chrome). Hosted now: the same page at https://kage-landing.vercel.app, and a live testnet 402 at https://kage-api.201-18-198-162.sslip.io/api/quote (facilitator health: https://kage-facilitator.201-18-198-162.sslip.io/health), on a small VPS behind TLS.
 
 ## Description (paste-ready, 1,810 of 2,000 characters)
 
