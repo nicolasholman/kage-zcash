@@ -1,0 +1,632 @@
+{
+  "results": [
+    {
+      "id": "U-001",
+      "componentFlow": "Landing index / page load & HTTP status",
+      "exactExpected": "HTTP 200 response at /zec-shielded-x402/ and https://kage-landing.vercel.app; title text is \"Kage — shielded x402 for AI agents\"",
+      "status": "PASS",
+      "evidence": "HTTP 200, title \"Kage — shielded x402 for AI agents\"",
+      "fix": ""
+    },
+    {
+      "id": "U-002",
+      "componentFlow": "Landing index / hero headline",
+      "exactExpected": "Exactly one h1 element with text \"Agents pay per call. Nobody learns who paid.\" with mark element wrapping \"who paid\"",
+      "status": "PASS",
+      "evidence": "1 h1: \"Agents pay per call. Nobody learns who paid.\", mark: \"who paid\"",
+      "fix": ""
+    },
+    {
+      "id": "U-003",
+      "componentFlow": "Landing index / hero eyebrow & lede",
+      "exactExpected": "Eyebrow text is \"x402 v1 · zcash-testnet\"; sub paragraph text is \"HTTP 402 settled in shielded Zcash: spendguard checks each payment, the merchant verifies with a viewing key alone.\"",
+      "status": "PASS",
+      "evidence": "eyebrow: \"x402 v1 · zcash-testnet\", sub: \"HTTP 402 settled in shielded Zcash: spendguard checks each payment, the merchant verifies with a viewing key alone.\"",
+      "fix": ""
+    },
+    {
+      "id": "U-004",
+      "componentFlow": "Landing index / hero recorded exchange steps",
+      "exactExpected": "List .shadow ol li contains exactly 5 items: \"GET /api/quote\", \"402 Payment Required\", \"pay shielded transaction, nonce in the encrypted memo\", \"GET /api/quote + X-PAYMENT\", and \"200 OK · \\\"payer\\\": \\\"\\\"\"",
+      "status": "PASS",
+      "evidence": "5 items matching expected patterns: [GET /api/quote... | 402 Payment Required scheme zc... | pay shielded transaction, nonc... | GET /api/quote + X-PAYMENT... | 200 OK · \"payer\": \"\"...]",
+      "fix": ""
+    },
+    {
+      "id": "U-005",
+      "componentFlow": "Landing index / hero shielded field privacy veil",
+      "exactExpected": "Container .veil contains 4 shaded field indicators labeled \"amount\", \"memo\", \"from\", and \"to\" with aria-label \"On the public chain the amount, memo, sender and receiver are hidden\"",
+      "status": "PASS",
+      "evidence": "aria-label: \"On the public chain the amount, memo, sender and receiver are hidden\", fields: [amount, memo, from, to]",
+      "fix": ""
+    },
+    {
+      "id": "U-006",
+      "componentFlow": "Landing index / exchange animation autoplay",
+      "exactExpected": "Under prefers-reduced-motion: no-preference, list items .shadow li receive class .in sequentially with staggered timeout starting at 250 ms with 420 ms intervals",
+      "status": "PASS",
+      "evidence": "staggered autoplay observed, all 5 items receive .in",
+      "fix": ""
+    },
+    {
+      "id": "U-007",
+      "componentFlow": "Landing index / exchange animation reduced motion",
+      "exactExpected": "Under prefers-reduced-motion: reduce, all .shadow li elements have class .in on initial load; computed animation and transition are \"none\"",
+      "status": "PASS",
+      "evidence": "5/5 have .in on load, computed animation: none, transition: none",
+      "fix": ""
+    },
+    {
+      "id": "U-008",
+      "componentFlow": "Landing index / hero primary CTA",
+      "exactExpected": "Link a.btn.btn-ink inside hero has href \"evidence.html#quickstart\" and text containing \"Quickstart\"",
+      "status": "PASS",
+      "evidence": "href: \"evidence.html#quickstart\", text: \"Quickstart\"",
+      "fix": ""
+    },
+    {
+      "id": "U-009",
+      "componentFlow": "Landing index / hero live 402 CTA",
+      "exactExpected": "Link a.btn.btn-line inside hero has href \"https://kage-api.201-18-198-162.sslip.io/api/quote\" and text \"Try the live 402\"",
+      "status": "PASS",
+      "evidence": "href: \"https://kage-api.201-18-198-162.sslip.io/api/quote\", text: \"Try the live 402\"",
+      "fix": ""
+    },
+    {
+      "id": "U-010",
+      "componentFlow": "Landing index / top navigation brand mark",
+      "exactExpected": "Anchor a.mark has href \"#top\", aria-label \"Kage home\", and text \"Kage 影\"; clicking navigates to #top",
+      "status": "PASS",
+      "evidence": "href: \"#top\", aria-label: \"Kage home\", text: \"Kage 影\", url: https://kage-landing.vercel.app/#top",
+      "fix": ""
+    },
+    {
+      "id": "U-011",
+      "componentFlow": "Landing index / top navigation links",
+      "exactExpected": "Top navigation .toplinks contains Spec link with href \"evidence.html\" and GitHub link with href \"https://github.com/nickthelegend/zec-shielded-x402\"",
+      "status": "PASS",
+      "evidence": "Spec href: \"evidence.html\", GitHub href: \"https://github.com/nickthelegend/zec-shielded-x402\"",
+      "fix": ""
+    },
+    {
+      "id": "U-012",
+      "componentFlow": "Landing index / three steps section",
+      "exactExpected": "Section #h-how contains ol.steps with 3 items: \"01 Ask\", \"02 Pay\", \"03 Retry\"",
+      "status": "PASS",
+      "evidence": "3 items: [01 Ask | 02 Pay | 03 Retry]",
+      "fix": ""
+    },
+    {
+      "id": "U-013",
+      "componentFlow": "Landing index / proof numbers facts headline",
+      "exactExpected": "Section #h-proof contains .facts displaying \"10 Payments\", \"139 Tests\", and \"0 Spend keys\"",
+      "status": "PASS",
+      "evidence": ".facts items: [10 Payments | 139 Tests | 0 Spend keys]",
+      "fix": ""
+    },
+    {
+      "id": "U-014",
+      "componentFlow": "Landing index / see evidence link",
+      "exactExpected": "Anchor a.more has href \"evidence.html#evidence\" and text containing \"See the evidence\"",
+      "status": "PASS",
+      "evidence": "href: \"evidence.html#evidence\", text: \"See the evidence\"",
+      "fix": ""
+    },
+    {
+      "id": "U-015",
+      "componentFlow": "Landing index / what's live today section links",
+      "exactExpected": "Section #h-live links paid API to \"https://kage-api.201-18-198-162.sslip.io/api/quote\" and facilitator to \"https://kage-facilitator.201-18-198-162.sslip.io/health\"",
+      "status": "PASS",
+      "evidence": "API link and facilitator health link present in section #h-live",
+      "fix": ""
+    },
+    {
+      "id": "U-016",
+      "componentFlow": "Landing index / setup required notice",
+      "exactExpected": "Container .strip .setup h3 has text \"SETUP REQUIRED\"; paragraph text is \"Paying it needs your own funded testnet wallet. Mainnet is not supported.\"",
+      "status": "PASS",
+      "evidence": "h3: \"SETUP REQUIRED\", p: \"Paying it needs your own funded testnet wallet. Mainnet is not supported.\"",
+      "fix": ""
+    },
+    {
+      "id": "U-017",
+      "componentFlow": "Landing index / install code block text",
+      "exactExpected": "Element code#clone contains text \"git clone https://github.com/nickthelegend/zec-shielded-x402 && cd zec-shielded-x402 && cargo test -p x402z-server\"",
+      "status": "PASS",
+      "evidence": "code#clone: \"git clone https://github.com/nickthelegend/zec-shielded-x402 && cd zec-shielded-x402 && cargo test -p x402z-server\"",
+      "fix": ""
+    },
+    {
+      "id": "U-018",
+      "componentFlow": "Landing index / install command copy button",
+      "exactExpected": "Clicking button.copy[data-copy=\"#clone\"] writes exact clone command to clipboard, button text updates to \"Copied\", and reverts to \"Copy\" after 1200 ms",
+      "status": "PASS",
+      "evidence": "copied text \"Copied\", clipboard matched, reverted to \"Copy\"",
+      "fix": ""
+    },
+    {
+      "id": "U-019",
+      "componentFlow": "Landing index / end section GitHub CTA",
+      "exactExpected": "Section .end contains a.btn with href \"https://github.com/nickthelegend/zec-shielded-x402\" and text \"View on GitHub\"",
+      "status": "PASS",
+      "evidence": "href: \"https://github.com/nickthelegend/zec-shielded-x402\", text: \"View on GitHub\"",
+      "fix": ""
+    },
+    {
+      "id": "U-020",
+      "componentFlow": "Landing index / footer links well-formedness",
+      "exactExpected": "Footer nav contains exactly 3 links: \"evidence.html\", \"https://github.com/nickthelegend/zec-shielded-x402/blob/main/TESTING.md\", and \"https://github.com/nickthelegend/zec-shielded-x402\"",
+      "status": "PASS",
+      "evidence": "3 links: [evidence.html, https://github.com/nickthelegend/zec-shielded-x402/blob/main/TESTING.md, https://github.com/nickthelegend/zec-shielded-x402]",
+      "fix": ""
+    },
+    {
+      "id": "U-021",
+      "componentFlow": "Landing index / no control labelled log",
+      "exactExpected": "Page contains 0 button, input, or interactive elements with text or label matching /log/i",
+      "status": "PASS",
+      "evidence": "0 controls matching /log/i found",
+      "fix": ""
+    },
+    {
+      "id": "U-022",
+      "componentFlow": "Landing index / desktop 1280 px layout",
+      "exactExpected": "At viewport width 1280 px, documentElement scrollWidth equals clientWidth (0 horizontal overflow)",
+      "status": "PASS",
+      "evidence": "scrollWidth: 1280, clientWidth: 1280 (0 horizontal overflow); screenshot: audit/live/landing-1280.jpg",
+      "fix": ""
+    },
+    {
+      "id": "U-023",
+      "componentFlow": "Landing index / mobile 375 px layout",
+      "exactExpected": "At viewport width 375 px, documentElement scrollWidth equals clientWidth (0 horizontal overflow); topbar height is 60 px; .toplinks a.hide-sm is hidden; hero grid stacks to 1 column",
+      "status": "PASS",
+      "evidence": "scrollWidth: 375, clientWidth: 375, topbar height: 60px, hide-sm hidden: true; screenshot: audit/live/landing-375.jpg",
+      "fix": ""
+    },
+    {
+      "id": "U-024",
+      "componentFlow": "Landing index / console & network cleanliness",
+      "exactExpected": "0 console errors, 0 unhandled page errors, and 0 failed or unexpected 4xx/5xx network responses on happy path load",
+      "status": "PASS",
+      "evidence": "0 console errors, 0 network errors",
+      "fix": ""
+    },
+    {
+      "id": "U-025",
+      "componentFlow": "Evidence page / page load & HTTP status",
+      "exactExpected": "HTTP 200 response at /zec-shielded-x402/evidence.html and https://kage-landing.vercel.app/evidence.html; title text is \"Kage — spec and evidence\"",
+      "status": "PASS",
+      "evidence": "HTTP 200, title \"Kage — spec and evidence\"",
+      "fix": ""
+    },
+    {
+      "id": "U-026",
+      "componentFlow": "Evidence page / hero headline",
+      "exactExpected": "Exactly one h1 element with text \"The spec, the runs, the evidence.\" with mark element wrapping \"evidence\"",
+      "status": "PASS",
+      "evidence": "1 h1: \"The spec, the runs, the evidence.\", mark: \"evidence\"",
+      "fix": ""
+    },
+    {
+      "id": "U-027",
+      "componentFlow": "Evidence page / skip link keyboard accessibility",
+      "exactExpected": "Element a.skip has href \"#content\"; pressing Tab from page top focuses it and sets top: 10px; pressing Enter navigates URL to \"#content\"",
+      "status": "PASS",
+      "evidence": "href: \"#content\", focused: true, top: 10px, url: https://kage-landing.vercel.app/evidence.html#content",
+      "fix": ""
+    },
+    {
+      "id": "U-028",
+      "componentFlow": "Evidence page / top navigation brand mark",
+      "exactExpected": "Anchor a.mark has href \"./\", aria-label \"Kage home\", and text \"Kage 影\"; clicking navigates to landing root",
+      "status": "PASS",
+      "evidence": "href: \"./\", aria-label: \"Kage home\", text: \"Kage 影\"",
+      "fix": ""
+    },
+    {
+      "id": "U-029",
+      "componentFlow": "Evidence page / top navigation links",
+      "exactExpected": "Top navigation .toplinks contains Quickstart href \"#quickstart\", Evidence href \"#evidence\", Spec href \"https://github.com/nickthelegend/zec-shielded-x402/blob/main/docs/spec-shielded-x402-agents.md\", and GitHub href \"https://github.com/nickthelegend/zec-shielded-x402\"",
+      "status": "PASS",
+      "evidence": "Quickstart: #quickstart, Evidence: #evidence, Spec: https://github.com/nickthelegend/zec-shielded-x402/blob/main/docs/spec-shielded-x402-agents.md, GitHub: https://github.com/nickthelegend/zec-shielded-x402",
+      "fix": ""
+    },
+    {
+      "id": "U-030",
+      "componentFlow": "Evidence page / facts headline strip",
+      "exactExpected": "Container .facts displays 3 items: \"10\" paid testnet txs, \"139\" tests, \"0\" spend keys on the merchant side",
+      "status": "PASS",
+      "evidence": ".facts text: \"10 paid testnet txs, verifiable with a published UIVK; 2 paid by an LLM 139 tests, 5 against live testnet 0 spend keys on the merchant side\"",
+      "fix": ""
+    },
+    {
+      "id": "U-031",
+      "componentFlow": "Evidence page / install note hosted 402 quote link",
+      "exactExpected": "Element .install-note a[href*=\"kage-api\"] is visible with exact href \"https://kage-api.201-18-198-162.sslip.io/api/quote\"",
+      "status": "PASS",
+      "evidence": "visible: true, href: \"https://kage-api.201-18-198-162.sslip.io/api/quote\"",
+      "fix": ""
+    },
+    {
+      "id": "U-032",
+      "componentFlow": "Evidence page / clone command copy button",
+      "exactExpected": "Clicking button.copy[data-copy=\"#clone\"] writes exact git clone command to clipboard; button text changes to \"Copied\" and reverts to \"Copy\" after 1200 ms",
+      "status": "PASS",
+      "evidence": "copied text \"Copied\", clipboard matched, reverted to \"Copy\"",
+      "fix": ""
+    },
+    {
+      "id": "U-033",
+      "componentFlow": "Evidence page / quickstart test commands copy button",
+      "exactExpected": "Clicking button.copy[data-copy=\"#qs\"] strips inline comments and writes 5 newline-separated cargo/npm test commands to clipboard; button text changes to \"Copied\" and reverts to \"Copy\" after 1200 ms",
+      "status": "PASS",
+      "evidence": "copied 5 commands stripped of comments, button reverted to \"Copy\"",
+      "fix": ""
+    },
+    {
+      "id": "U-034",
+      "componentFlow": "Evidence page / hero wire tabs structure",
+      "exactExpected": "Container .tabs has role=\"tablist\" and exactly 5 button[role=\"tab\"] elements: Tab 0 (MCP), Tab 1 (402), Tab 2 (X-PAYMENT), Tab 3 (pending ×10), Tab 4 (200)",
+      "status": "PASS",
+      "evidence": "role=\"tablist\", 5 tabs: [AIMCP, 1402, 2X-PAYMENT, 3pending ×10, 4200]",
+      "fix": ""
+    },
+    {
+      "id": "U-035",
+      "componentFlow": "Evidence page / hero wire Tab 0 (MCP) initial state",
+      "exactExpected": "Tab 0 has aria-selected=\"true\"; panel #p0 is visible; panels #p1 through #p4 have hidden attribute; #recDate contains \"2026-10-22\"; #recWhat displays \"LLM over MCP\"",
+      "status": "PASS",
+      "evidence": "tab0 aria-selected=\"true\", #p0 visible, #p1-#p4 hidden, recDate: \"recorded run · 2026-10-22 15:34:30–15:36:22 UTC\", recWhat: \"LLM over MCP\"",
+      "fix": ""
+    },
+    {
+      "id": "U-036",
+      "componentFlow": "Evidence page / hero wire Tab 0 MCP tape & txid link",
+      "exactExpected": "Element #footMcp is visible linking to \"https://testnet.zecblock.com/tx/f037d5978fec7817340ff118d328995288f0a575a1850b083ca05f7d71d4e22a\"; #footExchange is hidden; list #mcptape li contains 11 items; call 2 has paid_fetch with f037d597 and status settlement_pending; call 3 has redeem_payment with 200 and \"payer\": \"\"",
+      "status": "PASS",
+      "evidence": "#footMcp visible with tx f037d597, #footExchange hidden, 11 calls in #mcptape, call 2 & 3 match",
+      "fix": ""
+    },
+    {
+      "id": "U-037",
+      "componentFlow": "Evidence page / hero wire Tab 0 unedited log link",
+      "exactExpected": "Panel #p0 contains anchor linking to \"https://github.com/nickthelegend/zec-shielded-x402/blob/main/docs/mcp-paid-run.jsonl\" with text \"mcp-paid-run.jsonl\"",
+      "status": "PASS",
+      "evidence": "href: \"https://github.com/nickthelegend/zec-shielded-x402/blob/main/docs/mcp-paid-run.jsonl\"",
+      "fix": ""
+    },
+    {
+      "id": "U-038",
+      "componentFlow": "Evidence page / hero wire Tab 1 (402) selection & content",
+      "exactExpected": "Clicking Tab 1 sets aria-selected=\"true\" on Tab 1; panel #p1 visible; panels #p0,#p2,#p3,#p4 hidden; #recDate contains \"2026-10-21\"; #recWhat displays \"GET /api/quote\"; #footExchange visible with tx 25a8b324 link; #p1 shows 402 body with maxAmountRequired 100000 and memoNonce x402z-696c58afd509cc0f8753f3b0",
+      "status": "PASS",
+      "evidence": "Tab 1 active, #p1 visible, date 2026-10-21, #footExchange visible with 25a8b324, body matched",
+      "fix": ""
+    },
+    {
+      "id": "U-039",
+      "componentFlow": "Evidence page / hero wire Tab 2 (X-PAYMENT) selection & content",
+      "exactExpected": "Clicking Tab 2 sets aria-selected=\"true\" on Tab 2; panel #p2 visible; shows broadcast txid 25a8b324bebee30220382113c6fb9cc3be1144b036117c34778bde3b1d8b689d and base64 X-PAYMENT header with decoded JSON payload",
+      "status": "PASS",
+      "evidence": "Tab 2 active, shows broadcast txid 25a8b324bebee30220382113c6fb9cc3be1144b036117c34778bde3b1d8b689d and decoded X-PAYMENT header",
+      "fix": ""
+    },
+    {
+      "id": "U-040",
+      "componentFlow": "Evidence page / hero wire Tab 3 (pending ×10) selection & content",
+      "exactExpected": "Clicking Tab 3 sets aria-selected=\"true\" on Tab 3; panel #p3 visible; list #tape li contains 11 items: 10 rows showing 402 settlement_pending and 11th row li.win showing 200 {\"success\":true,\"transaction\":\"25a8b324…689d\"}",
+      "status": "PASS",
+      "evidence": "11 tape items: 10 with 402 settlement_pending, 11th li.win with 200 success",
+      "fix": ""
+    },
+    {
+      "id": "U-041",
+      "componentFlow": "Evidence page / hero wire Tab 4 (200) selection & content",
+      "exactExpected": "Clicking Tab 4 sets aria-selected=\"true\" on Tab 4; panel #p4 visible; shows \"HTTP/1.1 200 OK\", x-payment-response header, decoded JSON with \"success\":true and \"payer\":\"\", and response body settlement with amountZat 100000",
+      "status": "PASS",
+      "evidence": "Tab 4 shows 200 OK, x-payment-response header, \"success\":true, \"payer\":\"\", amountZat 100000",
+      "fix": ""
+    },
+    {
+      "id": "U-042",
+      "componentFlow": "Evidence page / hero wire keyboard arrow navigation",
+      "exactExpected": "Focusing Tab 4 and pressing ArrowRight selects and focuses Tab 0 (wraps right); pressing ArrowLeft selects and focuses Tab 4 (wraps left); selected tab updates aria-selected to \"true\"",
+      "status": "PASS",
+      "evidence": "Arrow navigation wraps right to Tab 0 and left to Tab 4 with aria-selected=\"true\"",
+      "fix": ""
+    },
+    {
+      "id": "U-043",
+      "componentFlow": "Evidence page / hero wire autoplay without reduced motion",
+      "exactExpected": "Under prefers-reduced-motion: no-preference, tabs automatically cycle through sequence after ~4.2s intervals; stops cycling on user scroll, click, or mouse hover",
+      "status": "PASS",
+      "evidence": "autoplay cycled from Tab 0 to Tab 1 within ~5s interval",
+      "fix": ""
+    },
+    {
+      "id": "U-044",
+      "componentFlow": "Evidence page / hero wire reduced motion behavior",
+      "exactExpected": "Under prefers-reduced-motion: reduce, tabs do not autoplay; Tab 0 remains selected; #tape li computed animationName is \"none\"",
+      "status": "PASS",
+      "evidence": "no autoplay under reduced motion; tape li computed animationName is \"none\"",
+      "fix": ""
+    },
+    {
+      "id": "U-045",
+      "componentFlow": "Evidence page / quickstart test counts agreement",
+      "exactExpected": "Table #tests rows sum to 139 (spendguard: 16, x402z-protocol: 14, x402z-server: 42, x402z-agent: 32, x402z-mcp: 7, x402z-facilitator: 17, x402-zcash: 11); matches facts headline \"139\" and #qs comment counts",
+      "status": "PASS",
+      "evidence": "sum is 139; crate breakdown: {\"spendguard\":16,\"x402z-protocol\":14,\"x402z-server\":42,\"x402z-agent\":32,\"x402z-mcp\":7,\"x402z-facilitator\":17,\"x402-zcash\":11}",
+      "fix": ""
+    },
+    {
+      "id": "U-046",
+      "componentFlow": "Evidence page / sidebar TOC 13 sections completeness",
+      "exactExpected": "Element #toc contains exactly 13 links in order: #overview, #quickstart, #the-402, #spendguard, #x-payment, #facilitator, #settlement, #zip321, #mcp, #tab, #leaks, #evidence, #tests",
+      "status": "PASS",
+      "evidence": "exact 13 links: [#overview, #quickstart, #the-402, #spendguard, #x-payment, #facilitator, #settlement, #zip321, #mcp, #tab, #leaks, #evidence, #tests]",
+      "fix": ""
+    },
+    {
+      "id": "U-047",
+      "componentFlow": "Evidence page / sidebar TOC scroll spy & offset visibility",
+      "exactExpected": "Clicking any TOC link scrolls the target section below fixed top bar (heading bounding rect top >= covered - 1 && top < innerHeight); clicked link receives class .on; #tocNow text equals section label; exactly one TOC link has class .on",
+      "status": "PASS",
+      "evidence": "all 13 TOC links scroll cleanly below fixed bar, update #tocNow, highlight exactly one link",
+      "fix": ""
+    },
+    {
+      "id": "U-048",
+      "componentFlow": "Evidence page / mobile TOC details drawer interaction",
+      "exactExpected": "At viewport width <= 920 px, #toc summary is visible; clicking summary toggles open attribute; clicking a section link inside removes open attribute (closes drawer) and navigates to section",
+      "status": "PASS",
+      "evidence": "TOC summary visible, toggles open, link click navigates and auto-closes drawer",
+      "fix": ""
+    },
+    {
+      "id": "U-049",
+      "componentFlow": "Evidence page / section heading anchor links",
+      "exactExpected": "Clicking a.anchor inside any section header (e.g. #facilitator a.anchor) updates URL hash to matching section ID (e.g. \"#facilitator\")",
+      "status": "PASS",
+      "evidence": "anchor click updated URL hash to \"https://kage-landing.vercel.app/evidence.html#facilitator\"",
+      "fix": ""
+    },
+    {
+      "id": "U-050",
+      "componentFlow": "Evidence page / evidence table 10 explorer links",
+      "exactExpected": "Table #evidence tbody tr contains exactly 10 rows; each row contains anchor linking to \"https://testnet.zecblock.com/tx/<64-hex-txid>\"; anchor text is \"${txid[0..8]}…${txid[-4..]} ↗\"; block numbers match README with commas",
+      "status": "PASS",
+      "evidence": "10 rows matching README txids and blocks with formatted commas",
+      "fix": ""
+    },
+    {
+      "id": "U-051",
+      "componentFlow": "Evidence page / explorer links page-wide hygiene",
+      "exactExpected": "Every anchor on the page with href containing \"zecblock\" matches regex ^https://testnet\\.zecblock\\.com/tx/([0-9a-f]{64})$ and references one of the 10 verified README txids",
+      "status": "PASS",
+      "evidence": "all 16 zecblock links match regex and reference verified README txids",
+      "fix": ""
+    },
+    {
+      "id": "U-052",
+      "componentFlow": "Evidence page / Kage Tab section & transcript links",
+      "exactExpected": "Section #tab contains text \"RFC 9474 blind RSA\" and terminal text \"nonce_already_used\"; anchor with text \"full transcript\" links to \"https://github.com/nickthelegend/zec-shielded-x402/blob/main/docs/tab-live-run.txt\"",
+      "status": "PASS",
+      "evidence": "section #tab contains blind RSA text, nonce_already_used, and links to tab-live-run.txt",
+      "fix": ""
+    },
+    {
+      "id": "U-053",
+      "componentFlow": "Evidence page / MCP section & transcript links",
+      "exactExpected": "Section #mcp links to \"full transcript\" at \"https://github.com/nickthelegend/zec-shielded-x402/blob/main/docs/mcp-paid-run.txt\" and \"refusal transcript\" at \"https://github.com/nickthelegend/zec-shielded-x402/blob/main/docs/mcp-live-run.txt\"; terminal contains \"\\\"success\\\": true\"",
+      "status": "PASS",
+      "evidence": "MCP section links to paid & refusal transcripts, terminal shows \"success\": true",
+      "fix": ""
+    },
+    {
+      "id": "U-054",
+      "componentFlow": "Evidence page / footer links well-formedness",
+      "exactExpected": "Footer nav contains exactly 4 links: \"https://github.com/nickthelegend/zec-shielded-x402\", \"https://github.com/nickthelegend/zec-shielded-x402/blob/main/docs/spec-shielded-x402-agents.md\", \"https://github.com/nickthelegend/zec-shielded-x402/blob/main/TESTING.md\", and \"#evidence\"; clicking #evidence navigates to evidence section",
+      "status": "PASS",
+      "evidence": "4 footer links match expected exact URLs",
+      "fix": ""
+    },
+    {
+      "id": "U-055",
+      "componentFlow": "Evidence page / no control labelled log",
+      "exactExpected": "Page contains 0 button, input, or interactive elements with text or label matching /log/i",
+      "status": "PASS",
+      "evidence": "0 interactive elements matching /log/i found",
+      "fix": ""
+    },
+    {
+      "id": "U-056",
+      "componentFlow": "Evidence page / desktop 1280 px layout",
+      "exactExpected": "At viewport width 1280 px, documentElement scrollWidth equals clientWidth (0 horizontal overflow)",
+      "status": "PASS",
+      "evidence": "scrollWidth: 1280, clientWidth: 1280 (0 horizontal overflow); screenshot: audit/live/evidence-1280.jpg",
+      "fix": ""
+    },
+    {
+      "id": "U-057",
+      "componentFlow": "Evidence page / mobile 375 px layout",
+      "exactExpected": "At viewport width 375 px, documentElement scrollWidth equals clientWidth (0 horizontal overflow); TOC drawer collapses into sticky top bar; tables scroll horizontally inside container .tbl",
+      "status": "PASS",
+      "evidence": "scrollWidth: 375, clientWidth: 375 (0 horizontal overflow); screenshot: audit/live/evidence-375.jpg",
+      "fix": ""
+    },
+    {
+      "id": "U-058",
+      "componentFlow": "Evidence page / console & network cleanliness",
+      "exactExpected": "0 console errors, 0 unhandled page errors, and 0 failed or unexpected 4xx/5xx network responses on happy path load",
+      "status": "PASS",
+      "evidence": "0 console errors, 0 network errors",
+      "fix": ""
+    },
+    {
+      "id": "B-472",
+      "componentFlow": "Live landing (later read-only; not called in Phase1)",
+      "exactExpected": "GET https://kage-landing.vercel.app returns HTTP 200 HTML with title Kage — shielded x402 for AI agents.",
+      "status": "PASS",
+      "evidence": "HTTP 200, title \"Kage — shielded x402 for AI agents\"",
+      "fix": ""
+    },
+    {
+      "id": "B-469",
+      "componentFlow": "Live API quote (later read-only; not called in Phase1)",
+      "exactExpected": "GET https://kage-api.201-18-198-162.sslip.io/api/quote returns HTTP 402, x402Version:1, scheme zcash-shielded, network zcash-testnet, asset ZEC, ZIP-321 extra.paymentUri and fresh nonce/expiry.",
+      "status": "PASS",
+      "evidence": "HTTP 402, x402Version: 1, scheme: \"zcash-shielded\", network: \"zcash-testnet\", asset: \"ZEC\", memoNonce: \"x402z-2407a3245422986693ef9238\", expiresAt: 1792969902, paymentUri: \"zcash:utest100fnpp4zd4lp0vmu093gwx6p6ujv...\"",
+      "fix": ""
+    },
+    {
+      "id": "B-035",
+      "componentFlow": "Challenge QR known nonce",
+      "exactExpected": "HTTP 200; Content-Type: image/svg+xml, Cache-Control: no-store; SVG encodes that challenge's ZIP-321 URI with zero external QR-service requests.",
+      "status": "PASS",
+      "evidence": "HTTP 200, Content-Type: image/svg+xml, Cache-Control: no-store, body length: 36152 bytes SVG",
+      "fix": ""
+    },
+    {
+      "id": "B-239",
+      "componentFlow": "Facilitator health success",
+      "exactExpected": "Unauthenticated GET /health returns HTTP 200; JSON ok: true, network: \"testnet\", lightwalletd: <URL>, integer chainTip, default minConfirmations: 1, viewingKey: \"uivk\", hex receiptPubkey; live chain-tip probe.",
+      "status": "PASS",
+      "evidence": "HTTP 200, ok: true, network: \"testnet\", chainTip: 4541789, viewingKey: \"uivk\", receiptPubkey: \"95b72c33b95c02a904a71c37e8638d39a1309a1f3686a374c898d32a8ab449c6\"",
+      "fix": ""
+    },
+    {
+      "id": "B-471",
+      "componentFlow": "Live facilitator health (later read-only; not called in Phase1)",
+      "exactExpected": "GET https://kage-facilitator.201-18-198-162.sslip.io/health returns HTTP 200, ok:true, network:\"testnet\", positive chainTip, viewingKey:\"uivk\"; failed probe instead returns HTTP 503 ok:false.",
+      "status": "PASS",
+      "evidence": "HTTP 200, ok: true, network: \"testnet\", chainTip: 4541789, viewingKey: \"uivk\"",
+      "fix": ""
+    },
+    {
+      "id": "B-238",
+      "componentFlow": "Facilitator GET /supported",
+      "exactExpected": "HTTP 200 with exact JSON {kinds:[{x402Version:1,scheme:\"zcash-shielded\",network:\"zcash-testnet\"}]}; no Authorization needed.",
+      "status": "PASS",
+      "evidence": "HTTP 200, exact JSON: {\"kinds\":[{\"x402Version\":1,\"scheme\":\"zcash-shielded\",\"network\":\"zcash-testnet\"}]}",
+      "fix": ""
+    }
+  ],
+  "txResults": [
+    {
+      "txid": "030c3cbf78ce8460553bba4e82c0ba813f039bd3ecf4d7f2e81c59837dc28351",
+      "block": "4521112",
+      "status": 200,
+      "showsTx": true,
+      "showsBlock": true,
+      "url": "https://testnet.zecblock.com/tx/030c3cbf78ce8460553bba4e82c0ba813f039bd3ecf4d7f2e81c59837dc28351"
+    },
+    {
+      "txid": "cd64980a5247881a727aa916476a3ba757e59794263c2ff1bcde467654a0916d",
+      "block": "4521440",
+      "status": 200,
+      "showsTx": true,
+      "showsBlock": true,
+      "url": "https://testnet.zecblock.com/tx/cd64980a5247881a727aa916476a3ba757e59794263c2ff1bcde467654a0916d"
+    },
+    {
+      "txid": "ccb4214c6a1fdf183c086ae5b4f559d181ead4c1c61dc7e711fc4a08b95b0ed3",
+      "block": "4524586",
+      "status": 200,
+      "showsTx": true,
+      "showsBlock": true,
+      "url": "https://testnet.zecblock.com/tx/ccb4214c6a1fdf183c086ae5b4f559d181ead4c1c61dc7e711fc4a08b95b0ed3"
+    },
+    {
+      "txid": "25a8b324bebee30220382113c6fb9cc3be1144b036117c34778bde3b1d8b689d",
+      "block": "4524602",
+      "status": 200,
+      "showsTx": true,
+      "showsBlock": true,
+      "url": "https://testnet.zecblock.com/tx/25a8b324bebee30220382113c6fb9cc3be1144b036117c34778bde3b1d8b689d"
+    },
+    {
+      "txid": "408aba269ac7ca946e3b0eaedcf4cadd582a01090679e98391b4e7c706d88dd0",
+      "block": "4524693",
+      "status": 200,
+      "showsTx": true,
+      "showsBlock": true,
+      "url": "https://testnet.zecblock.com/tx/408aba269ac7ca946e3b0eaedcf4cadd582a01090679e98391b4e7c706d88dd0"
+    },
+    {
+      "txid": "a7c3b0b2eaeb406ddcd02276cd71e69e4e618b22a1cab8977c959f2da3fc38bc",
+      "block": "4524694",
+      "status": 200,
+      "showsTx": true,
+      "showsBlock": true,
+      "url": "https://testnet.zecblock.com/tx/a7c3b0b2eaeb406ddcd02276cd71e69e4e618b22a1cab8977c959f2da3fc38bc"
+    },
+    {
+      "txid": "fa01172015c63ce47a0285f7fae130a3efe5f821b938a8befa1ca547d00ac3ad",
+      "block": "4526095",
+      "status": 200,
+      "showsTx": true,
+      "showsBlock": true,
+      "url": "https://testnet.zecblock.com/tx/fa01172015c63ce47a0285f7fae130a3efe5f821b938a8befa1ca547d00ac3ad"
+    },
+    {
+      "txid": "d3bf0b49408fed118fe9e1241239d98319cbb83088c45a5ba357f68cd97bd00d",
+      "block": "4526113",
+      "status": 200,
+      "showsTx": true,
+      "showsBlock": true,
+      "url": "https://testnet.zecblock.com/tx/d3bf0b49408fed118fe9e1241239d98319cbb83088c45a5ba357f68cd97bd00d"
+    },
+    {
+      "txid": "f037d5978fec7817340ff118d328995288f0a575a1850b083ca05f7d71d4e22a",
+      "block": "4529425",
+      "status": 200,
+      "showsTx": true,
+      "showsBlock": true,
+      "url": "https://testnet.zecblock.com/tx/f037d5978fec7817340ff118d328995288f0a575a1850b083ca05f7d71d4e22a"
+    },
+    {
+      "txid": "b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91",
+      "block": "4529427",
+      "status": 200,
+      "showsTx": true,
+      "showsBlock": true,
+      "url": "https://testnet.zecblock.com/tx/b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91"
+    }
+  ],
+  "endpoints": {
+    "quote": {
+      "status": 402,
+      "bodyExcerpt": "{\"x402Version\":1,\"accepts\":[{\"scheme\":\"zcash-shielded\",\"network\":\"zcash-testnet\",\"maxAmountRequired\":\"100000\",\"resource\":\"https://kage-api.201-18-198-162.sslip.io/api/quote\",\"description\":\"Kage demo quote: paid content unlocked by a shielded Zcash testnet payment\",\"mimeType\":\"application/json\",\"payT"
+    },
+    "qr": {
+      "status": 200,
+      "headersExcerpt": "HTTP/2 200 \r\naccess-control-expose-headers: X-PAYMENT-RESPONSE,Retry-After\r\nalt-svc: h3=\":443\"; ma=2592000\r\ncache-control: no-store\r\ncontent-type: image/svg+xml\r\ndate: Sun, 25 Oct 2026 22:56:53 GMT\r\nv"
+    },
+    "health": {
+      "status": 200,
+      "body": {
+        "chainTip": 4541789,
+        "lightwalletd": "https://testnet.zec.rocks:443",
+        "minConfirmations": 1,
+        "network": "testnet",
+        "ok": true,
+        "receiptPubkey": "95b72c33b95c02a904a71c37e8638d39a1309a1f3686a374c898d32a8ab449c6",
+        "viewingKey": "uivk"
+      }
+    },
+    "supported": {
+      "status": 200,
+      "body": {
+        "kinds": [
+          {
+            "x402Version": 1,
+            "scheme": "zcash-shielded",
+            "network": "zcash-testnet"
+          }
+        ]
+      }
+    }
+  }
+}

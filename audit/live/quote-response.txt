@@ -1,0 +1,9 @@
+HTTP/2 402 
+access-control-expose-headers: X-PAYMENT-RESPONSE,Retry-After
+alt-svc: h3=":443"; ma=2592000
+content-type: application/json
+date: Sun, 25 Oct 2026 22:56:42 GMT
+vary: Origin
+content-length: 1588
+
+{"x402Version":1,"accepts":[{"scheme":"zcash-shielded","network":"zcash-testnet","maxAmountRequired":"100000","resource":"https://kage-api.201-18-198-162.sslip.io/api/quote","description":"Kage demo quote: paid content unlocked by a shielded Zcash testnet payment","mimeType":"application/json","payTo":"utest100fnpp4zd4lp0vmu093gwx6p6ujv8lusunnkvrsuxyaca9avmea5fqgt0ktkvm0sf2wnn8fw7ad034fy9lvsrq0x04vn0jqq7dvnyua5zk9s30v2lcys8pk3mm7xnkdt7fyf65xe0vtnv7sswdflaltg9uesty00c6x2kvgc25ygcrzs","maxTimeoutSeconds":900,"asset":"ZEC","extra":{"expiresAt":1792969902,"memoNonce":"x402z-2407a3245422986693ef9238","paymentUri":"zcash:utest100fnpp4zd4lp0vmu093gwx6p6ujv8lusunnkvrsuxyaca9avmea5fqgt0ktkvm0sf2wnn8fw7ad034fy9lvsrq0x04vn0jqq7dvnyua5zk9s30v2lcys8pk3mm7xnkdt7fyf65xe0vtnv7sswdflaltg9uesty00c6x2kvgc25ygcrzs?amount=0.001&memo=eDQwMnotMjQwN2EzMjQ1NDIyOTg2NjkzZWY5MjM4","tab":{"epochEndsAt":1793383919,"graceSecs":1800,"issuePath":"/tab/issue","keyId":"6eea047ceca41906","maxTokens":20,"publicKey":"MIIBUjA9BgkqhkiG9w0BAQowMKANMAsGCWCGSAFlAwQCAqEaMBgGCSqGSIb3DQEBCDALBglghkgBZQMEAgKiAwIBMAOCAQ8AMIIBCgKCAQEA97mC92CqhBUf56XVcDj4pab8JZWHR77iM9KRyYaYe2BrOu6IarE+ijf1yLPq7zvwD/53WV8Spdmi76If+1XVjVILs0kvtvA4QTJ31pPiQjPaqRmvLgHj05A1ELZg+6emX04tTgaXFDK6s+pct8a2+HmmQgIOTQpwCy19OOhK2xxvi/gIX7mR3wsB2BCOtU1+ydoV/VW+yktXlbVGDCeD89MdNaxjhec/OJm0ZhpTl2FnSF0dHkONzrUrb46wOe0wfEVGq4P3wOf2ZV3UOzCT9EgWyRAiYab91pmvjipBAN7tfSt4EWM+MbQ9ws8RLizPEPQDuLoinGVOhROS+uWi6QIDAQAB","scheme":"zcash-shielded-tab","suite":"RSABSSA-SHA384-PSS-Randomized","unitPriceZat":100000}}}],"error":"X-PAYMENT header is required"}
