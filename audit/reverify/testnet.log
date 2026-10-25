@@ -1,0 +1,78 @@
+   Compiling syn v3.0.9
+   Compiling num-traits v0.2.19
+   Compiling digest v0.10.7
+   Compiling serde v1.0.229
+   Compiling tokio-macros v2.7.2
+   Compiling serde_derive v1.0.229
+   Compiling proptest v1.6.0
+   Compiling tokio v1.54.0
+   Compiling incrementalmerkletree v0.9.0
+   Compiling thiserror-impl v2.0.21
+   Compiling thiserror v2.0.21
+   Compiling sha2 v0.10.9
+   Compiling tokio-util v0.7.20
+   Compiling digest v0.11.3
+   Compiling bs58 v0.5.1
+   Compiling futures-task v0.3.34
+   Compiling h2 v0.4.20
+   Compiling futures-util v0.3.34
+   Compiling incrementalmerkletree-testing v0.4.0
+   Compiling num-integer v0.1.47
+   Compiling aead v0.6.1
+   Compiling hyper v1.12.0
+   Compiling chacha20poly1305 v0.11.0
+   Compiling num-bigint v0.5.1
+   Compiling zcash_protocol v0.11.0-pre.1
+   Compiling reddsa v0.6.1
+   Compiling sha2 v0.11.1
+   Compiling hmac v0.13.0
+   Compiling ripemd v0.2.0
+   Compiling fixedbitset v0.5.7
+   Compiling sync_wrapper v1.0.2
+   Compiling petgraph v0.8.3
+   Compiling fpe v0.7.0
+   Compiling bip32 v0.6.0
+   Compiling zcash_note_encryption v0.5.1
+   Compiling hyper-util v0.1.21
+   Compiling bounded-vec v0.9.0
+   Compiling sha1 v0.10.7
+   Compiling ripemd v0.1.3
+   Compiling prost-build v0.14.4
+   Compiling serde_urlencoded v0.7.1
+   Compiling axum-core v0.5.6
+   Compiling zcash_script v0.6.0
+   Compiling tower v0.5.3
+   Compiling redjubjub v0.9.0
+   Compiling axum v0.8.9
+   Compiling orchard v0.16.0
+   Compiling zcash_address v0.14.0-pre.2
+   Compiling sapling-crypto v0.9.0
+   Compiling tonic-prost-build v0.14.6
+   Compiling tokio-rustls v0.26.6
+   Compiling zcash_transparent v0.11.0-pre.2
+   Compiling hyper-timeout v0.5.2
+   Compiling tokio-stream v0.1.19
+   Compiling async-trait v0.1.92
+   Compiling zcash_client_backend v0.25.0-pre.2
+   Compiling tonic v0.14.6
+   Compiling time v0.3.55
+   Compiling zcash_keys v0.17.0-pre.2
+   Compiling tonic-prost v0.14.6
+   Compiling zcash_primitives v0.31.0-pre.2
+   Compiling curve25519-dalek v4.1.3
+   Compiling zip321 v0.10.0-pre.2
+   Compiling shardtree v0.8.0
+   Compiling rusqlite v0.37.0
+   Compiling ed25519-dalek v2.2.0
+   Compiling x402z-protocol v0.1.0 (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t7/crates/x402z-protocol)
+   Compiling x402z-facilitator v0.1.0 (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t7/crates/x402z-facilitator)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 32s
+     Running tests/live_testnet.rs (target/debug/deps/live_testnet-1dc23010c1f179f6)
+
+running 3 tests
+test every_kage_payment_verifies_with_only_the_published_uivk ... ok
+test real_payments_are_refused_for_the_wrong_nonce_amount_or_key ... ok
+test unknown_txid_is_not_found ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.36s
+
