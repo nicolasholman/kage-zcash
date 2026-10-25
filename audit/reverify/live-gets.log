@@ -1,0 +1,46 @@
+=== landing: https://kage-landing.vercel.app ===
+Status: 200
+Headers: {'Accept-Ranges': 'bytes', 'Access-Control-Allow-Origin': '*', 'Age': '18332', 'Cache-Control': 'public, max-age=0, must-revalidate', 'Content-Disposition': 'inline', 'Content-Length': '17679', 'Content-Type': 'text/html; charset=utf-8', 'Date': 'Sun, 25 Oct 2026 23:35:34 GMT', 'Etag': '"510574121c8248af86d220991d9f9e7b"', 'Last-Modified': 'Sun, 25 Oct 2026 18:30:01 GMT', 'Server': 'Vercel', 'Strict-Transport-Security': 'max-age=63072000; includeSubDomains; preload', 'X-Vercel-Cache': 'HIT', 'X-Vercel-Id': 'bom1::w2h82-1792971334017-24d97bec2b5c', 'Connection': 'close'}
+Body (head 500 chars):
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kage — shielded x402 for AI agents</title>
+    <meta name="description" content="Kage: AI agents pay for APIs with HTTP 402, settled in shielded Zcash testnet transactions. The merchant verifies with a viewing key alone and never learns who paid." />
+    <meta name="theme-color" content="#ffffff" />
+    <link rel="icon" href="data:image/sv
+
+=== evidence: https://kage-landing.vercel.app/evidence.html ===
+Status: 200
+Headers: {'Accept-Ranges': 'bytes', 'Access-Control-Allow-Origin': '*', 'Age': '18331', 'Cache-Control': 'public, max-age=0, must-revalidate', 'Content-Disposition': 'inline; filename="evidence.html"', 'Content-Length': '70485', 'Content-Type': 'text/html; charset=utf-8', 'Date': 'Sun, 25 Oct 2026 23:35:34 GMT', 'Etag': '"158bad879059a1d53d275e0d260e64c1"', 'Last-Modified': 'Sun, 25 Oct 2026 18:30:02 GMT', 'Server': 'Vercel', 'Strict-Transport-Security': 'max-age=63072000; includeSubDomains; preload', 'X-Vercel-Cache': 'HIT', 'X-Vercel-Id': 'bom1::m9hfv-1792971334101-0c93f9afb72f', 'Connection': 'close'}
+Body (head 500 chars):
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kage — spec and evidence</title>
+    <meta name="description" content="Kage: HTTP 402 payments for AI agents in the x402 v1 wire format, settled as Zcash shielded testnet transactions. A spend guard checks every payment first; the merchant verifies with an incoming viewing key alone." />
+    <meta name="theme-color" content="#ffffff" />
+  
+
+=== quote: https://kage-api.201-18-198-162.sslip.io/api/quote ===
+Status: 402
+Headers: {'Access-Control-Expose-Headers': 'X-PAYMENT-RESPONSE,Retry-After', 'Alt-Svc': 'h3=":443"; ma=2592000', 'Content-Length': '1588', 'Content-Type': 'application/json', 'Date': 'Sun, 25 Oct 2026 23:35:34 GMT', 'Vary': 'Origin', 'Connection': 'close'}
+Body (head 500 chars):
+{"x402Version":1,"accepts":[{"scheme":"zcash-shielded","network":"zcash-testnet","maxAmountRequired":"100000","resource":"https://kage-api.201-18-198-162.sslip.io/api/quote","description":"Kage demo quote: paid content unlocked by a shielded Zcash testnet payment","mimeType":"application/json","payTo":"utest100fnpp4zd4lp0vmu093gwx6p6ujv8lusunnkvrsuxyaca9avmea5fqgt0ktkvm0sf2wnn8fw7ad034fy9lvsrq0x04vn0jqq7dvnyua5zk9s30v2lcys8pk3mm7xnkdt7fyf65xe0vtnv7sswdflaltg9uesty00c6x2kvgc25ygcrzs","maxTimeoutS
+
+=== facilitator_health: https://kage-facilitator.201-18-198-162.sslip.io/health ===
+Status: 200
+Headers: {'Access-Control-Expose-Headers': 'X-PAYMENT-RESPONSE,Retry-After', 'Alt-Svc': 'h3=":443"; ma=2592000', 'Content-Length': '221', 'Content-Type': 'application/json', 'Date': 'Sun, 25 Oct 2026 23:35:34 GMT', 'Vary': 'Origin', 'Connection': 'close'}
+Body (head 500 chars):
+{"chainTip":4541887,"lightwalletd":"https://testnet.zec.rocks:443","minConfirmations":1,"network":"testnet","ok":true,"receiptPubkey":"95b72c33b95c02a904a71c37e8638d39a1309a1f3686a374c898d32a8ab449c6","viewingKey":"uivk"}
+
+=== facilitator_supported: https://kage-facilitator.201-18-198-162.sslip.io/supported ===
+Status: 200
+Headers: {'Access-Control-Expose-Headers': 'X-PAYMENT-RESPONSE,Retry-After', 'Alt-Svc': 'h3=":443"; ma=2592000', 'Content-Length': '81', 'Content-Type': 'application/json', 'Date': 'Sun, 25 Oct 2026 23:35:35 GMT', 'Vary': 'Origin', 'Connection': 'close'}
+Body (head 500 chars):
+{"kinds":[{"x402Version":1,"scheme":"zcash-shielded","network":"zcash-testnet"}]}
+
