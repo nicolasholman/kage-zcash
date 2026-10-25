@@ -1,0 +1,167 @@
+[
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:4020/",
+    "status": 404
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:4020/api/events",
+    "status": 404
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:4020/api/status",
+    "status": 404
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/",
+    "status": 403
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/events",
+    "status": 403
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/status",
+    "status": 403
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/",
+    "status": 403
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/events",
+    "status": 403
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/status",
+    "status": 403
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/quote",
+    "status": 402
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:4020/api/quote",
+    "status": 402
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/status",
+    "status": 200
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/status",
+    "status": 200
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:4020/api/quote",
+    "status": 402
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/status",
+    "status": 200
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:4020/api/challenge/x402z-57ab17e45a3ea88c4f4739b4/qr.svg",
+    "status": 200
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:4020/api/challenge/x402z-audit-unknown/qr.svg",
+    "status": 404
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:4020/api/quote",
+    "status": 402
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:4020/api/quote",
+    "status": 402
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:4020/api/quote",
+    "status": 402
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:4020/api/quote",
+    "status": 402
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:4020/api/quote",
+    "status": 402
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:4020/api/quote",
+    "status": 402
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/events",
+    "status": 200
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:4020/api/quote",
+    "status": 400
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/events",
+    "status": 200
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/events",
+    "status": 200
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/events?since=not-a-number",
+    "status": 400
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/events",
+    "status": 200
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/status",
+    "status": 200
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:4130/api/status",
+    "status": 200
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/status",
+    "status": 200
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:4141/api/status",
+    "status": 200
+  }
+]

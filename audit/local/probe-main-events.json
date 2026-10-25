@@ -1,0 +1,1054 @@
+[
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4050/zec-shielded-x402/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4050/zec-shielded-x402/",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4050/zec-shielded-x402/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4050/zec-shielded-x402/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmhHkjko.woff2",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4050/zec-shielded-x402/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFWNOITd.woff2",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4050/zec-shielded-x402/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4050/zec-shielded-x402/",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4050/zec-shielded-x402/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4050/zec-shielded-x402/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmhHkjko.woff2",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4050/zec-shielded-x402/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFWNOITd.woff2",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4050/zec-shielded-x402/evidence.html",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4050/zec-shielded-x402/evidence.html",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4050/zec-shielded-x402/evidence.html",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4050/zec-shielded-x402/evidence.html",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmhHkjko.woff2",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4050/zec-shielded-x402/evidence.html",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFWNOITd.woff2",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/events?since=0",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/status",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFWNOITd.woff2",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmhHkjko.woff2",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/quote",
+    "status": 402,
+    "expected": true
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4120/",
+    "type": "console.error",
+    "text": "Failed to load resource: the server responded with a status of 402 (Payment Required)",
+    "url": "http://127.0.0.1:4120/api/quote"
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/events?since=59",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/challenge/x402z-c6efb34acafebc76857a8d5f/qr.svg",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/events?since=60",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/events?since=60",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "POST",
+    "url": "http://127.0.0.1:4120/api/redeem",
+    "status": 422,
+    "expected": true
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4120/",
+    "type": "console.error",
+    "text": "Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)",
+    "url": "http://127.0.0.1:4120/api/redeem"
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/events?since=60",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4120/",
+    "type": "requestfailed",
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/quote",
+    "error": "net::ERR_CONNECTION_REFUSED"
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4120/",
+    "type": "console.error",
+    "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+    "url": "http://127.0.0.1:4120/api/quote"
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4130/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4130/",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4130/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4130/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4130/api/events?since=0",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4130/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4130/api/status",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4130/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFWNOITd.woff2",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4130/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmhHkjko.woff2",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4130/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4130/api/quote",
+    "status": 402,
+    "expected": true
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4130/",
+    "type": "console.error",
+    "text": "Failed to load resource: the server responded with a status of 402 (Payment Required)",
+    "url": "http://127.0.0.1:4130/api/quote"
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4130/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4130/api/events?since=2",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4130/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4130/api/challenge/x402z-6189adfd0ac1b6d6ed31ba0c/qr.svg",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4130/",
+    "type": "response",
+    "method": "POST",
+    "url": "http://127.0.0.1:4130/api/redeem",
+    "status": 502,
+    "expected": true
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4130/",
+    "type": "console.error",
+    "text": "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+    "url": "http://127.0.0.1:4130/api/redeem"
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4130/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4130/api/events?since=3",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4130/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4130/api/events?since=3",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4141/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4141/",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4141/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4141/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4141/api/events?since=0",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4141/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4141/api/status",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4141/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmhHkjko.woff2",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4141/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFWNOITd.woff2",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4142/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4142/",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4142/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4142/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4142/api/events?since=0",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4142/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4142/api/status",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4142/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFWNOITd.woff2",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4142/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmhHkjko.woff2",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4142/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4142/api/quote",
+    "status": 402,
+    "expected": true
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4142/",
+    "type": "console.error",
+    "text": "Failed to load resource: the server responded with a status of 402 (Payment Required)",
+    "url": "http://127.0.0.1:4142/api/quote"
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4142/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4142/api/events?since=7",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4142/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4142/api/challenge/x402z-d573a36e2ad15d0e8d71f8e8/qr.svg",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4142/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4142/api/quote",
+    "status": 429,
+    "expected": true
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4142/",
+    "type": "console.error",
+    "text": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)",
+    "url": "http://127.0.0.1:4142/api/quote"
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4142/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4142/api/events?since=8",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4050/zec-shielded-x402/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4050/zec-shielded-x402/",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4050/zec-shielded-x402/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4050/zec-shielded-x402/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmhHkjko.woff2",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4050/zec-shielded-x402/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFWNOITd.woff2",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4050/zec-shielded-x402/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4050/zec-shielded-x402/",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4050/zec-shielded-x402/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4050/zec-shielded-x402/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmhHkjko.woff2",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4050/zec-shielded-x402/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFWNOITd.woff2",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4050/zec-shielded-x402/evidence.html",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4050/zec-shielded-x402/evidence.html",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4050/zec-shielded-x402/evidence.html",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4050/zec-shielded-x402/evidence.html",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFWNOITd.woff2",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4050/zec-shielded-x402/evidence.html",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmhHkjko.woff2",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/status",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/events?since=0",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmhHkjko.woff2",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFWNOITd.woff2",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/quote",
+    "status": 402,
+    "expected": true
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4120/",
+    "type": "console.error",
+    "text": "Failed to load resource: the server responded with a status of 402 (Payment Required)",
+    "url": "http://127.0.0.1:4120/api/quote"
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/events?since=61",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/challenge/x402z-1154ebc358086123d06e8c5a/qr.svg",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/events?since=62",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/events?since=62",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "POST",
+    "url": "http://127.0.0.1:4120/api/redeem",
+    "status": 422,
+    "expected": true
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4120/",
+    "type": "console.error",
+    "text": "Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)",
+    "url": "http://127.0.0.1:4120/api/redeem"
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/events?since=62",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4120/",
+    "type": "requestfailed",
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/quote",
+    "error": "net::ERR_CONNECTION_REFUSED"
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4120/",
+    "type": "console.error",
+    "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+    "url": "http://127.0.0.1:4120/api/quote"
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4130/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4130/",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4130/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4130/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4130/api/events?since=0",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4130/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4130/api/status",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4130/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmhHkjko.woff2",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4130/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFWNOITd.woff2",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4130/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4130/api/quote",
+    "status": 402,
+    "expected": true
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4130/",
+    "type": "console.error",
+    "text": "Failed to load resource: the server responded with a status of 402 (Payment Required)",
+    "url": "http://127.0.0.1:4130/api/quote"
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4130/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4130/api/events?since=3",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4130/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4130/api/challenge/x402z-7e29b3f4cfd9b4fb7b158294/qr.svg",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4130/",
+    "type": "response",
+    "method": "POST",
+    "url": "http://127.0.0.1:4130/api/redeem",
+    "status": 502,
+    "expected": true
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4130/",
+    "type": "console.error",
+    "text": "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+    "url": "http://127.0.0.1:4130/api/redeem"
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4130/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4130/api/events?since=4",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4130/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4130/api/events?since=4",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4141/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4141/",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4141/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4141/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4141/api/events?since=0",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4141/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4141/api/status",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4141/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFWNOITd.woff2",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4141/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmhHkjko.woff2",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4142/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4142/",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4142/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4142/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4142/api/status",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4142/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4142/api/events?since=0",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4142/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmhHkjko.woff2",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4142/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFWNOITd.woff2",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4142/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4142/api/quote",
+    "status": 429,
+    "expected": true
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4142/",
+    "type": "console.error",
+    "text": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)",
+    "url": "http://127.0.0.1:4142/api/quote"
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4142/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4142/api/events?since=9",
+    "status": 200,
+    "expected": false
+  }
+]

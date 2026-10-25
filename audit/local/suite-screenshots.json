@@ -1,0 +1,57 @@
+[
+  {
+    "source": "e2e/test-results/dashboard-merchant-dashboa-6f57e-live-and-logged-in-the-feed-desktop/dash-refused.png",
+    "evidence": "audit/local/suite-desktop-dash-refused.jpg",
+    "bytes": 199824
+  },
+  {
+    "source": "e2e/test-results/dashboard-merchant-dashboa-6f57e-live-and-logged-in-the-feed-mobile/dash-refused.png",
+    "evidence": "audit/local/suite-mobile-dash-refused.jpg",
+    "bytes": 129306
+  },
+  {
+    "source": "e2e/test-results/dashboard-merchant-dashboa-0f271-T-LEDGER-set-but-unreadable-desktop/dash-setup-required.png",
+    "evidence": "audit/local/suite-desktop-dash-setup-required.jpg",
+    "bytes": 121208
+  },
+  {
+    "source": "e2e/test-results/dashboard-merchant-dashboa-0f271-T-LEDGER-set-but-unreadable-mobile/dash-setup-required.png",
+    "evidence": "audit/local/suite-mobile-dash-setup-required.jpg",
+    "bytes": 145004
+  },
+  {
+    "source": "e2e/test-results/dashboard-merchant-dashboa-d6d8a-down-and-never-claims-a-200-mobile/dash-429.png",
+    "evidence": "audit/local/suite-mobile-dash-429.jpg",
+    "bytes": 106792
+  },
+  {
+    "source": "e2e/test-results/dashboard-merchant-dashboa-d6d8a-down-and-never-claims-a-200-desktop/dash-429.png",
+    "evidence": "audit/local/suite-desktop-dash-429.jpg",
+    "bytes": 83760
+  },
+  {
+    "source": "e2e/test-results/dashboard-merchant-dashboa-e03f1-receipt-key-from-api-status-mobile/dash-loaded.png",
+    "evidence": "audit/local/suite-mobile-dash-loaded.jpg",
+    "bytes": 49635
+  },
+  {
+    "source": "e2e/test-results/dashboard-merchant-dashboa-e03f1-receipt-key-from-api-status-desktop/dash-loaded.png",
+    "evidence": "audit/local/suite-desktop-dash-loaded.jpg",
+    "bytes": 129853
+  },
+  {
+    "source": "e2e/test-results/dashboard-merchant-dashboa-7fbaa-e-its-bar-the-page-does-not-mobile/dash-mobile.png",
+    "evidence": "audit/local/suite-mobile-dash-mobile.jpg",
+    "bytes": 48620
+  },
+  {
+    "source": "e2e/test-results/landing-landing-evidence-t-8c244-ng-the-README-and-the-label-mobile/landing-evidence.png",
+    "evidence": "audit/local/suite-mobile-landing-evidence.jpg",
+    "bytes": 83295
+  },
+  {
+    "source": "e2e/test-results/landing-landing-evidence-t-8c244-ng-the-README-and-the-label-desktop/landing-evidence.png",
+    "evidence": "audit/local/suite-desktop-landing-evidence.jpg",
+    "bytes": 130329
+  }
+]
