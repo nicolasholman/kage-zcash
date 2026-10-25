@@ -1,0 +1,489 @@
+| ID | component/flow | exact expected result | status | evidence | fix |
+| --- | --- | --- | --- | --- | --- |
+| B-001 | Server default public listener | Unset `X402Z_BIND` resolves to `127.0.0.1:4020`; `GET /api/quote` returns HTTP 402. | PENDING |  |  |
+| B-002 | Server default admin listener | Unset `X402Z_ADMIN_BIND` resolves to `127.0.0.1:4029`; allowed `Host: localhost:4029` on `GET /` returns HTTP 200 with `Content-Type: text/html; charset=utf-8`. | PENDING |  |  |
+| B-003 | Public `GET /` | HTTP 404; no dashboard HTML on port 4020. | PENDING |  |  |
+| B-004 | Public `GET /api/events` | HTTP 404; no feed JSON on port 4020. | PENDING |  |  |
+| B-005 | Public `GET /api/status` | HTTP 404; no merchant/ledger status on port 4020. | PENDING |  |  |
+| B-006 | Admin `GET /` foreign Host | `Host: attacker.example:4029` returns HTTP 403; JSON `error` contains `refused (DNS rebinding protection)`. | PENDING |  |  |
+| B-007 | Admin `GET /api/events` foreign Host | `Host: attacker.example:4029` returns HTTP 403; JSON `error` names `X402Z_ADMIN_HOSTS`. | PENDING |  |  |
+| B-008 | Admin `GET /api/status` foreign Host | `Host: attacker.example:4029` returns HTTP 403; JSON `error` names `X402Z_ADMIN_HOSTS`. | PENDING |  |  |
+| B-009 | Admin Host wrong port | `Host: 127.0.0.1:9999` returns HTTP 403 on `/`, `/api/events`, `/api/status`. | PENDING |  |  |
+| B-010 | Admin Host missing | Without Host or URI authority, HTTP 403 with JSON `error` naming the empty Host. | PENDING |  |  |
+| B-011 | Admin Host localhost | `Host: localhost:4029` returns HTTP 200 on `/`, `/api/events`, `/api/status`. | PENDING |  |  |
+| B-012 | Admin Host IPv4 | `Host: 127.0.0.1:4029` returns HTTP 200 on `/`, `/api/events`, `/api/status`. | PENDING |  |  |
+| B-013 | Admin Host IPv6 | `Host: [::1]:4029` returns HTTP 200 on `/`, `/api/events`, `/api/status`. | PENDING |  |  |
+| B-014 | Admin Host configured extra | A Host listed in `X402Z_ADMIN_HOSTS`, compared case-insensitively, returns HTTP 200 on `/`, `/api/events`, `/api/status`. | PENDING |  |  |
+| B-015 | Admin same-origin API | Allowed admin Host on `GET /api/quote` returns HTTP 402 with `x402Version: 1`. | PENDING |  |  |
+| B-016 | Admin disabled | `X402Z_ADMIN_BIND=off` creates zero admin listeners; public `/api/status` remains HTTP 404. | PENDING |  |  |
+| B-017 | Server equal admin/public bind | Exit 2; stderr: `error: X402Z_ADMIN_BIND must differ from X402Z_BIND: the dashboard, feed and status stay off the public port`. | PENDING |  |  |
+| B-018 | Server non-loopback admin | Stderr contains `is not loopback: anyone who can reach it sees the payment feed and status`; foreign Host remains HTTP 403. | PENDING |  |  |
+| B-019 | Quote unpaid | HTTP 402; JSON `x402Version: 1`, `error: "X-PAYMENT header is required"`, `accepts.length: 1`. | PENDING |  |  |
+| B-020 | Quote default requirement | HTTP 402; `accepts[0]` has `scheme: "zcash-shielded"`, `network: "zcash-testnet"`, `asset: "ZEC"`, `maxAmountRequired: "100000"`, `mimeType: "application/json"`, `maxTimeoutSeconds: 900`, `payTo: <configured UA>`. | PENDING |  |  |
+| B-021 | Quote fresh nonce/expiry | HTTP 402; `extra.memoNonce` matches `^x402z-[0-9a-f]{24}$` and differs on fresh requests; `extra.expiresAt` equals issue time plus 900 seconds; one unspent database row per issue. | PENDING |  |  |
+| B-022 | Quote ZIP-321 | HTTP 402; `extra.paymentUri` equals `zcash:<payTo>?amount=0.001&memo=<base64url UTF-8 nonce without padding>`; decoding yields the same nonce and 100000 zat. | PENDING |  |  |
+| B-023 | Quote default tab offer | HTTP 402; `extra.tab` has `scheme: "zcash-shielded-tab"`, `suite: "RSABSSA-SHA384-PSS-Randomized"`, `unitPriceZat: 100000`, `maxTokens: 20`, `issuePath: "/tab/issue"`, `graceSecs: 1800`, 16-hex `keyId`, RSA-2048 SPKI `publicKey`, `epochEndsAt`. | PENDING |  |  |
+| B-024 | Quote tab disabled | With `X402Z_TAB_MAX_TOKENS=0`, HTTP 402 includes `extra.memoNonce` and omits `extra.tab`. | PENDING |  |  |
+| B-025 | Quote tab key failure | HTTP 402 still carries a payable requirement; `extra.tab` absent; stderr starts `warning: tab offer left out:`. | PENDING |  |  |
+| B-026 | Quote database failure | HTTP 503; JSON `error` names storage failure; no paid content or successful challenge insert. | PENDING |  |  |
+| B-027 | Quote resource trusted HTTPS proxy | Trusted peer plus `Host: kage.test` and `X-Forwarded-Proto: https` returns HTTP 402 with `resource: "https://kage.test/api/quote"`. | PENDING |  |  |
+| B-028 | Quote resource untrusted HTTPS header | Untrusted peer's `X-Forwarded-Proto: https` yields HTTP 402 with `resource: "http://kage.test/api/quote"`. | PENDING |  |  |
+| B-029 | Quote resource non-HTTPS proto | Trusted peer's `X-Forwarded-Proto: http` or `gopher` yields `resource: "http://kage.test/api/quote"` in HTTP 402. | PENDING |  |  |
+| B-030 | Quote resource configured origin | `X402Z_PUBLIC_BASE_URL=https://kage-api.example/` yields HTTP 402 with `resource: "https://kage-api.example/api/quote"` regardless of forwarded proto/Host. | PENDING |  |  |
+| B-031 | Quote resource missing Host | Without configured origin or Host, HTTP 402 has `resource: "/api/quote"`. | PENDING |  |  |
+| B-032 | Public base origin normalization | `parse_public_base_url("HTTP://127.0.0.1:4020")` returns `"http://127.0.0.1:4020"`; trailing slash is removed. | PENDING |  |  |
+| B-033 | Public base invalid scheme | Missing scheme or `ftp://` exits 2; stderr contains `error: X402Z_PUBLIC_BASE_URL` and `must start with https:// or http://`. | PENDING |  |  |
+| B-034 | Public base non-origin | Empty authority, path, query, fragment or whitespace exits 2; stderr contains `must be an origin like https://api.example (no path)`. | PENDING |  |  |
+| B-035 | Challenge QR known nonce | HTTP 200; `Content-Type: image/svg+xml`, `Cache-Control: no-store`; SVG encodes that challenge's ZIP-321 URI with zero external QR-service requests. | PENDING |  |  |
+| B-036 | Challenge QR unknown nonce | HTTP 404; body exactly `unknown challenge`. | PENDING |  |  |
+| B-037 | Challenge QR storage failure | HTTP 503; JSON `error` names database failure. | PENDING |  |  |
+| B-038 | Challenge QR encoder failure | HTTP 500; body contains QR encoder error; zero paid content responses. | PENDING |  |  |
+| B-039 | X-PAYMENT success | HTTP 200; JSON `product: "Kage demo quote"`, `settlement.txid`/`memoNonce` match pair; decoded `X-PAYMENT-RESPONSE` is `{success:true,transaction:<txid>,network:"zcash-testnet",payer:""}`; nonce burns once. | PENDING |  |  |
+| B-040 | X-PAYMENT malformed header | Invalid base64/JSON returns HTTP 402 with fresh challenge, `x-payment-error` naming malformed header, decoded `X-PAYMENT-RESPONSE.success: false`, `errorReason: "invalid_payload"`. | PENDING |  |  |
+| B-041 | X-PAYMENT wrong network | HTTP 402; decoded `X-PAYMENT-RESPONSE.errorReason: "invalid_network"`; original nonce remains unspent. | PENDING |  |  |
+| B-042 | X-PAYMENT wrong scheme | HTTP 402; decoded `X-PAYMENT-RESPONSE.errorReason: "invalid_scheme"`; no settlement for an EVM `exact` payload. | PENDING |  |  |
+| B-043 | X-PAYMENT wrong version | HTTP 402; decoded `X-PAYMENT-RESPONSE.errorReason: "invalid_x402_version"`; no burn. | PENDING |  |  |
+| B-044 | X-PAYMENT missing nonce | HTTP 402; decoded `X-PAYMENT-RESPONSE.errorReason: "invalid_payload"`; zero facilitator calls. | PENDING |  |  |
+| B-045 | X-PAYMENT unknown nonce | HTTP 402 with fresh challenge; decoded `X-PAYMENT-RESPONSE.errorReason: "unknown_challenge"`; JSON `error: "memo nonce was never issued here"`. | PENDING |  |  |
+| B-046 | X-PAYMENT underpaid | HTTP 402; decoded `X-PAYMENT-RESPONSE.errorReason: "invalid_payment"`; JSON `error` contains `underpaid`; original nonce stays unspent and accepts sufficient payment later. | PENDING |  |  |
+| B-047 | X-PAYMENT wrong address | HTTP 402; JSON `error: "paid to a different address"`; decoded `X-PAYMENT-RESPONSE.errorReason: "invalid_payment"`; no burn. | PENDING |  |  |
+| B-048 | X-PAYMENT untrusted signer | HTTP 402; JSON `error: "receipt signature invalid"`; decoded `X-PAYMENT-RESPONSE.errorReason: "invalid_payment"`; no burn. | PENDING |  |  |
+| B-049 | X-PAYMENT tampered claims | HTTP 402; JSON `error: "receipt signature invalid"`; no burn. | PENDING |  |  |
+| B-050 | X-PAYMENT mismatched receipt pair | HTTP 402; JSON `error: "receipt does not match the payment that was presented"`; decoded `X-PAYMENT-RESPONSE.errorReason: "invalid_payment"`; no burn. | PENDING |  |  |
+| B-051 | X-PAYMENT facilitator down | HTTP 502; JSON `error` contains `facilitator unreachable`; decoded `X-PAYMENT-RESPONSE.errorReason: "facilitator_error"`; no burn. | PENDING |  |  |
+| B-052 | X-PAYMENT facilitator timeout | At server client's 90-second timeout, HTTP 502 with decoded `X-PAYMENT-RESPONSE.errorReason: "facilitator_error"`; no burn. | PENDING |  |  |
+| B-053 | X-PAYMENT facilitator token refused | HTTP 502; JSON `error` contains `Setup required` and `X402Z_FACILITATOR_TOKEN`; decoded `X-PAYMENT-RESPONSE.errorReason: "facilitator_error"`; no burn. | PENDING |  |  |
+| B-054 | X-PAYMENT unreadable facilitator body | HTTP 502; JSON `error` contains `unreadable body`; decoded `X-PAYMENT-RESPONSE.errorReason: "facilitator_error"`; no burn. | PENDING |  |  |
+| B-055 | X-PAYMENT confirmed without receipt | HTTP 502; JSON `error: "facilitator confirmed without a receipt"`; no burn. | PENDING |  |  |
+| B-056 | X-PAYMENT facilitator error status | HTTP 502; JSON `error` starts `facilitator:`; decoded `X-PAYMENT-RESPONSE.errorReason: "facilitator_error"`; no burn. | PENDING |  |  |
+| B-057 | X-PAYMENT settlement pending | HTTP 402; decoded `X-PAYMENT-RESPONSE.errorReason: "settlement_pending"`; same `extra.memoNonce` and `expiresAt`; zero new challenges/burns. | PENDING |  |  |
+| B-058 | X-PAYMENT transaction not visible yet | Facilitator `status: "not_found"` yields HTTP 402 with same challenge and decoded `X-PAYMENT-RESPONSE.errorReason: "settlement_pending"`; no burn. | PENDING |  |  |
+| B-059 | X-PAYMENT receipt below confirmations | HTTP 402; same challenge, decoded `X-PAYMENT-RESPONSE.errorReason: "settlement_pending"`; JSON `error` contains `need 1`; no burn. | PENDING |  |  |
+| B-060 | X-PAYMENT resend within 600 seconds | Same pair returns HTTP 200 and identical `X-PAYMENT-RESPONSE` as first success; `spent_txid` and `spent_at` unchanged; no new burn. | PENDING |  |  |
+| B-061 | X-PAYMENT resend after window | HTTP 402; JSON `error: "receipt already used"`; decoded `X-PAYMENT-RESPONSE.errorReason: "nonce_already_used"`; fresh challenge. | PENDING |  |  |
+| B-062 | X-PAYMENT different txid on used nonce | HTTP 402; decoded `X-PAYMENT-RESPONSE.errorReason: "nonce_already_used"`; existing `spent_txid` unchanged. | PENDING |  |  |
+| B-063 | X-PAYMENT resend disabled | With `X402Z_RESEND_WINDOW_SECS=0`, second identical payment returns HTTP 402 and decoded `X-PAYMENT-RESPONSE.errorReason: "nonce_already_used"`. | PENDING |  |  |
+| B-064 | X-PAYMENT tab-purchase nonce | Even within resend window, HTTP 402 with decoded `X-PAYMENT-RESPONSE.errorReason: "nonce_already_used"`; no single-request content. | PENDING |  |  |
+| B-065 | X-PAYMENT 60 KB nonce | HTTP 400; JSON `error` contains `memoNonce must be 1 to 64 characters of [A-Za-z0-9_-]`; decoded `X-PAYMENT-RESPONSE.errorReason: "invalid_payload"`; zero feed rows/facilitator calls. | PENDING |  |  |
+| B-066 | X-PAYMENT bad txid | HTTP 400; JSON `error` contains `txid must be 64 hex characters`; decoded `X-PAYMENT-RESPONSE.errorReason: "invalid_payload"`; zero feed rows/facilitator calls. | PENDING |  |  |
+| B-067 | X-PAYMENT txid normalization | Whitespace-padded uppercase valid txid settles lowercase; HTTP 200 has lowercase JSON `settlement.txid` and decoded response `transaction`. | PENDING |  |  |
+| B-068 | Direct X-PAYMENT-RECEIPT valid | HTTP 200; decoded `X-PAYMENT-RESPONSE.success: true`; one durable burn; zero facilitator calls. | PENDING |  |  |
+| B-069 | Direct receipt rate-limit bypass | Valid signed direct receipt returns HTTP 200 and decoded `X-PAYMENT-RESPONSE.success: true` after challenge budget exhaustion. | PENDING |  |  |
+| B-070 | Direct receipt malformed | HTTP 402; JSON `error: "receipt malformed"`; `x-payment-error: receipt malformed`; no burn. | PENDING |  |  |
+| B-071 | Direct receipt replay | HTTP 402; JSON `error: "receipt already used"`; `x-payment-error: receipt already used`; no second burn. | PENDING |  |  |
+| B-072 | Direct receipt unconfirmed | HTTP 402; `x-payment-error` contains `payment has 0 confirmation(s), need 1; retry once it is mined`; no burn. | PENDING |  |  |
+| B-073 | Direct receipt invalid and rate-limited | HTTP 429; positive `Retry-After`; untrusted signature retains `x-payment-error: receipt signature invalid`; zero extra challenge rows. | PENDING |  |  |
+| B-074 | Receipt expiry mined before deadline | Within retained redeem window, HTTP 200 when `minedAt <= expiresAt` even if redeemed after expiry plus grace. | PENDING |  |  |
+| B-075 | Receipt expiry exact grace boundary | HTTP 200 when `minedAt == expiresAt + X402Z_EXPIRY_GRACE_SECS`; default grace 1200 seconds. | PENDING |  |  |
+| B-076 | Receipt expiry after grace | HTTP 402; decoded `X-PAYMENT-RESPONSE.errorReason: "payment_expired"`; no burn. | PENDING |  |  |
+| B-077 | Receipt expiry no minedAt | Current redemption time is used for old/mempool receipts; after expiry plus grace HTTP 402; before boundary with minimum confirmations 0 HTTP 200. | PENDING |  |  |
+| B-078 | Redeem API paid | `POST /api/redeem {memoNonce,txid}` returns HTTP 200; JSON `status: "paid"`, `settlement.success: true`, `settlement.transaction: <txid>`, `content.settlement.memoNonce: <nonce>`; burns once. | PENDING |  |  |
+| B-079 | Redeem API pending | HTTP 202; JSON `status: "pending"`, `reason: "settlement_pending"`; same pair retryable, no burn. | PENDING |  |  |
+| B-080 | Redeem API invalid payment | HTTP 422; JSON `status: "rejected"`, `reason: "invalid_payment"`; underpaid nonce unspent. | PENDING |  |  |
+| B-081 | Redeem API replay | HTTP 422; JSON `status: "rejected"`, `reason: "nonce_already_used"`, even inside resend window. | PENDING |  |  |
+| B-082 | Redeem API tab-purchase nonce | HTTP 422; JSON `reason: "nonce_already_used"`; no paid single-request content. | PENDING |  |  |
+| B-083 | Redeem API unknown nonce | HTTP 422; JSON `reason: "unknown_challenge"`; zero facilitator calls. | PENDING |  |  |
+| B-084 | Redeem API facilitator down | HTTP 502; JSON `status: "error"`, `reason: "facilitator_error"`; no burn. | PENDING |  |  |
+| B-085 | Redeem API malformed/empty body | HTTP 400; JSON `status: "rejected"`, `reason: "invalid_payload"`; message starts `body must be {memoNonce, txid}:`. | PENDING |  |  |
+| B-086 | Redeem API oversized/empty nonce | HTTP 400; JSON `reason: "invalid_payload"`, `message: "memoNonce must be 1 to 64 characters of [A-Za-z0-9_-]"`; zero feed rows/facilitator calls. | PENDING |  |  |
+| B-087 | Redeem API bad txid | HTTP 400; JSON `reason: "invalid_payload"`, `message: "txid must be 64 hex characters"`; zero feed rows/facilitator calls. | PENDING |  |  |
+| B-088 | Redeem API rate exhausted | HTTP 429; positive integer `Retry-After`; zero facilitator calls/burns for denied attempt. | PENDING |  |  |
+| B-089 | Limiter default budget | First 30 immediate unpaid requests per IP return HTTP 402; request 31 returns HTTP 429 with positive `Retry-After` and equal JSON `retryAfterSecs`. | PENDING |  |  |
+| B-090 | Limiter pending flood | Budget 2 with one initial challenge then 40 pending attempts gives one payment HTTP 402, 39 HTTP 429s and exactly one facilitator call. | PENDING |  |  |
+| B-091 | Limiter independent clients | After client A exhausts budget, fresh client B receives HTTP 402 with new nonce. | PENDING |  |  |
+| B-092 | Limiter refill | At 30/minute, depleted bucket regains one HTTP 402 after 2 seconds; token capacity never exceeds 30. | PENDING |  |  |
+| B-093 | Limiter disabled | `X402Z_CHALLENGE_RATE_PER_MIN=0` produces no limiter HTTP 429 and no tracked buckets. | PENDING |  |  |
+| B-094 | Limiter untrusted X-Forwarded-For | Spoofed header leaves key equal TCP peer; exhausted peer still receives HTTP 429. | PENDING |  |  |
+| B-095 | Limiter trusted proxy chain | Key equals rightmost non-trusted forwarded IP; no valid hop falls back to TCP peer; exhausted key returns HTTP 429. | PENDING |  |  |
+| B-096 | Limiter IPv6 /64 | Two IPs in one /64 share HTTP 429 exhaustion; other /64 has own budget; IPv4-mapped IPv6 maps to IPv4 key. | PENDING |  |  |
+| B-097 | SQLite restart before redeem | Reopen preserves issued challenge; valid receipt returns HTTP 200 without replacement challenge. | PENDING |  |  |
+| B-098 | SQLite restart after redeem | Reopen preserves `spent_txid`; direct replay returns HTTP 402 with `x-payment-error: receipt already used`. | PENDING |  |  |
+| B-099 | SQLite retention | Prune deletes only unspent rows older than expiry plus 1200 grace plus 86400 redeem window; spent/live rows retained; live open count exact. | PENDING |  |  |
+| B-100 | SQLite prune interval | At most one prune per 60 seconds; stale row inserted within interval remains until next eligible issue. | PENDING |  |  |
+| B-101 | SQLite query plans | Prune/open-count plans contain `challenges_open` and exclude `SCAN challenges`. | PENDING |  |  |
+| B-102 | SQLite concurrent burns | Two concurrent `mark_spent` calls on one nonce return one `true`, one `false`; exactly one winning stored txid. | PENDING |  |  |
+| B-103 | Admin events empty | Allowed `GET /api/events` returns HTTP 200 and JSON `[]` on empty feed. | PENDING |  |  |
+| B-104 | Admin events cursor | HTTP 200 contains only `id > since`; absent since means 0; fields are `id`, `ts`, `kind`, `memoNonce`, `amountZat`, `txid`, `detail`. | PENDING |  |  |
+| B-105 | Admin events invalid since | `?since=not-a-number` returns HTTP 400; no feed mutation. | PENDING |  |  |
+| B-106 | Admin feed privacy | HTTP 200 pending/refused row shows at most first 12 nonce characters plus ellipsis beside txid; zero full unspent nonce/client-IP fields. | PENDING |  |  |
+| B-107 | Admin feed bounds | At most 200 newest events; client-controlled detail/nonce/txid are each at most 160 characters plus ellipsis. | PENDING |  |  |
+| B-108 | Admin status empty | HTTP 200; JSON `network: "testnet"`, `merchantUa`, default `priceZat: 100000`, `minConfirmations: 1`, `facilitatorUrl`, hex `receiptKey`, `openChallenges: 0`. | PENDING |  |  |
+| B-109 | Admin status facilitator reachable | HTTP 200; JSON `facilitator.reachable: true` after successful TCP probe. | PENDING |  |  |
+| B-110 | Admin status facilitator unavailable | HTTP 200; JSON `facilitator.reachable: false`; `facilitator.error` names failure/2-second timeout and says payments cannot be confirmed. | PENDING |  |  |
+| B-111 | Admin ledger demo unset | HTTP 200; JSON `ledger.hidden` names `X402Z_DEMO_AGENT_LEDGER`; no payer ledger data. | PENDING |  |  |
+| B-112 | Admin ledger demo key absent | HTTP 200; `ledger.error` starts `Setup required: X402Z_DEMO_AGENT_LEDGER_KEY not configured`; no `ledger.data`. | PENDING |  |  |
+| B-113 | Admin ledger unreadable | HTTP 200; `ledger.error` contains `X402Z_DEMO_AGENT_LEDGER unreadable`; no successful empty ledger fallback. | PENDING |  |  |
+| B-114 | Admin ledger wrong key/tamper/plaintext | HTTP 200; `ledger.error` contains `wrong key` or `not a sealed file`; no decrypted `ledger.data`. | PENDING |  |  |
+| B-115 | Admin ledger valid sealed demo | HTTP 200; `ledger.data.agents` and `ledger.data.audit` equal decrypted JSON; no key values in response. | PENDING |  |  |
+| B-116 | Server startup missing merchant | Exit 2; stderr contains `error: X402Z_MERCHANT_UA not configured`. | PENDING |  |  |
+| B-117 | Server startup non-testnet merchant | Exit 2; stderr: `error: X402Z_MERCHANT_UA must be a testnet unified address (utest1...)`. | PENDING |  |  |
+| B-118 | Server startup receipt key absent | Exit 2; stderr contains `error: X402Z_RECEIPT_PUBKEY not configured`. | PENDING |  |  |
+| B-119 | Server startup receipt key invalid | Exit 2; stderr starts `error: X402Z_RECEIPT_PUBKEY invalid:` for invalid hex, length or ed25519 key. | PENDING |  |  |
+| B-120 | Server startup facilitator URL absent | Exit 2; stderr contains `error: X402Z_FACILITATOR_URL not configured`. | PENDING |  |  |
+| B-121 | Server startup facilitator token absent | Exit 2; stderr contains `error: Setup required: X402Z_FACILITATOR_TOKEN not configured.`; no listener. | PENDING |  |  |
+| B-122 | Server startup zero/invalid price | Exit 2; stderr: `error: X402Z_PRICE_ZAT must be a positive integer (zatoshi)`. | PENDING |  |  |
+| B-123 | Server startup malformed trusted proxy | Exit 2; stderr contains `error: X402Z_TRUSTED_PROXIES must be a comma-separated list of IP addresses`. | PENDING |  |  |
+| B-124 | Server startup malformed confirmations | Exit 2; stderr: `error: X402Z_MIN_CONFIRMATIONS must be a non-negative integer`. | PENDING |  |  |
+| B-125 | Server startup mempool-only opt-in | With `X402Z_MIN_CONFIRMATIONS=0`, stderr: `warning: X402Z_MIN_CONFIRMATIONS=0: mempool-only (unmined) payments will unlock content`; valid in-time 0-confirmation receipt returns HTTP 200. | PENDING |  |  |
+| B-126 | Server startup malformed seconds | Invalid expiry grace, redeem window, resend window, tab epoch/grace seconds exits 2; stderr `error: <variable> must be a non-negative integer (seconds)`. | PENDING |  |  |
+| B-127 | Server startup malformed rate | Exit 2; stderr: `error: X402Z_CHALLENGE_RATE_PER_MIN must be a non-negative integer (0 disables the limit)`. | PENDING |  |  |
+| B-128 | Server startup database unavailable | Exit 2; stderr contains `cannot open X402Z_SERVER_DB`; no listener. | PENDING |  |  |
+| B-129 | Server startup bind failure | Exit 1; stderr starts `error: cannot bind <address>:`. | PENDING |  |  |
+| B-130 | Tab issue valid n | `POST /tab/issue` returns HTTP 200 with offered `keyId` and `blindSignatures.length == n`; all n signatures unblind/verify; one durable `tab_issued` row and one nonce burn. | PENDING |  |  |
+| B-131 | Tab token valid spend | HTTP 200; JSON `settlement.tab: true`, `settlement.token: <SHA-256(randomizer &#124;&#124; msg)>`; decoded `X-PAYMENT-RESPONSE.success: true`, `transaction` starts `tab:`, `payer: ""`; exactly one spent-token insert. | PENDING |  |  |
+| B-132 | Tab issue underpaid n | 100000 zat for n=2 returns HTTP 422; JSON `status: "rejected"`, `reason: "invalid_payment"`; message contains `underpaid for 2 tokens`; zero burns; retry n=1 returns HTTP 200. | PENDING |  |  |
+| B-133 | Tab issue zero messages | HTTP 400; JSON `reason: "invalid_payload"`, `message: "blinded must hold 1 to 20 messages"` at defaults; no burn. | PENDING |  |  |
+| B-134 | Tab issue above maxTokens | At defaults n=21 returns HTTP 400; JSON `reason: "invalid_payload"`, `message: "blinded must hold 1 to 20 messages"`; zero facilitator calls/burns. | PENDING |  |  |
+| B-135 | Tab issue malformed/empty body | HTTP 400; JSON `status: "rejected"`, `reason: "invalid_payload"`; message starts `body must be {memoNonce, txid, keyId, blinded}:`. | PENDING |  |  |
+| B-136 | Tab issue malformed blinded base64 | HTTP 400; JSON `reason: "invalid_payload"`, `message: "blinded[0] is not base64"`; no burn. | PENDING |  |  |
+| B-137 | Tab issue wrong blinded length | HTTP 400; JSON `reason: "invalid_payload"`; message names `expected 256 for key`; no burn. | PENDING |  |  |
+| B-138 | Tab issue invalid nonce/txid | HTTP 400; JSON `reason: "invalid_payload"`; message names nonce length/charset or `txid must be 64 hex characters`; zero facilitator calls/burns. | PENDING |  |  |
+| B-139 | Tab issue disabled | `X402Z_TAB_MAX_TOKENS=0` yields HTTP 404; JSON `status: "rejected"`, `reason: "invalid_scheme"`, `message: "this server does not offer a tab"`. | PENDING |  |  |
+| B-140 | Tab issue payment pending | HTTP 202; JSON `status: "pending"`, `reason: "settlement_pending"`; zero signatures/burns. | PENDING |  |  |
+| B-141 | Tab issue facilitator down | HTTP 502; JSON `status: "rejected"`, `reason: "facilitator_error"`; no burn. | PENDING |  |  |
+| B-142 | Tab issue repeated purchase nonce | HTTP 422; JSON `reason: "nonce_already_used"`; zero new blind signatures. | PENDING |  |  |
+| B-143 | Tab issue nonce paid single request | HTTP 422; JSON `reason: "nonce_already_used"`; zero tab issuance. | PENDING |  |  |
+| B-144 | Tab issue unknown nonce | HTTP 422; JSON `reason: "unknown_challenge"`; zero facilitator calls/burns. | PENDING |  |  |
+| B-145 | Tab issue rate exhausted | HTTP 429; positive `Retry-After` equals JSON `retryAfterSecs`; zero facilitator calls/burns. | PENDING |  |  |
+| B-146 | Tab issue key rotation | Outside old-key grace, HTTP 409; JSON `reason: "tab_key_rotated"`, `activeKeyId: <current key>`; zero burns; re-blind against active key and same pair yields HTTP 200. | PENDING |  |  |
+| B-147 | Tab issue previous key inside grace | Before previous key's min(epoch end, retirement) plus grace, HTTP 200 with previous `keyId` and n signatures. | PENDING |  |  |
+| B-148 | Tab token previous key inside grace | HTTP 200 with decoded `X-PAYMENT-RESPONSE.success: true`; token burns once. | PENDING |  |  |
+| B-149 | Tab token previous key after grace | HTTP 402; decoded `X-PAYMENT-RESPONSE.errorReason: "payment_expired"`; JSON `error` contains `another epoch`; no token burn. | PENDING |  |  |
+| B-150 | Tab issue previous key after grace | HTTP 409; JSON `reason: "tab_key_rotated"`; no nonce burn. | PENDING |  |  |
+| B-151 | Tab token double spend | Second presentation returns HTTP 402; JSON `error: "tab token already spent"`; decoded `X-PAYMENT-RESPONSE.errorReason: "nonce_already_used"`. | PENDING |  |  |
+| B-152 | Tab token forged signature | HTTP 402; JSON `error: "tab token signature invalid"`; decoded `X-PAYMENT-RESPONSE.errorReason: "invalid_payment"`; original valid token remains usable. | PENDING |  |  |
+| B-153 | Tab token moved signature | Signature copied to another message returns HTTP 402 with JSON `error: "tab token signature invalid"`; no spent-token insert. | PENDING |  |  |
+| B-154 | Tab token changed randomizer | HTTP 402; JSON `error: "tab token signature invalid"`; no spent-token insert. | PENDING |  |  |
+| B-155 | Tab token self-signed foreign key | HTTP 402; JSON `error: "tab token signature invalid"`; no spent-token insert. | PENDING |  |  |
+| B-156 | Tab token relabelled keyId | Old token relabelled to active key returns HTTP 402; JSON `error: "tab token signature invalid"`. | PENDING |  |  |
+| B-157 | Tab token malformed | HTTP 402; decoded `X-PAYMENT-RESPONSE.errorReason: "invalid_payment"`; JSON error starts `tab token malformed:` for bad msg/sig base64 or randomizer other than 32 bytes. | PENDING |  |  |
+| B-158 | Tab token when tab disabled | HTTP 402; decoded `X-PAYMENT-RESPONSE.errorReason: "invalid_scheme"`; JSON `error: "this server does not offer a tab"`. | PENDING |  |  |
+| B-159 | Tab restart key/spent-set | Restart retains active `keyId`; unspent token returns HTTP 200; spent token returns HTTP 402 with `error: "tab token already spent"`. | PENDING |  |  |
+| B-160 | Tab issue lost HTTP 200 | Documented limitation: if signatures' answer is lost after burn, retry returns HTTP 422 with `reason: "nonce_already_used"`; zero replacement signatures. | PENDING |  |  |
+| B-161 | Tab issue signing failure after burn | HTTP 500; JSON `status: "rejected"`, `reason: "facilitator_error"`; message starts `blind signing failed:`; nonce remains burned before signing. | PENDING |  |  |
+| B-162 | Tab issue atomic storage failure | HTTP 503; JSON `reason: "facilitator_error"`; failed `spend_for_tab` leaves no partially committed tab issuance. | PENDING |  |  |
+| B-163 | Facilitator POST /verify missing Authorization | HTTP 401; `WWW-Authenticate: Bearer`; JSON `error: "facilitator requires Authorization: Bearer <X402Z_FACILITATOR_TOKEN>"`; zero chain lookups/bindings. | PENDING |  |  |
+| B-164 | Facilitator POST /verify wrong Bearer token | HTTP 401; `WWW-Authenticate: Bearer`; JSON `error: "facilitator requires Authorization: Bearer <X402Z_FACILITATOR_TOKEN>"`; zero chain lookups/bindings. | PENDING |  |  |
+| B-165 | Facilitator POST /verify non-Bearer Basic token | HTTP 401; `WWW-Authenticate: Bearer`; JSON `error: "facilitator requires Authorization: Bearer <X402Z_FACILITATOR_TOKEN>"`; zero chain lookups/bindings. | PENDING |  |  |
+| B-166 | Facilitator POST /verify bare token | HTTP 401; `WWW-Authenticate: Bearer`; JSON `error: "facilitator requires Authorization: Bearer <X402Z_FACILITATOR_TOKEN>"`; zero chain lookups/bindings. | PENDING |  |  |
+| B-167 | Facilitator POST /verify valid auth, empty object | Correct `Authorization: Bearer <configured token>` passes auth and returns HTTP 400 for `{}`; zero chain lookups. | PENDING |  |  |
+| B-168 | Facilitator POST /verify wrong x402Version | HTTP 400; JSON `isValid: false`, `invalidReason: "invalid_x402_version"`, `payer: ""`; error names `x402Version 2 not supported`; no new receipt binding. | PENDING |  |  |
+| B-169 | Facilitator POST /verify wrong payload network | HTTP 400; JSON `isValid: false`, `invalidReason: "invalid_network"`, `payer: ""`; error names rejected paymentPayload network; no new receipt binding. | PENDING |  |  |
+| B-170 | Facilitator POST /verify wrong payload scheme | HTTP 400; JSON `isValid: false`, `invalidReason: "invalid_scheme"`, `payer: ""`; error names rejected paymentPayload scheme; no new receipt binding. | PENDING |  |  |
+| B-171 | Facilitator POST /verify nonce mismatch | HTTP 400; JSON `isValid: false`, `invalidReason: "invalid_payload"`, `payer: ""`; `error: "paymentPayload.memoNonce does not match paymentRequirements.extra.memoNonce"`; no new receipt binding. | PENDING |  |  |
+| B-172 | Facilitator POST /verify bad txid | HTTP 400; JSON `isValid: false`, `invalidReason: "invalid_payload"`, `payer: ""`; `error: "txid must be 64 hex chars"`; no new receipt binding. | PENDING |  |  |
+| B-173 | Facilitator POST /verify invalid challenge shape | HTTP 400; JSON `isValid: false`, `invalidReason: "invalid_payload"`, `payer: ""`; error starts `invalid challenge:`; no new receipt binding. | PENDING |  |  |
+| B-174 | Facilitator POST /verify underpaid by one zat | HTTP 422; JSON `isValid: false`, `invalidReason: "invalid_payment"`, `payer: ""`; `error: "underpaid: 99999 zat < 100000 zat"`; no new receipt binding. | PENDING |  |  |
+| B-175 | Facilitator POST /verify other nonce | HTTP 422; JSON `isValid: false`, `invalidReason: "invalid_payment"`, `payer: ""`; `error: "no output in this transaction decrypts to the merchant viewing key with this memo nonce"`; no new receipt binding. | PENDING |  |  |
+| B-176 | Facilitator POST /verify other merchant key | HTTP 422; JSON `isValid: false`, `invalidReason: "invalid_payment"`, `payer: ""`; `error: "no output in this transaction decrypts to the merchant viewing key with this memo nonce"`; no new receipt binding. | PENDING |  |  |
+| B-177 | Facilitator POST /verify other merchant payTo pin | HTTP 422; JSON `isValid: false`, `invalidReason: "invalid_payment"`, `payer: ""`; `error: "payTo is not this merchant's address"`; no new receipt binding. | PENDING |  |  |
+| B-178 | Facilitator POST /verify sibling diversified recipient | HTTP 422; JSON `isValid: false`, `invalidReason: "invalid_payment"`, `payer: ""`; `error: "memo matches but the note was sent to a different address than payTo"`; no new receipt binding. | PENDING |  |  |
+| B-179 | Facilitator POST /verify transparent receiver in payTo | HTTP 422; JSON `isValid: false`, `invalidReason: "invalid_payment"`, `payer: ""`; `error: "payTo is not a shielded-only testnet unified address (needs a Sapling or Orchard receiver and no transparent receiver)"`; no new receipt binding. | PENDING |  |  |
+| B-180 | Facilitator POST /verify transparent-only output | HTTP 422; JSON `isValid: false`, `invalidReason: "invalid_payment"`, `payer: ""`; error names no matching decrypted output; zero transparent value credited; no new receipt binding. | PENDING |  |  |
+| B-181 | Facilitator POST /verify transparent top-up | HTTP 422; JSON `isValid: false`, `invalidReason: "invalid_payment"`, `payer: ""`; `error: "underpaid: 99999 zat < 100000 zat"`; zero transparent value credited; no new receipt binding. | PENDING |  |  |
+| B-182 | Facilitator POST /verify requirement bound to other txid | HTTP 422; JSON `isValid: false`, `invalidReason: "nonce_already_used"`, `payer: ""`; error starts `memo nonce already receipted for tx`; original binding unchanged; no new receipt binding. | PENDING |  |  |
+| B-183 | Facilitator POST /verify mined after grace | HTTP 422; JSON `isValid: false`, `invalidReason: "payment_expired"`, `payer: ""`; error names mined time and expiry plus grace; no new receipt binding. | PENDING |  |  |
+| B-184 | Facilitator POST /verify garbage transaction bytes | HTTP 422; JSON `isValid: false`, `invalidReason: "invalid_payment"`, `payer: ""`; error starts `transaction did not parse:`; no new receipt binding. | PENDING |  |  |
+| B-185 | Facilitator POST /verify returned txid mismatch | HTTP 422; JSON `isValid: false`, `invalidReason: "invalid_payment"`, `payer: ""`; error names returned txid and requested txid; no new receipt binding. | PENDING |  |  |
+| B-186 | Facilitator POST /verify lightwalletd failure | HTTP 502; JSON `isValid: false`, `invalidReason: "facilitator_error"`, `payer: ""`; error names lightwalletd RPC failure and URL; no new receipt binding. | PENDING |  |  |
+| B-187 | Facilitator POST /verify block-time RPC failure | HTTP 502; JSON `isValid: false`, `invalidReason: "facilitator_error"`, `payer: ""`; error starts `block <height> time:`; no new receipt binding. | PENDING |  |  |
+| B-188 | Facilitator POST /verify binding read failure | HTTP 503; JSON `isValid: false`, `invalidReason: "facilitator_error"`, `payer: ""`; error starts `facilitator database error:`; no new receipt binding. | PENDING |  |  |
+| B-189 | Facilitator POST /verify unknown txid | HTTP 404; JSON `isValid: false`, `invalidReason: "payment_not_found"`, `payer: ""`; `status: "not_found"`; no receipt/binding. | PENDING |  |  |
+| B-190 | Facilitator POST /verify below confirmations | HTTP 202; JSON `isValid: false`, `invalidReason: "settlement_pending"`, `payer: ""`; `status: "pending"`; no receipt/binding; /settle also exposes `confirmations` and `minConfirmations`. | PENDING |  |  |
+| B-191 | Facilitator POST /verify orphaned tx | HTTP 202; JSON `isValid: false`, `invalidReason: "settlement_pending"`, `payer: ""`; `status: "pending"`; error contains `only mined on a fork; wait`; no receipt/binding. | PENDING |  |  |
+| B-192 | Facilitator POST /settle missing Authorization | HTTP 401; `WWW-Authenticate: Bearer`; JSON `error: "facilitator requires Authorization: Bearer <X402Z_FACILITATOR_TOKEN>"`; zero chain lookups/bindings. | PENDING |  |  |
+| B-193 | Facilitator POST /settle wrong Bearer token | HTTP 401; `WWW-Authenticate: Bearer`; JSON `error: "facilitator requires Authorization: Bearer <X402Z_FACILITATOR_TOKEN>"`; zero chain lookups/bindings. | PENDING |  |  |
+| B-194 | Facilitator POST /settle non-Bearer Basic token | HTTP 401; `WWW-Authenticate: Bearer`; JSON `error: "facilitator requires Authorization: Bearer <X402Z_FACILITATOR_TOKEN>"`; zero chain lookups/bindings. | PENDING |  |  |
+| B-195 | Facilitator POST /settle bare token | HTTP 401; `WWW-Authenticate: Bearer`; JSON `error: "facilitator requires Authorization: Bearer <X402Z_FACILITATOR_TOKEN>"`; zero chain lookups/bindings. | PENDING |  |  |
+| B-196 | Facilitator POST /settle valid auth, empty object | Correct `Authorization: Bearer <configured token>` passes auth and returns HTTP 400 for `{}`; zero chain lookups. | PENDING |  |  |
+| B-197 | Facilitator POST /settle wrong x402Version | HTTP 400; JSON `success: false`, `errorReason: "invalid_x402_version"`, `payer: ""`; error names `x402Version 2 not supported`; no new receipt binding. | PENDING |  |  |
+| B-198 | Facilitator POST /settle wrong payload network | HTTP 400; JSON `success: false`, `errorReason: "invalid_network"`, `payer: ""`; error names rejected paymentPayload network; no new receipt binding. | PENDING |  |  |
+| B-199 | Facilitator POST /settle wrong payload scheme | HTTP 400; JSON `success: false`, `errorReason: "invalid_scheme"`, `payer: ""`; error names rejected paymentPayload scheme; no new receipt binding. | PENDING |  |  |
+| B-200 | Facilitator POST /settle nonce mismatch | HTTP 400; JSON `success: false`, `errorReason: "invalid_payload"`, `payer: ""`; `error: "paymentPayload.memoNonce does not match paymentRequirements.extra.memoNonce"`; no new receipt binding. | PENDING |  |  |
+| B-201 | Facilitator POST /settle bad txid | HTTP 400; JSON `success: false`, `errorReason: "invalid_payload"`, `payer: ""`; `error: "txid must be 64 hex chars"`; no new receipt binding. | PENDING |  |  |
+| B-202 | Facilitator POST /settle invalid challenge shape | HTTP 400; JSON `success: false`, `errorReason: "invalid_payload"`, `payer: ""`; error starts `invalid challenge:`; no new receipt binding. | PENDING |  |  |
+| B-203 | Facilitator POST /settle underpaid by one zat | HTTP 422; JSON `success: false`, `errorReason: "invalid_payment"`, `payer: ""`; `error: "underpaid: 99999 zat < 100000 zat"`; no new receipt binding. | PENDING |  |  |
+| B-204 | Facilitator POST /settle other nonce | HTTP 422; JSON `success: false`, `errorReason: "invalid_payment"`, `payer: ""`; `error: "no output in this transaction decrypts to the merchant viewing key with this memo nonce"`; no new receipt binding. | PENDING |  |  |
+| B-205 | Facilitator POST /settle other merchant key | HTTP 422; JSON `success: false`, `errorReason: "invalid_payment"`, `payer: ""`; `error: "no output in this transaction decrypts to the merchant viewing key with this memo nonce"`; no new receipt binding. | PENDING |  |  |
+| B-206 | Facilitator POST /settle other merchant payTo pin | HTTP 422; JSON `success: false`, `errorReason: "invalid_payment"`, `payer: ""`; `error: "payTo is not this merchant's address"`; no new receipt binding. | PENDING |  |  |
+| B-207 | Facilitator POST /settle sibling diversified recipient | HTTP 422; JSON `success: false`, `errorReason: "invalid_payment"`, `payer: ""`; `error: "memo matches but the note was sent to a different address than payTo"`; no new receipt binding. | PENDING |  |  |
+| B-208 | Facilitator POST /settle transparent receiver in payTo | HTTP 422; JSON `success: false`, `errorReason: "invalid_payment"`, `payer: ""`; `error: "payTo is not a shielded-only testnet unified address (needs a Sapling or Orchard receiver and no transparent receiver)"`; no new receipt binding. | PENDING |  |  |
+| B-209 | Facilitator POST /settle transparent-only output | HTTP 422; JSON `success: false`, `errorReason: "invalid_payment"`, `payer: ""`; error names no matching decrypted output; zero transparent value credited; no new receipt binding. | PENDING |  |  |
+| B-210 | Facilitator POST /settle transparent top-up | HTTP 422; JSON `success: false`, `errorReason: "invalid_payment"`, `payer: ""`; `error: "underpaid: 99999 zat < 100000 zat"`; zero transparent value credited; no new receipt binding. | PENDING |  |  |
+| B-211 | Facilitator POST /settle requirement bound to other txid | HTTP 422; JSON `success: false`, `errorReason: "nonce_already_used"`, `payer: ""`; error starts `memo nonce already receipted for tx`; original binding unchanged; no new receipt binding. | PENDING |  |  |
+| B-212 | Facilitator POST /settle mined after grace | HTTP 422; JSON `success: false`, `errorReason: "payment_expired"`, `payer: ""`; error names mined time and expiry plus grace; no new receipt binding. | PENDING |  |  |
+| B-213 | Facilitator POST /settle garbage transaction bytes | HTTP 422; JSON `success: false`, `errorReason: "invalid_payment"`, `payer: ""`; error starts `transaction did not parse:`; no new receipt binding. | PENDING |  |  |
+| B-214 | Facilitator POST /settle returned txid mismatch | HTTP 422; JSON `success: false`, `errorReason: "invalid_payment"`, `payer: ""`; error names returned txid and requested txid; no new receipt binding. | PENDING |  |  |
+| B-215 | Facilitator POST /settle lightwalletd failure | HTTP 502; JSON `success: false`, `errorReason: "facilitator_error"`, `payer: ""`; error names lightwalletd RPC failure and URL; no new receipt binding. | PENDING |  |  |
+| B-216 | Facilitator POST /settle block-time RPC failure | HTTP 502; JSON `success: false`, `errorReason: "facilitator_error"`, `payer: ""`; error starts `block <height> time:`; no new receipt binding. | PENDING |  |  |
+| B-217 | Facilitator POST /settle binding read failure | HTTP 503; JSON `success: false`, `errorReason: "facilitator_error"`, `payer: ""`; error starts `facilitator database error:`; no new receipt binding. | PENDING |  |  |
+| B-218 | Facilitator POST /settle unknown txid | HTTP 404; JSON `success: false`, `errorReason: "payment_not_found"`, `payer: ""`; `status: "not_found"`; no receipt/binding. | PENDING |  |  |
+| B-219 | Facilitator POST /settle below confirmations | HTTP 202; JSON `success: false`, `errorReason: "settlement_pending"`, `payer: ""`; `status: "pending"`; no receipt/binding; /settle also exposes `confirmations` and `minConfirmations`. | PENDING |  |  |
+| B-220 | Facilitator POST /settle orphaned tx | HTTP 202; JSON `success: false`, `errorReason: "settlement_pending"`, `payer: ""`; `status: "pending"`; error contains `only mined on a fork; wait`; no receipt/binding. | PENDING |  |  |
+| B-221 | Facilitator verify valid read-only | HTTP 200; JSON `isValid: true`, `status: "confirmed"`, `payer: ""`; `invalidReason` absent; no receipt returned and zero new bindings. | PENDING |  |  |
+| B-222 | Facilitator settle confirmed | HTTP 200; JSON `success: true`, `status: "confirmed"`, `transaction: <txid>`, `network: "zcash-testnet"`, `payer: ""`, signed `receipt`, `claims.minedAt: <block header time>`; requirement binds once. | PENDING |  |  |
+| B-223 | Facilitator settle identical retry | HTTP 200; JSON `success: true`, `transaction: <same txid>`; same durable binding, no second binding. | PENDING |  |  |
+| B-224 | Facilitator legacy verify body | Authenticated `POST /verify {challenge,txid}` returns HTTP 200 with `status: "confirmed"`, signed `receipt`, `claims`; writes binding unlike x402 read-only verify. | PENDING |  |  |
+| B-225 | Facilitator legacy verify bad body | Authenticated invalid JSON or `{}` returns HTTP 400; JSON `status: "rejected"`, error starts `bad request body:`; no chain calls. | PENDING |  |  |
+| B-226 | Facilitator settle malformed JSON | HTTP 400; JSON `success: false`, `errorReason: "invalid_payload"`, `status: "rejected"`; error starts `bad request body:`. | PENDING |  |  |
+| B-227 | Facilitator binding dust | After `(nonce,payTo,1)` binds `dust`, lookup `(nonce,payTo,100000)` returns `None`; 100000 binds `real`; second full-amount txid resolves existing `real`, not `dust`. | PENDING |  |  |
+| B-228 | Facilitator binding payTo separation | Same nonce/amount at another payTo returns a separate requirement's own txid; original binding unchanged. | PENDING |  |  |
+| B-229 | Facilitator binding restart | Reopen preserves `(nonce,payTo,amount)->txid`; second txid yields HTTP 422 `nonce_already_used` on both posts. | PENDING |  |  |
+| B-230 | Facilitator binding legacy migration | Old nonce-only `issued` row returns original txid and blocks a second txid after migration. | PENDING |  |  |
+| B-231 | Facilitator real-crypto Sapling (in-process only) | `Payment.amount_zat: 100005`, pools `[Sapling]` for the existing overpayment fixture; UIVK and UFVK-reduced results agree; zero broadcasts. | PENDING |  |  |
+| B-232 | Facilitator real-crypto Ironwood (in-process only) | `Payment.amount_zat: 100000`, pools `[Ironwood]`; UIVK and UFVK-reduced results agree; zero broadcasts. | PENDING |  |  |
+| B-233 | Facilitator split pools (in-process only) | 60000 Ironwood plus 40000 Sapling zat for same recipient/nonce returns `Payment.amount_zat: 100000` with two pools; zero broadcasts. | PENDING |  |  |
+| B-234 | Facilitator own change/outgoing | UIVK returns zero incoming outputs for two change/two outgoing notes despite matching memo; `verify_payment` returns `Err(VerifyError::NoMatchingOutput)`. | PENDING |  |  |
+| B-235 | Facilitator non-text memo | `memo_text` returns `None`; no value credited; `NoMatchingOutput` when no other matching note exists. | PENDING |  |  |
+| B-236 | Facilitator confirmations/sentinels | `confirmations(None,100)=0`, `(100,100)=1`, `(90,100)=11`, `(101,100)=1`; raw height 0 means Mempool, `u64::MAX` means Orphaned. | PENDING |  |  |
+| B-237 | Facilitator receipt wire | `base64url(claims).base64url(signature)` exposes camelCase `memoNonce`, `amountZat`, `payTo`, `txid`, `confirmations`, `issuedAt`, `minedAt`; signature decodes to 64 bytes and validates only under configured ed25519 key. | PENDING |  |  |
+| B-238 | Facilitator GET /supported | HTTP 200 with exact JSON `{kinds:[{x402Version:1,scheme:"zcash-shielded",network:"zcash-testnet"}]}`; no Authorization needed. | PENDING |  |  |
+| B-239 | Facilitator health success | Unauthenticated `GET /health` returns HTTP 200; JSON `ok: true`, `network: "testnet"`, `lightwalletd: <URL>`, integer `chainTip`, default `minConfirmations: 1`, `viewingKey: "uivk"`, hex `receiptPubkey`; live chain-tip probe. | PENDING |  |  |
+| B-240 | Facilitator health failure | HTTP 503; JSON `ok: false`, `lightwalletd: <URL>`, `error: <probe failure>`. | PENDING |  |  |
+| B-241 | Facilitator health cache burst | 200 concurrent requests make exactly one lightwalletd probe; all reuse its HTTP 200/503 result while cache is younger than 5 seconds. | PENDING |  |  |
+| B-242 | Facilitator health failure cache | After failed probe, all requests before age 5 seconds retain HTTP 503 and `ok: false`; zero second probes/optimistic successes. | PENDING |  |  |
+| B-243 | Facilitator health refresh | At cache age at least 5 seconds, next request probes once; HTTP 503 on failure or HTTP 200 and `ok: true` on recovery. | PENDING |  |  |
+| B-244 | Facilitator serve/default (static) | No command and `serve` enter same startup; valid config defines stderr `x402z-facilitator listening on http://127.0.0.1:4021 (min confirmations 1)`. | PENDING |  |  |
+| B-245 | Facilitator keygen (static only; never execute) | Dispatch defines exit 0 and stdout fields `X402Z_RECEIPT_SIGNING_KEY`, `X402Z_RECEIPT_PUBKEY`, each 64 hex characters; no key values collected/generated by audit. | PENDING |  |  |
+| B-246 | Facilitator derive-uivk (static only) | Valid demo UFVK defines exit 0 with stdout `X402Z_MERCHANT_UIVK=uivktest1...`; missing UFVK exits 2 with `X402Z_MERCHANT_UFVK not configured`. | PENDING |  |  |
+| B-247 | Facilitator unknown command | Exit 2; stderr `error: unknown command '<command>' (usage: x402z-facilitator [serve&#124;keygen&#124;derive-uivk])`. | PENDING |  |  |
+| B-248 | Facilitator no merchant viewing key | Both viewing-key variables absent gives exit 2; stderr `error: X402Z_MERCHANT_UIVK not configured (see .env.example)`. | PENDING |  |  |
+| B-249 | Facilitator both viewing keys | Exit 2; stderr `error: set only one of X402Z_MERCHANT_UIVK and X402Z_MERCHANT_UFVK (the UIVK is enough)`. | PENDING |  |  |
+| B-250 | Facilitator malformed UIVK | Exit 2; stderr contains `X402Z_MERCHANT_UIVK is not a testnet unified incoming viewing key (uivktest1...)`. | PENDING |  |  |
+| B-251 | Facilitator UFVK compatibility | Stderr warns `The facilitator only needs incoming payments`; only incoming part retained; HTTP 200 health `viewingKey: "ufvk (incoming part only; prefer X402Z_MERCHANT_UIVK)"`. | PENDING |  |  |
+| B-252 | Facilitator token absent | With prerequisites present, exit 2; stderr contains `error: Setup required: X402Z_FACILITATOR_TOKEN not configured.`. | PENDING |  |  |
+| B-253 | Facilitator token too short | Fewer than 32 characters gives exit 2; stderr contains `error: X402Z_FACILITATOR_TOKEN must be at least 32 characters`. | PENDING |  |  |
+| B-254 | Facilitator signing key absent/invalid | Exit 2; stderr contains `error: X402Z_RECEIPT_SIGNING_KEY not configured` or `error: X402Z_RECEIPT_SIGNING_KEY invalid:`. | PENDING |  |  |
+| B-255 | Facilitator default lightwalletd | Unset `ZCASH_LWD_URL` defines stderr `ZCASH_LWD_URL not set; using https://testnet.zec.rocks:443`; TLS uses webpki roots. | PENDING |  |  |
+| B-256 | Facilitator lightwalletd unreachable | Exit 1; stderr starts `error: cannot connect to lightwalletd:`; no listener success. | PENDING |  |  |
+| B-257 | Facilitator wrong chain | Exit 1; stderr names reported chain and `expected testnet ('test')`. | PENDING |  |  |
+| B-258 | Facilitator malformed numeric settings | Invalid min-confirmations exits 2 with `X402Z_MIN_CONFIRMATIONS must be a non-negative integer`; invalid grace exits 2 with `X402Z_EXPIRY_GRACE_SECS must be a non-negative integer (seconds)`. | PENDING |  |  |
+| B-259 | Facilitator database unavailable | Exit 2; stderr contains `cannot open X402Z_FACILITATOR_DB`; no listener. | PENDING |  |  |
+| B-260 | Agent pay/default paid (static/fixture only) | No command and `pay` select same flow; paid result exits 0, stdout is paid JSON, stderr `X-PAYMENT-RESPONSE: success=true transaction=<txid>`; zero audit-initiated testnet broadcasts. | PENDING |  |  |
+| B-261 | Agent unknown command | Exit 2; stderr contains `unknown command '<command>'`; usage lists `pay`, `new-wallet`, `address`, `balance`, `tab-buy`, `tab-redeem`, `tab-fetch`, `tab-status`, `seal-ledger`. | PENDING |  |  |
+| B-262 | Agent new-wallet (static only; never execute) | Static dispatch selects wallet creation; success defines exit 0 with birthday/address/UIVK output fields; existing account exits 2 with `already holds a wallet; refusing to overwrite it`; audit creates/reads zero wallets or seeds. | PENDING |  |  |
+| B-263 | Agent address (static only) | Existing fixture account defines exit 0, stdout `address=utest1...`, `uivk=uivktest1...`; no account exits 4 with `no wallet account yet`. | PENDING |  |  |
+| B-264 | Agent balance (static only) | Successful fixture sync defines exit 0, stdout `address=` and `spendable=<n> zat total=<n> zat pending=<n> zat (scanned to <height> / tip <height>)`; no broadcast. | PENDING |  |  |
+| B-265 | Agent missing target | `pay` without `X402Z_TARGET_URL` exits 2; stderr contains `error: X402Z_TARGET_URL not configured`. | PENDING |  |  |
+| B-266 | Agent missing wallet directory | Exit 2; stderr contains `error: X402Z_AGENT_WALLET_DIR not configured`. | PENDING |  |  |
+| B-267 | Agent missing ledger path | Paying exits 2; stderr contains `X402Z_AGENT_LEDGER not configured: spendguard needs it to enforce the daily cap. Not paying.`. | PENDING |  |  |
+| B-268 | Agent missing ledger key | Other prerequisites present but no key/derivation source exits 2; stderr contains `Setup required: X402Z_AGENT_LEDGER_KEY not configured`; zero wallet work/broadcasts. | PENDING |  |  |
+| B-269 | Agent malformed ledger key | Exit 2; stderr contains `X402Z_AGENT_LEDGER_KEY must be 64 hex characters`; zero ledger reset. | PENDING |  |  |
+| B-270 | Agent malformed numeric config | Invalid cap, approval, birthday or confirmation timeout exits 2; stderr contains `<variable> must be a non-negative integer`. | PENDING |  |  |
+| B-271 | Agent cap refusal | Cap 50000 against 100000 price exits 3; stderr contains `daily cap exceeded` and `No transaction was built or broadcast.`; ledger `decision: "denied"`, no txid. | PENDING |  |  |
+| B-272 | Agent approval declined | At inclusive threshold with operator refusal/nonterminal, exit 3; stderr contains `approval required` and `No transaction was built or broadcast.`; ledger `decision: "needs_approval"`, no txid. | PENDING |  |  |
+| B-273 | Agent preflight off allowlist | Exit 3 before first request; stderr contains `Nothing was requested` and `no transaction was built or broadcast.`; one denied audit row without memoNonce/txid. | PENDING |  |  |
+| B-274 | Agent preflight wrong port | Exit 3 before first request; entry `127.0.0.1:4020` never authorizes port 9999; zero spends. | PENDING |  |  |
+| B-275 | Agent preflight HTTPS-only mismatch | HTTP URL under HTTPS-only entry exits 3 before request; stderr names allowlist refusal; no txid. | PENDING |  |  |
+| B-276 | Agent preflight public HTTP | Exit 3 before connection; stderr contains `is plain HTTP to a non-loopback host`; zero requests unless explicitly configured `X402Z_AGENT_ALLOW_HTTP=1`. | PENDING |  |  |
+| B-277 | Agent preflight invalid URL/scheme | Exit 2; stderr contains `invalid URL` or `only http and https URLs can be paid`; zero requests. | PENDING |  |  |
+| B-278 | Agent allowlist on resume/redeem | A disallowed host receives zero requests even with an existing txid; paid_fetch/redeem and tab-buy/tab-fetch all run preflight before their first network request; exit 3 on refusal. | PENDING |  |  |
+| B-279 | Agent paid_fetch redirect | Allowlisted host's HTTP 302 to another host causes exit 1 before spendguard; stderr contains `the agent does not follow redirects for paid requests` and `Nothing was paid.`; zero target requests/ledger decisions. | PENDING |  |  |
+| B-280 | Agent tab-buy redirect | Initial offer HTTP 302 causes exit 1 before spendguard; zero target requests/ledger payment entries. | PENDING |  |  |
+| B-281 | Agent oversized Content-Length | Body above 1 MiB exits 1 before body read; stderr contains `over the agent's limit of 1048576 bytes (X402Z_AGENT_MAX_BODY_BYTES); not read`; zero wallet work. | PENDING |  |  |
+| B-282 | Agent oversized chunked body | Exit 1 when next chunk exceeds 1048576 buffered bytes; stderr contains `more than 1048576` and `not read`; full body is not buffered, zero wallet work. | PENDING |  |  |
+| B-283 | Agent initial free response | Initial HTTP 200 exits 0 with unchanged stdout body; no payment or new txid and no payment-response log. | PENDING |  |  |
+| B-284 | Agent initial non-402 error | Initial HTTP 500 exits 1; stderr contains `expected 402`; zero wallet work. | PENDING |  |  |
+| B-285 | Agent malformed challenge | Exit 1; stderr contains `402 body is not an x402 PaymentRequiredResponse`; zero txids. | PENDING |  |  |
+| B-286 | Agent only EVM offer | Exit 1; stderr contains `402 offers no zcash-shielded / zcash-testnet payment option`; zero payments. | PENDING |  |  |
+| B-287 | Agent expired challenge | Exit 1; stderr contains `402 challenge rejected: Expired`; no allowance/broadcast. | PENDING |  |  |
+| B-288 | Agent invalid challenge fields | Exit 1; stderr contains `402 payment option invalid:` or `402 challenge rejected:`; zero wallet transactions. | PENDING |  |  |
+| B-289 | Agent missing funding source (static/fixture only) | Exit 4; stderr starts `X402Z_AGENT_SEED not configured: no funded testnet wallet to pay from`; allowed row has no txid and reason starts `allowed, but not paid:`. | PENDING |  |  |
+| B-290 | Agent insufficient funds (static only) | Spendable 0 for price 100000 exits 4; stderr contains `insufficient testnet balance: spendable 0 zat` and `need at least 110000 zat`; zero build/broadcast. | PENDING |  |  |
+| B-291 | Agent preparation fails (static/fixture only) | Network/sync/build failure exits 1; one audit row reason starts `allowed, but not paid:` without txid; cap unchanged. | PENDING |  |  |
+| B-292 | Agent server rejects payment | Final HTTP 402 `invalid_payment` exits 5; stderr starts `server refused payment tx`; broadcast amount remains charged. | PENDING |  |  |
+| B-293 | Agent already redeemed | HTTP 402 `nonce_already_used` exits 6; stderr contains `Do NOT pay again for it.`; ledger `settled: true`, charged once. | PENDING |  |  |
+| B-294 | Agent lost 200 stays settled | Subsequent already-redeemed refusal exits 6 and preserves `settled: true`; zero duplicate charges/replacement transactions. | PENDING |  |  |
+| B-295 | Agent paid content read fails | After HTTP 200 headers, read failure exits 1; stderr contains `is settled (do not pay again), but its content was not read`; ledger already `settled: true`. | PENDING |  |  |
+| B-296 | Agent temporary settle failures | HTTP 402 `settlement_pending`, HTTP 429/502/503 or transport failure retries same X-PAYMENT every 15 seconds in wait mode; no new transaction. | PENDING |  |  |
+| B-297 | Agent confirmation timeout | Default 900-second deadline exits 1; stderr contains `not settled before timeout` and `does not pay twice`; original unresolved txid remains resumable. | PENDING |  |  |
+| B-298 | Agent resume unresolved URL | Within 86400 seconds, existing unresolved payment is presented before fresh GET; pending fields keep original txid/memoNonce and `resumed: true`; no new payment. | PENDING |  |  |
+| B-299 | Agent same-URL concurrent race | Re-check under ledger lock resumes competitor's txid after initial GET; exactly one charged txid and zero second wallet payments. | PENDING |  |  |
+| B-300 | Agent two concurrent pays one slot | With cap for one payment, exactly one attempt pays and one is refused; one txid-bearing paid audit row, total spent equals one price. | PENDING |  |  |
+| B-301 | Agent record before broadcast (fixture only) | Before send, audit contains txid and exact reason `broadcasting; the outcome was not recorded (the process stopped?), counted against the cap`; simulated crash leaves charge/resume intact. | PENDING |  |  |
+| B-302 | Agent unknown broadcast outcome (fixture only) | Exit 1; stderr contains `unknown outcome` and `counts against today's cap`; original txid retained, charged once, same payment resumable. | PENDING |  |  |
+| B-303 | Agent lost broadcast answer but node saw tx (fixture only) | `record_broadcast` returns original txid; ledger reason contains `paid; the broadcast answer was lost`; one charge. | PENDING |  |  |
+| B-304 | Agent definitive broadcast rejection (fixture only) | Exit 1; stderr contains `Nothing was paid.`; audit no txid, reason starts `allowed, but not paid:`; cap unchanged. | PENDING |  |  |
+| B-305 | Agent broadcast replaces provisional row | Sent/rejected fixture outcomes overwrite provisional row; exactly one audit row per attempt, no duplicate charge. | PENDING |  |  |
+| B-306 | Agent ledger empty | Missing isolated file loads `agents: []`, `audit: []`; spent today 0. | PENDING |  |  |
+| B-307 | Agent ledger restart | Correct-key reopen reconstructs today's spend from txid-bearing rows only; denied/nonbroadcast rows count 0. | PENDING |  |  |
+| B-308 | Agent ledger policy change | Historical amounts remain charged under new allowlist/lower cap; guard cannot erase past spend or authorize disallowed host. | PENDING |  |  |
+| B-309 | Agent ledger invalid sealed JSON | Exit 2; stderr contains `X402Z_AGENT_LEDGER is not valid ledger JSON`; original bytes unchanged, no empty fallback. | PENDING |  |  |
+| B-310 | Agent ledger wrong key/tamper | Exit 2; stderr contains `cannot be opened with this key: wrong key, or the file was changed`; bytes unchanged. | PENDING |  |  |
+| B-311 | Agent ledger legacy plaintext | Exit 2; stderr contains `plaintext JSON from before encryption at rest; run` and `seal-ledger`; no automatic reset/overwrite. | PENDING |  |  |
+| B-312 | Agent settled monotonicity | `mark_settled(txid,false)` leaves existing `settled: true`; `mark_already_redeemed` sets true on own unresolved txid. | PENDING |  |  |
+| B-313 | Agent seal-ledger migration | Isolated plaintext fixtures yield exit 0, stderr `sealed <path>`; both ledger/tab bytes start `KAGE-SEALED1`, reopen to identical JSON. | PENDING |  |  |
+| B-314 | Agent seal-ledger absent/already sealed | Exit 0; stderr `<path>: already sealed or absent; left as is`; sealed bytes unchanged. | PENDING |  |  |
+| B-315 | Agent seal-ledger invalid data | Exit 1; stderr contains `is neither sealed nor JSON`; fixture bytes unchanged. | PENDING |  |  |
+| B-316 | Agent tab-buy external n=3 | Exit 0; stdout `pending.tokens: 3`, `amountZat: 300000`, ZIP-321 `paymentUri` amount 0.003 and same nonce, plus `keyId`, `payTo`, `expiresAt`; no build/broadcast. | PENDING |  |  |
+| B-317 | Agent tab-buy wallet (static only) | Successful settlement defines exit 0; stdout `tab.tokens: n`, `amountZat: n*unitPriceZat`, original `txid`, `memoNonce`, `keyId`, `issueWaitSecs`; one charge. | PENDING |  |  |
+| B-318 | Agent tab-buy bad argument | Exit 2; stderr contains `usage: x402z-agent tab-buy <n> [--external]`. | PENDING |  |  |
+| B-319 | Agent tab-buy n outside limits | Exit 2; stderr contains `a tab holds 1 to 20 tokens on this server; asked for`; zero wallet payments. | PENDING |  |  |
+| B-320 | Agent tab-buy price overflow | Exit 2; stderr contains `tab price overflows`; zero allowances/broadcasts. | PENDING |  |  |
+| B-321 | Agent tab-buy no offer | Exit 1; stderr contains `this server does not offer a Kage Tab (no extra.tab in its 402)`; zero payments. | PENDING |  |  |
+| B-322 | Agent tab-buy same-epoch key switch | External/wallet paths exit 1 before spendguard; stderr contains `still in its epoch` and `Nothing was paid.`; zero ledger payment entries. | PENDING |  |  |
+| B-323 | Agent tab-buy offer expires too soon | Exit 1; stderr contains `not buying a tab that may never be issued`; zero wallet work/payment entries. | PENDING |  |  |
+| B-324 | Agent tab-buy foreign issuePath | Exit 1; stderr contains `another origin`; zero POSTs or payments to foreign issue origin. | PENDING |  |  |
+| B-325 | Agent tab-buy concurrent same origin | Under ledger lock collects paid pending tab at same txid; one purchase charge, no new transaction. | PENDING |  |  |
+| B-326 | Agent tab-redeem success | Fixture HTTP 202 then 200 produces exit 0; n verified tokens stored, original purchase charged once; stdout `tab.tokens: n`. | PENDING |  |  |
+| B-327 | Agent tab-redeem no argument | Exit 2; stderr contains `usage: x402z-agent tab-redeem <txid> [memoNonce]`. | PENDING |  |  |
+| B-328 | Agent tab-redeem bad txid | Exit 2; stderr contains `txid must be 64 hex characters`; zero issue calls. | PENDING |  |  |
+| B-329 | Agent tab-redeem no pending | Exit 2; stderr contains `no pending tab purchase; start one with`; no new payment. | PENDING |  |  |
+| B-330 | Agent tab issue 409 recovery | Fetch acceptable fresh key, re-blind, retry original pair; fixture returns new-key tokens with no second charge; purchase record still names originally purchased key. | PENDING |  |  |
+| B-331 | Agent tab issue moved path after rotation | Exit 1; stderr contains `the rotated tab offer moved its issuePath; not following it`; no moved-target POST. | PENDING |  |  |
+| B-332 | Agent tab issue wrong key/signature count | Exit 1; stderr starts `tab issue returned`; zero tokens stored on key/count mismatch. | PENDING |  |  |
+| B-333 | Agent tab issue invalid signature | Exit 1; stderr contains `blind signature is not base64` or `blind signature does not verify`; zero partially stored token batch. | PENDING |  |  |
+| B-334 | Agent tab issue timeout | Exit 1; stderr contains `not confirmed for the tab before timeout` and `Retry with`; paid pending purchase retained. | PENDING |  |  |
+| B-335 | Agent tab-fetch success | Exit 0; stdout paid content; stderr includes `X-PAYMENT-RESPONSE: success=true` and remaining count; token removed before send, no new shielded payment. | PENDING |  |  |
+| B-336 | Agent tab-fetch empty | Exit 4; stderr contains `no tab tokens for` and `buy some with`; no token request/new payment. | PENDING |  |  |
+| B-337 | Agent tab-fetch wrong origin | Token for A never selected for B; `fetch` returns `Ok(None)`, CLI exits 4 if B empty. | PENDING |  |  |
+| B-338 | Agent tab-fetch expired | At epoch end plus grace, count 0; CLI exit 4; expired token removed on take. | PENDING |  |  |
+| B-339 | Agent tab-fetch refused/replayed | Exit 5; stderr contains `server refused the tab token`; token not restored, no new transaction. | PENDING |  |  |
+| B-340 | Agent tab-fetch connection error | Exit 1; stderr contains `GET <url> with a tab token failed`; token restored to sealed file only for a connection error. | PENDING |  |  |
+| B-341 | Agent tab-fetch uncertain answer loss | Transport error after connection exits 1; token not restored because possibly spent; zero new shielded payments. | PENDING |  |  |
+| B-342 | Agent tab-status empty | Exit 0; stdout JSON `tokens: {}`, `pending: []`, `file: <path>` for isolated empty state. | PENDING |  |  |
+| B-343 | Agent tab-status populated | Exit 0; `tokens` counts unexpired tokens per origin; pending entries contain `memoNonce`, `tokens`, `amountZat`, `expiresAt`. | PENDING |  |  |
+| B-344 | Agent tab sealed reopen | Correct-key reopen retains tokens/pending/pins; bytes start `KAGE-SEALED1`; zero readable token/host fields. | PENDING |  |  |
+| B-345 | Agent tab corrupted/wrong key | Exit 2; stderr names tab file and `wrong key`/malformed file; bytes unchanged, no empty reset. | PENDING |  |  |
+| B-346 | MCP stdio initialize 2025-06-18 | Newline-delimited JSON-RPC 2.0 response keeps request id; `result.protocolVersion: "2025-06-18"`, `serverInfo.name: "x402z-mcp"`, `capabilities.tools.listChanged: false`; stdout contains only JSON-RPC. | PENDING |  |  |
+| B-347 | MCP stdio initialize 2025-03-26 | Newline-delimited JSON-RPC 2.0 response keeps request id; `result.protocolVersion: "2025-03-26"`, `serverInfo.name: "x402z-mcp"`, `capabilities.tools.listChanged: false`; stdout contains only JSON-RPC. | PENDING |  |  |
+| B-348 | MCP stdio initialize 2024-11-05 | Newline-delimited JSON-RPC 2.0 response keeps request id; `result.protocolVersion: "2024-11-05"`, `serverInfo.name: "x402z-mcp"`, `capabilities.tools.listChanged: false`; stdout contains only JSON-RPC. | PENDING |  |  |
+| B-349 | MCP unsupported protocol version | Initialize with unknown version returns JSON-RPC `result.protocolVersion: "2025-06-18"`. | PENDING |  |  |
+| B-350 | MCP initialized notification | `notifications/initialized` without id produces zero response lines; subsequent `ping` returns JSON-RPC `result: {}`. | PENDING |  |  |
+| B-351 | MCP ping | JSON-RPC response `jsonrpc: "2.0"`, matching `id`, `result: {}`. | PENDING |  |  |
+| B-352 | MCP tools/list | Exactly five tool names in order: `paid_fetch`, `redeem_payment`, `tab_fetch`, `spend_status`, `ledger_tail`; each `inputSchema.type: "object"`. | PENDING |  |  |
+| B-353 | MCP unknown method | JSON-RPC `error.code: -32601`, message `method not found: <method>`. | PENDING |  |  |
+| B-354 | MCP unknown tool | JSON-RPC `error.code: -32602`, message `unknown tool '<name>'`. | PENDING |  |  |
+| B-355 | MCP malformed JSON | JSON-RPC `id: null`, `error.code: -32700`, message starts `parse error:`; next valid ping still returns `{}`. | PENDING |  |  |
+| B-356 | MCP empty input line | Blank line emits zero JSON-RPC responses; following valid request answers normally with matching id. | PENDING |  |  |
+| B-357 | MCP missing configuration | Valid tool arguments but missing config returns `result.isError: true`, `structuredContent.error: "setup_required"`; message names missing variable; process remains alive. | PENDING |  |  |
+| B-358 | MCP no ledger key on all five tools | Each tool with valid arguments returns `isError: true`, `structuredContent.error: "setup_required"`, message contains `X402Z_AGENT_LEDGER_KEY`; no wallet work. | PENDING |  |  |
+| B-359 | MCP wrong ledger key | `isError: true`, `structuredContent.error: "setup_required"`; message contains `wrong key`; sealed bytes unchanged. | PENDING |  |  |
+| B-360 | MCP paid_fetch missing url | `isError: true`, `structuredContent.error: "invalid_arguments"`; message states `paid_fetch needs`; zero requests. | PENDING |  |  |
+| B-361 | MCP redeem_payment incomplete pair | Missing url/txid/memoNonce returns `isError: true`, `structuredContent.error: "invalid_arguments"`; no payment presentation. | PENDING |  |  |
+| B-362 | MCP redeem_payment bad txid | `isError: true`, `structuredContent.error: "invalid_arguments"`; message names 64 hex txid requirement; zero requests. | PENDING |  |  |
+| B-363 | MCP tab_fetch bad buy | Zero, negative, fraction or >100 returns `isError: true`, `structuredContent.error: "invalid_arguments"`, `message: "buy must be an integer from 1 to 100"`. | PENDING |  |  |
+| B-364 | MCP tab_fetch invalid default size | Invalid `X402Z_AGENT_TAB_SIZE` returns `isError: true`, `structuredContent.error: "setup_required"`, `message: "X402Z_AGENT_TAB_SIZE must be a positive integer"`. | PENDING |  |  |
+| B-365 | MCP cap refusal | `isError: true`, `structuredContent.error: "spendguard_refused"`; message contains `daily cap exceeded` and `No transaction was built or broadcast.`; ledger decision denied without txid. | PENDING |  |  |
+| B-366 | MCP allowlist refusal | `isError: true`, error `spendguard_refused`; message names allowlist; zero requests; denied ledger row has no memoNonce/txid. | PENDING |  |  |
+| B-367 | MCP approval refusal | `isError: true`, error `spendguard_refused`; message contains `approval required`; ledger decision `needs_approval`, no txid; MCP cannot grant operator approval. | PENDING |  |  |
+| B-368 | MCP paid_fetch pending/resume | Two retries within fixture's 20-second bound return `isError: false`, `structuredContent.status: "settlement_pending"`, same txid/memoNonce, `resumed: true`; zero fresh GETs/new payments. | PENDING |  |  |
+| B-369 | MCP redeem_payment settles same tx | `isError: false`, `structuredContent.status: 200`, `settlement.success: true`, `settlement.transaction: <original txid>`; ledger has exactly one txid-bearing entry, `settled: true`. | PENDING |  |  |
+| B-370 | MCP already redeemed | `isError: true`, `structuredContent.error: "already_redeemed"`; message contains `Do NOT pay again`; own ledger row remains settled and charged once. | PENDING |  |  |
+| B-371 | MCP free fetch | Initial successful free response returns `isError: false`, `structuredContent.status: 200`, `paid: null`, `settlement: null`; body JSON parsed or retained as text. | PENDING |  |  |
+| B-372 | MCP ping during stuck call | While another tool's request is stuck, ping returns matching-id JSON-RPC `result: {}` within 5 seconds in existing fixture; no wait for slow call. | PENDING |  |  |
+| B-373 | MCP tool result shape | Text `content[0].type: "text"`; JSON parsed from `content[0].text` equals `structuredContent`; `isError` is explicit boolean. | PENDING |  |  |
+| B-374 | MCP spend_status empty | `isError: false`; configured cap 50000 yields `spentTodayZat: 0`, `dailyCapZat: 50000`, `remainingZat: 50000`, `network: "zcash-testnet"`, `allowedHosts`, `approvalThresholdZat`, `utcDay`. | PENDING |  |  |
+| B-375 | MCP ledger_tail empty | `isError: false`, `structuredContent.total: 0`, `entries: []`. | PENDING |  |  |
+| B-376 | MCP ledger_tail bounds | Default n=10 and allowed range 1..100 return newest-last tail; n=0/>100/noninteger returns `isError: true`, error `invalid_arguments`, `message: "n must be an integer from 1 to 100"`. | PENDING |  |  |
+| B-377 | MCP ledger_tail refusal history | Cap, host and approval refusals produce `total: 3`, decisions `["denied","denied","needs_approval"]`; all entries omit txid. | PENDING |  |  |
+| B-378 | MCP tab_fetch empty over cap | Default buy=5 at price100000/cap250000 returns `isError: true`, error `spendguard_refused`; message contains `buying a tab of 5 failed`; denied amount 500000, no txid. | PENDING |  |  |
+| B-379 | MCP tab_fetch empty missing wallet | buy=2 within cap returns `isError: true`, error `wallet`; message contains `X402Z_AGENT_SEED not configured`; allowed amount200000 row has no txid. | PENDING |  |  |
+| B-380 | MCP tab_fetch paid pending | `isError: false`, `structuredContent.status: "tab_pending"`, original purchase txid/memoNonce/tokens/keyId; retry collects same paid tab, zero second broadcasts. | PENDING |  |  |
+| B-381 | MCP tab_fetch token success | `isError: false`, `structuredContent.status: 200`, `paidWith: "tab_token"`, `remainingTokens` decremented once, `settlement.success: true`; zero new shielded transactions. | PENDING |  |  |
+| B-382 | TypeScript parse mixed 402 | `parsePaymentRequired` skips EVM exact entry, returns `amountZat: 100000n`, `memoNonce: "x402z-1"`, expected payTo/resource/expiry. | PENDING |  |  |
+| B-383 | TypeScript parse wrong version/body | Throws `X402ZcashError` with `not an x402 v1 PaymentRequiredResponse ({x402Version: 1, accepts: [...]})`. | PENDING |  |  |
+| B-384 | TypeScript parse no Zcash option | Throws `X402ZcashError` with `402 offers no zcash-shielded / zcash-testnet option`. | PENDING |  |  |
+| B-385 | TypeScript parse invalid nonce | Throws `X402ZcashError` with `extra.memoNonce missing or malformed` for absent/empty/space/>64-char nonce. | PENDING |  |  |
+| B-386 | TypeScript parse missing expiry | Throws `X402ZcashError` with `extra.expiresAt missing` for nonnumeric/missing expiry. | PENDING |  |  |
+| B-387 | TypeScript parse invalid amount | Non-digit amount throws `maxAmountRequired '<value>' is not a zatoshi integer`; zero throws `amount is zero`. | PENDING |  |  |
+| B-388 | TypeScript parse invalid payTo | Non-utest1 payTo throws `X402ZcashError` with `payTo is not a testnet unified address`. | PENDING |  |  |
+| B-389 | TypeScript parse expired | At `nowUnix == expiresAt`, throws `X402ZcashError` with `challenge expired at <expiresAt>`. | PENDING |  |  |
+| B-390 | TypeScript ZIP-321 | `zecDecimal(100000n)="0.001"`, `(1n)="0.00000001"`, `(150000000n)="1.5"`; nonce `x402z-1` URI ends `amount=0.001&memo=eDQwMnotMQ`. | PENDING |  |  |
+| B-391 | TypeScript X-PAYMENT encode/decode | Uppercase valid txid encodes lowercase; base64 JSON has `x402Version:1`, scheme/network and payload txid/memoNonce; response decoding preserves `success`, `transaction`, `network`, `payer:""`. | PENDING |  |  |
+| B-392 | TypeScript X-PAYMENT invalid txid | Throws `X402ZcashError` with `txid must be 64 hex characters`; no fetch. | PENDING |  |  |
+| B-393 | TypeScript X-PAYMENT invalid nonce | Throws `X402ZcashError` with `memoNonce must be 1-64 of [A-Za-z0-9_-]`; no fetch. | PENDING |  |  |
+| B-394 | TypeScript receipt trusted | `verifyReceipt` returns signed claims including `amountZat: 100000`; altered claims/foreign signer throws `receipt signature invalid`. | PENDING |  |  |
+| B-395 | TypeScript fetchWithPayment non-GET | Throws `X402ZcashError` with `fetchWithPayment only does GET`; zero HTTP requests. | PENDING |  |  |
+| B-396 | TypeScript fetchWithPayment redirect | HTTP 3xx causes error containing `not following a redirect with X-PAYMENT`; zero redirected target requests. | PENDING |  |  |
+| B-397 | TypeScript paywall missing token | Construction throws `Setup required: facilitatorToken (X402Z_FACILITATOR_TOKEN) not configured`; no middleware starts. | PENDING |  |  |
+| B-398 | TypeScript paywall invalid/missing receipt key | Construction throws `Setup required: receiptPubkeyHex must be 64 hex (X402Z_RECEIPT_PUBKEY)`; no middleware starts. | PENDING |  |  |
+| B-399 | TypeScript paywall invalid merchant | Construction throws `payTo must be a testnet unified address (utest1...)`. | PENDING |  |  |
+| B-400 | TypeScript paywall unpaid | HTTP 402; JSON `x402Version:1`, `error:"X-PAYMENT header is required"`, requirement scheme/network/asset and fresh nonce/expiry/ZIP-321 URI; default TTL900. | PENDING |  |  |
+| B-401 | TypeScript paywall malformed header | HTTP 402; JSON `error:"X-PAYMENT is not base64 JSON"`; decoded `X-PAYMENT-RESPONSE.errorReason:"invalid_payload"`; no burn. | PENDING |  |  |
+| B-402 | TypeScript paywall wrong version/scheme/network | HTTP 402; JSON error names x402Version1/scheme/network; decoded `X-PAYMENT-RESPONSE.errorReason:"invalid_scheme"`; no burn. | PENDING |  |  |
+| B-403 | TypeScript paywall impossible pair | HTTP 400; JSON `error:"txid must be 64 hex and memoNonce 1-64 of [A-Za-z0-9_-]"`; decoded `X-PAYMENT-RESPONSE.errorReason:"invalid_payload"`; no burn. | PENDING |  |  |
+| B-404 | TypeScript paywall unknown nonce | HTTP 402; decoded `X-PAYMENT-RESPONSE.errorReason: "unknown_challenge"`; JSON `error:"memo nonce was never issued here"`; fresh challenge. | PENDING |  |  |
+| B-405 | TypeScript memoryStore empty | New store `size() === 0`, missing get returns `undefined`, `markSpent` unknown nonce returns `false`. | PENDING |  |  |
+| B-406 | TypeScript memoryStore prune | After expiry+1200+86400+1 seconds, adding a challenge to 10000 old entries leaves `size() === 1`; pruned spent nonce get is `undefined`, never reopened. | PENDING |  |  |
+| B-407 | TypeScript memoryStore full | With maxEntries2, first two requests HTTP 402, third HTTP 503; JSON `error:"challenge store full (2 open challenges); try again later"`; size2 and both open challenges retained. | PENDING |  |  |
+| B-408 | TypeScript memoryStore restart | New in-memory store has size0; presenting old nonce yields HTTP 402 `unknown_challenge`; documented lack of durability is explicit, no automatic refund/payment. | PENDING |  |  |
+| B-409 | TypeScript paywall rate budget | First 30 immediate attempts HTTP 402; next request HTTP 429, positive `Retry-After`; store size30, zero extra challenge. | PENDING |  |  |
+| B-410 | TypeScript paywall rate disabled | `ratePerMin:0` creates no limiter HTTP 429; challenge/store errors still returned. | PENDING |  |  |
+| B-411 | TypeScript paywall facilitator timeout | At configured `facilitatorTimeoutMs` (300ms fixture; default90000ms), HTTP 502 with `error` containing `facilitator unreachable`, decoded `X-PAYMENT-RESPONSE.errorReason: "facilitator_error"`; `spentTxid` undefined, no burn. | PENDING |  |  |
+| B-412 | TypeScript paywall wrong facilitator token | HTTP 502; JSON `error:"Setup required: the facilitator refused facilitatorToken (401)"`; decoded `X-PAYMENT-RESPONSE.errorReason: "facilitator_error"`; no burn. | PENDING |  |  |
+| B-413 | TypeScript paywall unreadable facilitator JSON | HTTP 502; error starts `facilitator unreachable at`; no burn. | PENDING |  |  |
+| B-414 | TypeScript paywall pending/not-found | HTTP 402, same challenge nonce/expiry; decoded `X-PAYMENT-RESPONSE.errorReason: "settlement_pending"`; no new challenge/burn. | PENDING |  |  |
+| B-415 | TypeScript paywall rejected | HTTP 402 with fresh challenge; decoded response reason equals facilitator errorReason or `invalid_payment`; no original nonce burn. | PENDING |  |  |
+| B-416 | TypeScript paywall no confirmed receipt | HTTP 502; error starts `facilitator:`; decoded `X-PAYMENT-RESPONSE.errorReason: "facilitator_error"`; no burn. | PENDING |  |  |
+| B-417 | TypeScript paywall foreign/tampered receipt | HTTP 402; JSON `error:"receipt signature invalid"`; decoded `X-PAYMENT-RESPONSE.errorReason: "invalid_payment"`; no burn. | PENDING |  |  |
+| B-418 | TypeScript paywall receipt pair/address/amount mismatch | HTTP 402; JSON `error:"receipt does not match the payment that was presented"`; decoded `X-PAYMENT-RESPONSE.errorReason: "invalid_payment"`; no burn. | PENDING |  |  |
+| B-419 | TypeScript paywall low confirmations | HTTP 402 with same challenge; error contains `payment has 0 confirmation(s), need 1`; decoded `X-PAYMENT-RESPONSE.errorReason: "settlement_pending"`; no burn. | PENDING |  |  |
+| B-420 | TypeScript paywall mined too late | HTTP 402 with fresh challenge; decoded `X-PAYMENT-RESPONSE.errorReason: "payment_expired"`; error contains `after the challenge expired`; no burn. | PENDING |  |  |
+| B-421 | TypeScript paywall confirmed | Middleware invokes next once; fixture HTTP 200 body `{paid:"content"}` and decoded response `{success:true,transaction:<txid>,network:"zcash-testnet",payer:""}`; marks nonce spent once. | PENDING |  |  |
+| B-422 | TypeScript paywall resend | Within600 seconds, same pair returns HTTP 200 and identical `X-PAYMENT-RESPONSE`; stored spent txid/time unchanged and no second burn. | PENDING |  |  |
+| B-423 | TypeScript paywall after resend window | HTTP 402; decoded `X-PAYMENT-RESPONSE.errorReason: "nonce_already_used"`; fresh challenge and original spent row unchanged. | PENDING |  |  |
+| B-424 | TypeScript paywall different txid replay | Same used nonce with different txid returns HTTP 402; decoded `X-PAYMENT-RESPONSE.errorReason: "nonce_already_used"`; original binding unchanged. | PENDING |  |  |
+| B-425 | TypeScript paywall concurrent markSpent failure | If markSpent returns false, HTTP 402 with decoded `X-PAYMENT-RESPONSE.errorReason: "nonce_already_used"`; next is not called. | PENDING |  |  |
+| B-426 | TypeScript recorded-tx interoperability (later, read-only) | Existing ccb4214c payment under its own recorded requirement yields HTTP 200 and `success:true` through isolated middleware; under a fresh wrong nonce Rust server yields HTTP 402 `invalid_payment`; zero broadcasts. | PENDING |  |  |
+| B-427 | Protocol challenge round trip | CamelCase JSON round-trips `scheme`, `network`, `payTo`, `amountZat`, `memoNonce`, `expiresAt`; sample amount100000 validates as `Ok(())` before expiry. | PENDING |  |  |
+| B-428 | Protocol challenge unknown fields | Deserializing an extra unknown challenge field returns an error; no silently accepted extra field. | PENDING |  |  |
+| B-429 | Protocol challenge mainnet | `validate` returns `Err(InvalidChallenge::MainnetNotAllowed)`. | PENDING |  |  |
+| B-430 | Protocol challenge wrong scheme | Scheme `exact` returns `Err(InvalidChallenge::WrongScheme("exact"))`. | PENDING |  |  |
+| B-431 | Protocol challenge bad address | Non-utest1 or shorter than20 characters returns `Err(InvalidChallenge::BadAddress)`. | PENDING |  |  |
+| B-432 | Protocol challenge zero amount | Zero returns `Err(InvalidChallenge::ZeroAmount)`. | PENDING |  |  |
+| B-433 | Protocol challenge nonce boundary | Empty, >64-byte or non-[A-Za-z0-9_-] returns `Err(InvalidChallenge::BadNonce)`; 1..64 valid characters pass shape validation. | PENDING |  |  |
+| B-434 | Protocol expiry boundary | `validate(now == expiresAt)` returns `InvalidChallenge::Expired`; `validate_shape` still returns `Ok(())` for expired well-shaped challenge. | PENDING |  |  |
+| B-435 | Protocol paid_in_time overflow/boundary | `(100,160,60)` returns true, `(100,161,60)` false; `(u64::MAX,u64::MAX,60)` true without arithmetic overflow. | PENDING |  |  |
+| B-436 | Protocol old receipt minedAt | Missing `minedAt` deserializes to `None` and reserialization omits it; explicit `minedAt:4` returns `Some(4)`. | PENDING |  |  |
+| B-437 | Protocol mixed x402 requirements | Both EVM and Zcash entries parse losslessly; `zcash_option` selects testnet Zcash; challenge amount123456 round-trips via string `maxAmountRequired:"123456"`. | PENDING |  |  |
+| B-438 | Protocol fractional amount | `to_challenge` on `maxAmountRequired:"1.5"` returns `Err(WireError::Amount("1.5"))`. | PENDING |  |  |
+| B-439 | Protocol header base64 variants | Standard and URL-safe unpadded base64 decode to identical `PaymentPayload`; `decode_header("%%%")` returns `Err(WireError::Base64)`. | PENDING |  |  |
+| B-440 | Protocol payload validation | Version2 maps to `invalid_x402_version`, EVM exact to `invalid_scheme`, mainnet to `invalid_network`, missing payload memoNonce to `invalid_payload`. | PENDING |  |  |
+| B-441 | Protocol settlement fields | Success serializes `{success:true,transaction:<txid>,network:"zcash-testnet",payer:""}`; failure has `success:false`, `errorReason:"settlement_pending"`, `transaction:""`. | PENDING |  |  |
+| B-442 | Protocol tab scheme separation | Tab header round-trips `keyId`, `msg`, `randomizer`, `sig`; interpreting tab as Zcash or Zcash as tab returns `WireError::Scheme`. | PENDING |  |  |
+| B-443 | Protocol ZIP-321 amounts | `zec_decimal(0)="0"`, `(1)="0.00000001"`, `(100000)="0.001"`, `(150000000)="1.5"`, `(2100000000000000)="21000000"`; at most8 fractional digits, no trailing zeroes. | PENDING |  |  |
+| B-444 | Protocol ZIP-321 memo | `This is a simple memo.` becomes `VGhpcyBpcyBhIHNpbXBsZSBtZW1vLg`; memo encoding contains no `=`, `+` or `/` and decodes byte-for-byte. | PENDING |  |  |
+| B-445 | ZIP-321 librustzcash interoperability | URI parses to exactly one payment, same shielded address, amount and text memo; re-rendered URI equals original for 1,100000,123456789 zat; no broadcast. | PENDING |  |  |
+| B-446 | Spendguard default deny | Empty allowlist returns `Decision::Deny(HostNotAllowed)`; unknown agent returns `Decision::Deny(UnknownAgent)` with `no policy configured for agent '<agent>'`. | PENDING |  |  |
+| B-447 | Spendguard exact host normalization | `API.Example.com:8443` and `api.example.com.` match unqualified `api.example.com`; `normalize_host` returns `api.example.com`. | PENDING |  |  |
+| B-448 | Spendguard wildcard | `*.data.test` allows `x.data.test`/`a.b.data.test`; denies `data.test`, `evildata.test`, `data.test.evil.com` with HostNotAllowed. | PENDING |  |  |
+| B-449 | Spendguard pinned port | Entry `127.0.0.1:4020` allows only4020; entry443 matches implicit HTTPS443 and rejects HTTP80; mismatch returns HostNotAllowed. | PENDING |  |  |
+| B-450 | Spendguard pinned scheme | HTTPS-only entry rejects HTTP or unknown scheme; matching HTTPS returns true even on any port when none is pinned. | PENDING |  |  |
+| B-451 | Spendguard zero amount | Allowed host amount0 returns `Decision::Deny(ZeroAmount)`; denial text `amount must be greater than zero`. | PENDING |  |  |
+| B-452 | Spendguard inclusive cap | Spent450000 plus50000 under cap500000 returns Allow; once500000 spent, next1 returns CapExceeded and remaining0. | PENDING |  |  |
+| B-453 | Spendguard deny mutation | `record_spend` request600000 under cap500000 returns error; spent remains0. | PENDING |  |  |
+| B-454 | Spendguard UTC midnight | Spend before unix-day boundary remains on old UTC day; next-day spent0 and new allowed amount returns Allow. | PENDING |  |  |
+| B-455 | Spendguard threshold | Amount199999 under threshold200000 returns Allow; amount200000 returns `NeedsApproval {threshold_zat:200000}`. | PENDING |  |  |
+| B-456 | Spendguard first denial | Over-cap/over-threshold returns CapExceeded, no approval prompt; disallowed host wins before amount/cap checks. | PENDING |  |  |
+| B-457 | Spendguard arithmetic overflow | Spent `u64::MAX` plus1 returns `Decision::Deny(Overflow)` and text `amount overflow`; no wrapped allowance. | PENDING |  |  |
+| B-458 | Sealed format round trip | Bytes start `KAGE-SEALED1`, followed by24-byte nonce and ciphertext/tag; correct key/purpose opens original JSON, with zero readable host/txid/field names in ciphertext. | PENDING |  |  |
+| B-459 | Sealed wrong key | `open` returns `Err(SealError::WrongKeyOrTampered)`; message `cannot be opened with this key: wrong key, or the file was changed`. | PENDING |  |  |
+| B-460 | Sealed changed byte | Nonce/ciphertext/tag mutation returns `Err(SealError::WrongKeyOrTampered)`; never empty JSON. | PENDING |  |  |
+| B-461 | Sealed purpose swap | Ledger sealed bytes opened as tab return `Err(SealError::WrongKeyOrTampered)`. | PENDING |  |  |
+| B-462 | Sealed truncation | Data shorter than magic+24-byte nonce+16-byte tag returns `Err(SealError::Truncated)`; message `sealed file is truncated`. | PENDING |  |  |
+| B-463 | Sealed plaintext | Plain JSON returns `Err(SealError::NotSealed)`; message `not a sealed file (no KAGE-SEALED1 header)`. | PENDING |  |  |
+| B-464 | Sealed malformed key | Non-64-hex key returns error `must be 64 hex characters (32 bytes; e.g. ... )`; valid64-hex parses exactly32 bytes; no actual key value collected. | PENDING |  |  |
+| B-465 | Agent compact block cache empty | `get_tip_height(None)` returns `Ok(None)`; reading empty scan range returns `Ok([])`. | PENDING |  |  |
+| B-466 | Agent compact block cache ranges | Inserted blocks are read ascending by height, within half-open range and limit; delete removes only specified range; get_tip_height returns highest cached height in range. | PENDING |  |  |
+| B-467 | Facilitator binding write failure | `/settle` failure to bind returns HTTP 503, JSON `success:false`, `status:"error"`, `errorReason:"facilitator_error"`; no signed receipt issued. | PENDING |  |  |
+| B-468 | External lightwalletd (later read-only) | Endpoint `https://testnet.zec.rocks:443` returns GetLightdInfo `chain_name:"test"` and positive GetLatestBlock height; recorded transaction fetches use GetTransaction/GetBlock only, no SendTransaction. | PENDING |  |  |
+| B-469 | Live API quote (later read-only; not called in Phase1) | `GET https://kage-api.201-18-198-162.sslip.io/api/quote` returns HTTP 402, `x402Version:1`, scheme `zcash-shielded`, network `zcash-testnet`, asset `ZEC`, ZIP-321 `extra.paymentUri` and fresh nonce/expiry. | PENDING |  |  |
+| B-470 | Live API admin isolation (later read-only) | `GET /`, `/api/events`, `/api/status` at `https://kage-api.201-18-198-162.sslip.io` each returns HTTP 404, no admin JSON/HTML. | PENDING |  |  |
+| B-471 | Live facilitator health (later read-only; not called in Phase1) | `GET https://kage-facilitator.201-18-198-162.sslip.io/health` returns HTTP 200, `ok:true`, `network:"testnet"`, positive `chainTip`, `viewingKey:"uivk"`; failed probe instead returns HTTP 503 `ok:false`. | PENDING |  |  |
+| B-472 | Live landing (later read-only; not called in Phase1) | `GET https://kage-landing.vercel.app` returns HTTP 200 HTML with title `Kage — shielded x402 for AI agents`. | PENDING |  |  |
+| B-473 | Audit chain/wallet boundary | Across later read-only recorded-tx checks, SendTransaction/broadcast count0; new testnet txids0; `new-wallet` and `keygen` execution count0; no .env, seeds or protected wallet reads. | PENDING |  |  |
+| B-474 | Recorded chain tx `030c3cbf78ce8460553bba4e82c0ba813f039bd3ecf4d7f2e81c59837dc28351` (expected only; read-only later) | Published demo merchant UIVK in README decrypts Ironwood payment: txid `030c3cbf78ce8460553bba4e82c0ba813f039bd3ecf4d7f2e81c59837dc28351`, block height 4521112, text memo `x402z-f19a63da20cbc0749ea800b3`, amountZat 100000, confirmations >=1; `verify_payment` returns `Ok(Payment)`; zero new broadcasts. | PENDING |  |  |
+| B-475 | Recorded chain tx `cd64980a5247881a727aa916476a3ba757e59794263c2ff1bcde467654a0916d` (expected only; read-only later) | Published demo merchant UIVK in README decrypts Ironwood payment: txid `cd64980a5247881a727aa916476a3ba757e59794263c2ff1bcde467654a0916d`, block height 4521440, text memo `x402z-af06b1d50af81616075f0cb3`, amountZat 100000, confirmations >=1; minedAt 1792482929; `verify_payment` returns `Ok(Payment)`; zero new broadcasts. | PENDING |  |  |
+| B-476 | Recorded chain tx `ccb4214c6a1fdf183c086ae5b4f559d181ead4c1c61dc7e711fc4a08b95b0ed3` (expected only; read-only later) | Published demo merchant UIVK in README decrypts Ironwood payment: txid `ccb4214c6a1fdf183c086ae5b4f559d181ead4c1c61dc7e711fc4a08b95b0ed3`, block height 4524586, text memo `x402z-b7a15cc628bb7a06bf9a26cd`, amountZat 100000, confirmations >=1; `verify_payment` returns `Ok(Payment)`; zero new broadcasts. | PENDING |  |  |
+| B-477 | Recorded chain tx `25a8b324bebee30220382113c6fb9cc3be1144b036117c34778bde3b1d8b689d` (expected only; read-only later) | Published demo merchant UIVK in README decrypts Ironwood payment: txid `25a8b324bebee30220382113c6fb9cc3be1144b036117c34778bde3b1d8b689d`, block height 4524602, text memo `x402z-696c58afd509cc0f8753f3b0`, amountZat 100000, confirmations >=1; minedAt 1792562282; `verify_payment` returns `Ok(Payment)`; zero new broadcasts. | PENDING |  |  |
+| B-478 | Recorded chain tx `408aba269ac7ca946e3b0eaedcf4cadd582a01090679e98391b4e7c706d88dd0` (expected only; read-only later) | Published demo merchant UIVK in README decrypts Ironwood payment: txid `408aba269ac7ca946e3b0eaedcf4cadd582a01090679e98391b4e7c706d88dd0`, block height 4524693, text memo `x402z-97c10778f360d18cc8289703`, amountZat 100000, confirmations >=1; `verify_payment` returns `Ok(Payment)`; zero new broadcasts. | PENDING |  |  |
+| B-479 | Recorded chain tx `a7c3b0b2eaeb406ddcd02276cd71e69e4e618b22a1cab8977c959f2da3fc38bc` (expected only; read-only later) | Published demo merchant UIVK in README decrypts Ironwood payment: txid `a7c3b0b2eaeb406ddcd02276cd71e69e4e618b22a1cab8977c959f2da3fc38bc`, block height 4524694, text memo `x402z-10699970ecb69ff79eb66735`, amountZat 100000, confirmations >=1; `verify_payment` returns `Ok(Payment)`; zero new broadcasts. | PENDING |  |  |
+| B-480 | Recorded chain tx `fa01172015c63ce47a0285f7fae130a3efe5f821b938a8befa1ca547d00ac3ad` (expected only; read-only later) | Published demo merchant UIVK in README decrypts Ironwood payment: txid `fa01172015c63ce47a0285f7fae130a3efe5f821b938a8befa1ca547d00ac3ad`, block height 4526095, text memo `x402z-aed6ff1377cea1055b1163bd`, amountZat 500000, confirmations >=1; `verify_payment` returns `Ok(Payment)`; zero new broadcasts. | PENDING |  |  |
+| B-481 | Recorded chain tx `d3bf0b49408fed118fe9e1241239d98319cbb83088c45a5ba357f68cd97bd00d` (expected only; read-only later) | Published demo merchant UIVK in README decrypts Ironwood payment: txid `d3bf0b49408fed118fe9e1241239d98319cbb83088c45a5ba357f68cd97bd00d`, block height 4526113, text memo `x402z-58712c3f95459bb9ead9ce5b`, amountZat 300000, confirmations >=1; `verify_payment` returns `Ok(Payment)`; zero new broadcasts. | PENDING |  |  |
+| B-482 | Recorded chain tx `f037d5978fec7817340ff118d328995288f0a575a1850b083ca05f7d71d4e22a` (expected only; read-only later) | Published demo merchant UIVK in README decrypts Ironwood payment: txid `f037d5978fec7817340ff118d328995288f0a575a1850b083ca05f7d71d4e22a`, block height 4529425, text memo `x402z-ca140754c5e37e36f106ed84`, amountZat 100000, confirmations >=1; `verify_payment` returns `Ok(Payment)`; zero new broadcasts. | PENDING |  |  |
+| B-483 | Recorded chain tx `b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91` (expected only; read-only later) | Published demo merchant UIVK in README decrypts Ironwood payment: txid `b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91`, block height 4529427, text memo `x402z-00f89ac38b4216a4b37e4ff1`, amountZat 300000, confirmations >=1; `verify_payment` returns `Ok(Payment)`; zero new broadcasts. | PENDING |  |  |
+
+Rows: 483; all PENDING. Phase 1 is source inspection only; no tests, servers, browsers, network calls, key generation or wallet commands executed.
+
+Files read (implementation and test excerpts): `README.md`, `TESTING.md`; `crates/x402z-server/src/{main,store,tab}.rs`; `crates/x402z-facilitator/src/{main,verify,lwd,store,receipt}.rs`, `crates/x402z-facilitator/tests/{verify_real_tx,live_testnet,zip321_uri}.rs`; `crates/x402z-agent/src/{main,pay,tab,ledger,cache}.rs`, `crates/x402z-agent/tests/tab_keys.rs`; `crates/x402z-mcp/src/main.rs`, `crates/x402z-mcp/tests/stdio.rs`; `crates/x402z-protocol/src/lib.rs`, `crates/x402z-protocol/tests/{challenge,x402_wire,zip321}.rs`; `crates/spendguard/src/{lib,sealed}.rs`; `packages/x402-zcash/{README.md,src/index.ts,test/unit.test.ts,test/live.test.ts}`; `landing/index.html`, `crates/x402z-server/src/dashboard.html`.
