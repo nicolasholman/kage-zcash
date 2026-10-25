@@ -649,13 +649,16 @@ cd packages/x402-zcash &amp;&amp; npm test                             <span cla
         document.getElementById('footExchange').hidden = tabs[i].id === 't0';
         if (focus) tabs[i].focus();
         const tape = tabs[i].id === 't0' ? '#mcptape li' : tabs[i].id === 't3' ? '#tape li' : null;
-        if (tape && !reduce) {
+        const red = matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (tape && !red) {
           document.querySelectorAll(tape).forEach((li, k) => { li.style.animationDelay = (k * 0.22) + 's'; li.style.animation = 'none'; li.offsetHeight; li.style.animation = ''; });
         }
-        if (tabs[i].id === 't3' && !reduce) {
+        if (tabs[i].id === 't3' && !red) {
           const bar = document.getElementById('clockbar');
-          bar.style.transition = 'none'; bar.style.transform = 'scaleX(0)';
-          requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.transition = 'transform 2.6s linear'; bar.style.transform = 'scaleX(1)'; }));
+          if (bar) {
+            bar.style.transition = 'none'; bar.style.transform = 'scaleX(0)';
+            requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.transition = 'transform 2.6s linear'; bar.style.transform = 'scaleX(1)'; }));
+          }
         }
       }
       tabs.forEach((t, i) => {
@@ -679,15 +682,33 @@ cd packages/x402-zcash &amp;&amp; npm test                             <span cla
       // Copy buttons.
       document.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', () => {
         const el = document.querySelector(b.dataset.copy);
+        if (!el) return;
         const text = el.innerText.replace(/\s+#.*$/gm, '').trim();
-        navigator.clipboard?.writeText(text).then(() => { b.textContent = 'Copied'; setTimeout(() => (b.textContent = 'Copy'), 1200); });
+        const done = () => { b.textContent = 'Copied'; setTimeout(() => (b.textContent = 'Copy'), 1200); };
+        if (navigator.clipboard?.writeText) {
+          navigator.clipboard.writeText(text).then(done).catch(() => {});
+        } else {
+          try {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            done();
+          } catch (_) {}
+        }
       }));
 
       // Table of contents: open on wide screens, collapsible on narrow ones, current section highlighted.
       const toc = document.getElementById('toc'), now = document.getElementById('tocNow');
       const wide = matchMedia('(min-width: 921px)');
       const syncToc = () => { toc.open = wide.matches; };
-      syncToc(); wide.addEventListener('change', syncToc);
+      syncToc();
+      if (wide.addEventListener) wide.addEventListener('change', syncToc);
+      else if (wide.addListener) wide.addListener(syncToc);
       toc.querySelectorAll('a').forEach(a => a.addEventListener('click', () => { if (!wide.matches) toc.open = false; }));
       const links = new Map([...toc.querySelectorAll('a')].map(a => [a.getAttribute('href').slice(1), a]));
       const docs = [...document.querySelectorAll('.doc')];
@@ -698,7 +719,7 @@ cd packages/x402-zcash &amp;&amp; npm test                             <span cla
         for (const d of docs) if (d.getBoundingClientRect().top < 160) cur = d;
         if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) cur = docs[docs.length - 1];
         links.forEach((a, id) => a.classList.toggle('on', id === cur.id));
-        now.textContent = links.get(cur.id).textContent;
+        if (links.has(cur.id) && now) now.textContent = links.get(cur.id).textContent;
       };
       addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(spy); } }, { passive: true });
       spy();
