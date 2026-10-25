@@ -12,7 +12,11 @@ cargo build -p x402z-server -p x402z-facilitator --bins --examples && (cd packag
 
 All 137 passed on 2026-10-23 (macOS, Rust 1.89.0, Node 26); the 2 resource-URL tests added to `x402z-server` on 2026-10-24 passed with its other 40 that day. CI (`.github/workflows/ci.yml`) runs them in four jobs: the fast crates; the facilitator's in-process real-transaction tests, which do Halo2 proving; the live testnet tests; and the TypeScript package against the built binaries.
 
-The browser E2E suite (Playwright in headless Google Chrome, `e2e/`) is separate: `e2e/stack.sh` starts the real stack on 127.0.0.1 and `npm run test:e2e` runs 32 specs at 1280 px and at 375 px (64 runs, one mobile-only spec skipped on desktop). Last run 2026-10-25: **63 passed, 0 failed, 1 skipped**, with no retries. The stack and Chrome ran under the shared heavy slot; the stack was stopped and the slot released afterward.
+Audit-fix regression on 2026-10-26: **118 Rust tests and 9 TypeScript unit tests passed**, run serially with one compiler job. This includes all spendguard/protocol/server (72), agent (32), MCP (7), and facilitator `verify_real_tx`/`zip321_uri` (7) tests; TypeScript ran only `test/unit.test.ts`. [Commands, PIDs and exit codes](audit/local/fix-test-summary.json). The earlier three read-only `live_testnet` passes remain recorded; that suite and the two TypeScript live tests were not re-run. No transaction was broadcast.
+
+The [unfiltered Chrome re-run](audit/local/fix-summary.md) at 1280 px and 375 px confirms the three UI fixes. Six strict audit rows remain FAIL because Chrome reports the required 402/422/429/502 responses and real connection refusal as resource/network errors. The existing browser suite's expected-status filtering does not override those FAILs.
+
+The browser E2E suite (Playwright in headless Google Chrome, `e2e/`) is separate: `e2e/stack.sh` starts the real stack on 127.0.0.1 and `npm run test:e2e` runs 32 specs at 1280 px and at 375 px (64 runs, one mobile-only spec skipped on desktop). Last run 2026-10-26: **63 passed, 0 failed, 1 skipped**, with no retries ([log](audit/local/fix-playwright.log)). The stack and Chrome ran under the shared heavy slot; the stack was stopped and the slot released afterward ([cleanup](audit/local/fix-cleanup.log)).
 
 | Browser project | Viewport width | Passed | Failed | Skipped |
 |---|---|---|---|---|

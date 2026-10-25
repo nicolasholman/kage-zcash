@@ -1,0 +1,26 @@
+PASS: facilitator PID 36906 stopped
+PASS: server PID 36907 stopped
+PASS: server-nofac PID 36908 stopped
+PASS: server-ledger PID 36909 stopped
+PASS: server-badledger PID 36910 stopped
+PASS: server-ratelimit PID 36911 stopped
+PASS: landing PID 36912 stopped
+PASS: facilitator PID 50209 stopped
+PASS: server PID 50210 stopped
+PASS: server-nofac PID 50211 stopped
+PASS: server-ledger PID 50212 stopped
+PASS: server-badledger PID 50213 stopped
+PASS: server-ratelimit PID 50214 stopped
+PASS: landing PID 50215 stopped
+PASS: audit Chrome PID 37212 stopped
+PASS: browser suite Chrome PID 74341 stopped
+PASS: test fast PID 66613 stopped
+PASS: test agent PID 77484 stopped
+PASS: test mcp PID 98256 stopped
+PASS: test facilitator PID 7065 stopped
+PASS: test typescript PID 29577 stopped
+PASS: e2e/.run/pids removed by stack.sh stop
+PASS: heavy slot released
+PASS: temporary dependency/build symlinks removed; shared target/dependencies untouched
+PASS: no audit stack or Chrome root process remains; pre-existing user Chrome preserved
+No commit, push, deployment or Zcash broadcast. Changes remain in the worktree for Loom.

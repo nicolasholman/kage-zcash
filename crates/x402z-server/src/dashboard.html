@@ -131,7 +131,7 @@ section{scroll-margin-top:20px;min-width:0}
 .metric .s{color:var(--muted);font-size:13px;margin-top:4px}
 .big{font:600 34px/1.05 var(--font);letter-spacing:-.04em;margin:6px 0 0;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .fade{color:#c9c6bb}
-.unit{font:500 .42em var(--mono);letter-spacing:0;color:var(--faint);margin-left:.4em}
+.unit{font:500 .42em var(--mono);letter-spacing:0;color:var(--faint)}
 .metric .v .unit{font-size:.45em}
 .spendrow{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;flex-wrap:wrap}
 .chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px;border-radius:5px;background:var(--rail);border:1px solid var(--line);color:var(--muted);font:500 12px/1 var(--mono);white-space:nowrap}
@@ -317,7 +317,7 @@ section{scroll-margin-top:20px;min-width:0}
           <div class="capbar" aria-hidden="true"><i id="capBar"></i></div>
           <div class="capnote"><span id="capNote">Daily cap from spendguard policy</span><span id="capPct"></span></div>
         </div>
-        <div class="metric"><div class="lbl">Settled to merchant</div><div class="v" id="paidTotal">0<span class="unit">TAZ</span></div><div class="s"><span id="paidCount">0</span> verified payments</div></div>
+        <div class="metric"><div class="lbl">Settled to merchant</div><div class="v" id="paidTotal">0 <span class="unit">TAZ</span></div><div class="s"><span id="paidCount">0</span> verified payments</div></div>
         <div class="metric"><div class="lbl">402 challenges</div><div class="v" id="chCount">0</div><div class="s">issued here</div></div>
         <div class="metric"><div class="lbl">Refused</div><div class="v" id="rejCount">0</div><div class="s">payments or requests</div></div>
       </div>
@@ -349,11 +349,12 @@ section{scroll-margin-top:20px;min-width:0}
       </div>
     </section>
 
-    <footer class="keys" id="keys">
+    <section class="keys" id="keys" aria-labelledby="keyh">
+      <h2 class="sr" id="keyh">Keys</h2>
       <div><div class="lbl">Merchant unified address (shielded)</div><div class="val m" id="ua">…</div></div>
       <div><div class="lbl">Receipt key (ed25519, facilitator)</div><div class="val m" id="rk">…</div></div>
       <div class="tag">Kage · shielded x402 · testnet only</div>
-    </footer>
+    </section>
   </main>
 </div>
 <script>
@@ -372,7 +373,7 @@ const EXPLORER = "https://testnet.zecblock.com/tx/";
 const txLink = id => `<a href="${EXPLORER}${encodeURIComponent(id)}" target="_blank" rel="noopener" title="${esc(id)}"><span class="m">tx ${esc(short(id))}</span> ↗</a>`;
 // Balance-style figure: leading zeros faded, significant digits bright, unit muted.
 const bigZat = n => { const s = (n / 1e8).toLocaleString(undefined, {maximumFractionDigits: 8}); const i = s.search(/[1-9]/);
-  return (i > 0 ? `<span class="fade">${esc(s.slice(0, i))}</span>${esc(s.slice(i))}` : esc(s)) + '<span class="unit">TAZ</span>'; };
+  return (i > 0 ? `<span class="fade">${esc(s.slice(0, i))}</span>${esc(s.slice(i))}` : esc(s)) + ' <span class="unit">TAZ</span>'; };
 const CODE = {challenge: "402", paid: "200", rejected: "402", pending: "402", allowed: "ok", denied: "deny", needs_approval: "ask"};
 const FEED_LABEL = {challenge: "open", paid: "paid", rejected: "refused", pending: "confirming"};
 const DEC_LABEL = {allowed: "allowed", denied: "denied", needs_approval: "needs approval"};

@@ -1,0 +1,10 @@
+PASS: all 584 IDs, components and original expected cells are unchanged.
+PASS: every prior PASS in audit/results-local.md is preserved.
+PASS: every prior PASS in audit/results-live.md is preserved.
+PASS: no PENDING rows; statuses copied from executed evidence only.
+AUDIT.md: {'UNTESTED': 356, 'PASS': 222, 'FAIL': 6}
+PASS: all nine former FAILs re-run at both widths; all behavior assertions match.
+Strict re-run statuses: {'PASS': 6, 'FAIL': 12}
+Package command exits: [0, 0, 0, 0, 0]
+PASS: all 16 new JPEGs are at most 200 KB.
+PASS: total audit evidence is under 15 MB.

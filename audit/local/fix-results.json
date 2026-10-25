@@ -1,0 +1,540 @@
+[
+  {
+    "id": "U-011",
+    "width": 1280,
+    "status": "PASS",
+    "behaviorMatches": true,
+    "detail": {
+      "links": [
+        [
+          "Spec",
+          "evidence.html"
+        ],
+        [
+          "GitHub",
+          "https://github.com/nickthelegend/zec-shielded-x402"
+        ]
+      ],
+      "screenshot": "local/fix-landing-1280.jpg"
+    },
+    "errors": []
+  },
+  {
+    "id": "U-062",
+    "width": 1280,
+    "status": "PASS",
+    "behaviorMatches": true,
+    "detail": {
+      "sections": [
+        [
+          "pay",
+          "Try a paid request"
+        ],
+        [
+          "overview",
+          "Totals"
+        ],
+        [
+          "activity",
+          "Payment feed"
+        ],
+        [
+          "spendguard",
+          "Spendguard"
+        ],
+        [
+          "keys",
+          "Keys"
+        ]
+      ],
+      "sizes": [
+        1280,
+        1280
+      ],
+      "screenshot": "local/fix-keys-1280.jpg"
+    },
+    "errors": []
+  },
+  {
+    "id": "U-067",
+    "width": 1280,
+    "status": "PASS",
+    "behaviorMatches": true,
+    "detail": {
+      "paidTotal": "0 TAZ",
+      "counts": [
+        "0",
+        "0",
+        "0"
+      ],
+      "screenshot": "local/fix-empty-totals-1280.jpg"
+    },
+    "errors": []
+  },
+  {
+    "id": "U-011",
+    "width": 375,
+    "status": "PASS",
+    "behaviorMatches": true,
+    "detail": {
+      "links": [
+        [
+          "Spec",
+          "evidence.html"
+        ],
+        [
+          "GitHub",
+          "https://github.com/nickthelegend/zec-shielded-x402"
+        ]
+      ],
+      "screenshot": "local/fix-landing-375.jpg"
+    },
+    "errors": []
+  },
+  {
+    "id": "U-062",
+    "width": 375,
+    "status": "PASS",
+    "behaviorMatches": true,
+    "detail": {
+      "sections": [
+        [
+          "pay",
+          "Try a paid request"
+        ],
+        [
+          "overview",
+          "Totals"
+        ],
+        [
+          "activity",
+          "Payment feed"
+        ],
+        [
+          "spendguard",
+          "Spendguard"
+        ],
+        [
+          "keys",
+          "Keys"
+        ]
+      ],
+      "sizes": [
+        375,
+        375
+      ],
+      "screenshot": "local/fix-keys-375.jpg"
+    },
+    "errors": []
+  },
+  {
+    "id": "U-067",
+    "width": 375,
+    "status": "PASS",
+    "behaviorMatches": true,
+    "detail": {
+      "paidTotal": "0 TAZ",
+      "counts": [
+        "0",
+        "0",
+        "0"
+      ],
+      "screenshot": "local/fix-empty-totals-375.jpg"
+    },
+    "errors": []
+  },
+  {
+    "id": "U-071",
+    "width": 1280,
+    "status": "FAIL",
+    "behaviorMatches": true,
+    "detail": {
+      "nonce": "x402z-097136a4c537d41d42ba4a0f",
+      "screenshot": "local/fix-challenge-1280.jpg"
+    },
+    "errors": [
+      {
+        "width": 1280,
+        "port": 4120,
+        "at": "2026-10-25T23:22:47.456Z",
+        "type": "console.error",
+        "text": "Failed to load resource: the server responded with a status of 402 (Payment Required)",
+        "location": {
+          "url": "http://127.0.0.1:4120/api/quote",
+          "line": 0,
+          "column": 0,
+          "lineNumber": 0,
+          "columnNumber": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "U-101",
+    "width": 1280,
+    "status": "FAIL",
+    "behaviorMatches": true,
+    "detail": "Happy-path load and 402 request completed; all console diagnostics retained.",
+    "errors": [
+      {
+        "width": 1280,
+        "port": 4120,
+        "at": "2026-10-25T23:22:47.456Z",
+        "type": "console.error",
+        "text": "Failed to load resource: the server responded with a status of 402 (Payment Required)",
+        "location": {
+          "url": "http://127.0.0.1:4120/api/quote",
+          "line": 0,
+          "column": 0,
+          "lineNumber": 0,
+          "columnNumber": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "U-081",
+    "width": 1280,
+    "status": "FAIL",
+    "behaviorMatches": true,
+    "detail": {
+      "response": {
+        "message": "no output in this transaction decrypts to the merchant viewing key with this memo nonce",
+        "reason": "invalid_payment",
+        "status": "rejected"
+      },
+      "unspent": true,
+      "screenshot": "local/fix-refusal-1280.jpg"
+    },
+    "errors": [
+      {
+        "width": 1280,
+        "port": 4120,
+        "at": "2026-10-25T23:22:49.827Z",
+        "type": "console.error",
+        "text": "Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)",
+        "location": {
+          "url": "http://127.0.0.1:4120/api/redeem",
+          "line": 0,
+          "column": 0,
+          "lineNumber": 0,
+          "columnNumber": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "U-093",
+    "width": 1280,
+    "status": "FAIL",
+    "behaviorMatches": true,
+    "detail": {
+      "response": {
+        "message": "facilitator unreachable at http://127.0.0.1:4039/settle: error sending request for url (http://127.0.0.1:4039/settle)",
+        "reason": "facilitator_error",
+        "status": "error"
+      },
+      "unspent": true,
+      "screenshot": "local/fix-facilitator-down-1280.jpg"
+    },
+    "errors": [
+      {
+        "width": 1280,
+        "port": 4130,
+        "at": "2026-10-25T23:22:50.768Z",
+        "type": "console.error",
+        "text": "Failed to load resource: the server responded with a status of 402 (Payment Required)",
+        "location": {
+          "url": "http://127.0.0.1:4130/api/quote",
+          "line": 0,
+          "column": 0,
+          "lineNumber": 0,
+          "columnNumber": 0
+        }
+      },
+      {
+        "width": 1280,
+        "port": 4130,
+        "at": "2026-10-25T23:22:50.816Z",
+        "type": "console.error",
+        "text": "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "location": {
+          "url": "http://127.0.0.1:4130/api/redeem",
+          "line": 0,
+          "column": 0,
+          "lineNumber": 0,
+          "columnNumber": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "U-095",
+    "width": 1280,
+    "status": "FAIL",
+    "behaviorMatches": true,
+    "detail": {
+      "response": {
+        "error": "too many payment challenges from this client",
+        "retryAfterSecs": 60
+      },
+      "screenshot": "local/fix-rate-limit-1280.jpg"
+    },
+    "errors": [
+      {
+        "width": 1280,
+        "port": 4142,
+        "at": "2026-10-25T23:22:51.744Z",
+        "type": "console.error",
+        "text": "Failed to load resource: the server responded with a status of 402 (Payment Required)",
+        "location": {
+          "url": "http://127.0.0.1:4142/api/quote",
+          "line": 0,
+          "column": 0,
+          "lineNumber": 0,
+          "columnNumber": 0
+        }
+      },
+      {
+        "width": 1280,
+        "port": 4142,
+        "at": "2026-10-25T23:22:51.799Z",
+        "type": "console.error",
+        "text": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)",
+        "location": {
+          "url": "http://127.0.0.1:4142/api/quote",
+          "line": 0,
+          "column": 0,
+          "lineNumber": 0,
+          "columnNumber": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "U-071",
+    "width": 375,
+    "status": "FAIL",
+    "behaviorMatches": true,
+    "detail": {
+      "nonce": "x402z-a53ff1f0a977daf303030bff",
+      "screenshot": "local/fix-challenge-375.jpg"
+    },
+    "errors": [
+      {
+        "width": 375,
+        "port": 4120,
+        "at": "2026-10-25T23:22:53.307Z",
+        "type": "console.error",
+        "text": "Failed to load resource: the server responded with a status of 402 (Payment Required)",
+        "location": {
+          "url": "http://127.0.0.1:4120/api/quote",
+          "line": 0,
+          "column": 0,
+          "lineNumber": 0,
+          "columnNumber": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "U-101",
+    "width": 375,
+    "status": "FAIL",
+    "behaviorMatches": true,
+    "detail": "Happy-path load and 402 request completed; all console diagnostics retained.",
+    "errors": [
+      {
+        "width": 375,
+        "port": 4120,
+        "at": "2026-10-25T23:22:53.307Z",
+        "type": "console.error",
+        "text": "Failed to load resource: the server responded with a status of 402 (Payment Required)",
+        "location": {
+          "url": "http://127.0.0.1:4120/api/quote",
+          "line": 0,
+          "column": 0,
+          "lineNumber": 0,
+          "columnNumber": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "U-081",
+    "width": 375,
+    "status": "FAIL",
+    "behaviorMatches": true,
+    "detail": {
+      "response": {
+        "message": "no output in this transaction decrypts to the merchant viewing key with this memo nonce",
+        "reason": "invalid_payment",
+        "status": "rejected"
+      },
+      "unspent": true,
+      "screenshot": "local/fix-refusal-375.jpg"
+    },
+    "errors": [
+      {
+        "width": 375,
+        "port": 4120,
+        "at": "2026-10-25T23:22:54.864Z",
+        "type": "console.error",
+        "text": "Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)",
+        "location": {
+          "url": "http://127.0.0.1:4120/api/redeem",
+          "line": 0,
+          "column": 0,
+          "lineNumber": 0,
+          "columnNumber": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "U-093",
+    "width": 375,
+    "status": "FAIL",
+    "behaviorMatches": true,
+    "detail": {
+      "response": {
+        "message": "facilitator unreachable at http://127.0.0.1:4039/settle: error sending request for url (http://127.0.0.1:4039/settle)",
+        "reason": "facilitator_error",
+        "status": "error"
+      },
+      "unspent": true,
+      "screenshot": "local/fix-facilitator-down-375.jpg"
+    },
+    "errors": [
+      {
+        "width": 375,
+        "port": 4130,
+        "at": "2026-10-25T23:22:55.827Z",
+        "type": "console.error",
+        "text": "Failed to load resource: the server responded with a status of 402 (Payment Required)",
+        "location": {
+          "url": "http://127.0.0.1:4130/api/quote",
+          "line": 0,
+          "column": 0,
+          "lineNumber": 0,
+          "columnNumber": 0
+        }
+      },
+      {
+        "width": 375,
+        "port": 4130,
+        "at": "2026-10-25T23:22:55.879Z",
+        "type": "console.error",
+        "text": "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "location": {
+          "url": "http://127.0.0.1:4130/api/redeem",
+          "line": 0,
+          "column": 0,
+          "lineNumber": 0,
+          "columnNumber": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "U-095",
+    "width": 375,
+    "status": "FAIL",
+    "behaviorMatches": true,
+    "detail": {
+      "response": {
+        "error": "too many payment challenges from this client",
+        "retryAfterSecs": 55
+      },
+      "screenshot": "local/fix-rate-limit-375.jpg"
+    },
+    "errors": [
+      {
+        "width": 375,
+        "port": 4142,
+        "at": "2026-10-25T23:22:56.895Z",
+        "type": "console.error",
+        "text": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)",
+        "location": {
+          "url": "http://127.0.0.1:4142/api/quote",
+          "line": 0,
+          "column": 0,
+          "lineNumber": 0,
+          "columnNumber": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "U-096",
+    "width": 1280,
+    "status": "FAIL",
+    "behaviorMatches": true,
+    "detail": {
+      "fault": "real server stopped by recorded PID; no request interception",
+      "banner": "ERR x402z-server unreachable: Failed to fetch",
+      "screenshot": "local/fix-unreachable-1280.jpg"
+    },
+    "errors": [
+      {
+        "width": 1280,
+        "port": 4120,
+        "at": "2026-10-25T23:22:58.404Z",
+        "type": "requestfailed",
+        "url": "http://127.0.0.1:4120/api/quote",
+        "method": "GET",
+        "error": "net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "width": 1280,
+        "port": 4120,
+        "at": "2026-10-25T23:22:58.404Z",
+        "type": "console.error",
+        "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+        "location": {
+          "url": "http://127.0.0.1:4120/api/quote",
+          "line": 0,
+          "column": 0,
+          "lineNumber": 0,
+          "columnNumber": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "U-096",
+    "width": 375,
+    "status": "FAIL",
+    "behaviorMatches": true,
+    "detail": {
+      "fault": "real server stopped by recorded PID; no request interception",
+      "banner": "ERR x402z-server unreachable: Failed to fetch",
+      "screenshot": "local/fix-unreachable-375.jpg"
+    },
+    "errors": [
+      {
+        "width": 375,
+        "port": 4120,
+        "at": "2026-10-25T23:22:58.713Z",
+        "type": "requestfailed",
+        "url": "http://127.0.0.1:4120/api/quote",
+        "method": "GET",
+        "error": "net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "width": 375,
+        "port": 4120,
+        "at": "2026-10-25T23:22:58.713Z",
+        "type": "console.error",
+        "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+        "location": {
+          "url": "http://127.0.0.1:4120/api/quote",
+          "line": 0,
+          "column": 0,
+          "lineNumber": 0,
+          "columnNumber": 0
+        }
+      }
+    ]
+  }
+]
