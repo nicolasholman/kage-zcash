@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Kage — shielded x402 for AI agents</title>
-    <meta name="description" content="Kage: HTTP 402 payments for AI agents in the x402 v1 wire format, settled as Zcash shielded testnet transactions. A spend guard checks every payment first; the merchant verifies with an incoming viewing key alone." />
+    <meta name="description" content="Kage: AI agents pay for APIs with HTTP 402, settled in shielded Zcash testnet transactions. The merchant verifies with a viewing key alone and never learns who paid." />
     <meta name="theme-color" content="#ffffff" />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230c0c0d'/%3E%3Cpath d='M8 23V9M8 16l9-7M11.5 13.3L18 23' fill='none' stroke='%23f4b728' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='23.5' cy='20.5' r='2.5' fill='%23f4b728'/%3E%3C/svg%3E" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -14,694 +14,232 @@
       :root {
         --ink: #0c0c0d; --gold: #f4b728; --butter: #fdf3d3;
         --paper: #ffffff; --rail: #fafaf7; --line: #ebe9e2; --line-2: #dcd9cf;
-        --text: #0c0c0d; --muted: #5d5c55; --faint: #8b897f;
-        --code-bg: #0c0c0d; --code-line: #232326; --code-text: #e9e8e2; --code-dim: #8b897f; --code-key: #fdf3d3; --code-str: #f4b728; --code-num: #9fd4b0;
-        --ok: #1d7a45; --ok-bg: #e5f4ea; --bad: #b42318; --bad-bg: #fde8e6;
+        --muted: #5d5c55; --faint: #8b897f;
+        --code-bg: #0c0c0d; --code-line: #232326; --code-text: #e9e8e2; --code-dim: #8b897f; --code-num: #9fd4b0;
+        --ok: #1d7a45; --ok-bg: #e5f4ea;
         --font: 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
         --mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-        --top: 60px;
         color-scheme: light;
       }
       * { box-sizing: border-box; }
-      html { -webkit-text-size-adjust: 100%; scroll-padding-top: calc(var(--top) + 20px); }
-      body { margin: 0; background: var(--paper); color: var(--text); font: 400 16px/1.6 var(--font); letter-spacing: -0.006em; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+      html { -webkit-text-size-adjust: 100%; }
+      body { margin: 0; background: var(--paper); color: var(--ink); font: 400 17px/1.6 var(--font); letter-spacing: -0.006em; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
       a { color: inherit; }
-      :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 4px; }
-      code, pre, .mono { font-family: var(--mono); letter-spacing: 0; }
-      p code, li code, td code, dd code { font-size: 0.86em; background: var(--rail); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; overflow-wrap: anywhere; }
-      h1, h2, h3 { font-weight: 600; margin: 0; }
-      .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-      .skip { position: absolute; left: 12px; top: -60px; z-index: 50; background: var(--ink); color: #fff; padding: 8px 12px; border-radius: 6px; text-decoration: none; }
-      .skip:focus { top: 10px; }
+      :focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 4px; }
+      h1, h2, h3, p { margin: 0; }
+      h1, h2, h3 { font-weight: 600; }
+      .wrap { max-width: 1200px; margin: 0 auto; padding: 0 32px; }
+      .mono { font-family: var(--mono); letter-spacing: 0; }
 
       /* top bar */
-      .topbar { position: sticky; top: 0; z-index: 40; height: var(--top); background: rgba(255, 255, 255, 0.94); border-bottom: 1px solid var(--line); backdrop-filter: saturate(1.4) blur(8px); }
-      .topbar .in { max-width: 1320px; margin: 0 auto; height: 100%; padding: 0 24px; display: flex; align-items: center; gap: 22px; }
-      .mark { display: inline-flex; align-items: center; gap: 9px; text-decoration: none; font-weight: 600; font-size: 17px; letter-spacing: -0.03em; }
-      .mark svg { width: 26px; height: 26px; flex: none; }
-      .mark small { font-weight: 400; color: var(--faint); font-size: 14px; }
-      .ver { font: 500 12px/1 var(--mono); color: var(--muted); border: 1px solid var(--line-2); border-radius: 999px; padding: 5px 9px; white-space: nowrap; }
-      .toplinks { display: flex; gap: 2px; margin-left: auto; align-items: center; }
-      .toplinks a { text-decoration: none; font-size: 14px; color: var(--muted); padding: 7px 11px; border-radius: 6px; white-space: nowrap; }
-      .toplinks a:hover { color: var(--ink); background: var(--rail); }
-      .toplinks a.gh { color: #fff; background: var(--ink); font-weight: 500; display: inline-flex; gap: 7px; align-items: center; margin-left: 6px; }
-      .toplinks a.gh:hover { background: #2a2a2d; }
-      .toplinks a.gh svg { width: 15px; height: 15px; }
+      .topbar .wrap { height: 72px; display: flex; align-items: center; gap: 16px; }
+      .mark { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 600; font-size: 18px; letter-spacing: -0.03em; }
+      .mark svg { width: 28px; height: 28px; flex: none; }
+      .mark small { font-weight: 400; color: var(--faint); font-size: 15px; }
+      .toplinks { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+      .toplinks a { text-decoration: none; font-size: 15px; color: var(--muted); padding: 8px 12px; border-radius: 8px; white-space: nowrap; }
+      .toplinks a:hover { color: var(--ink); }
+      .toplinks a.gh { color: var(--ink); border: 1px solid var(--line-2); }
+      .toplinks a.gh:hover { border-color: var(--ink); }
 
       /* hero */
-      .hero { border-bottom: 1px solid var(--line); background: linear-gradient(var(--paper), var(--paper)) padding-box, var(--paper); }
-      .hero .in { max-width: 1320px; margin: 0 auto; padding: 64px 24px 56px; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 56px; align-items: start; }
-      .eyebrow { display: inline-flex; gap: 8px; align-items: center; font: 500 12.5px/1 var(--mono); color: var(--muted); }
-      .eyebrow i { width: 8px; height: 8px; border-radius: 2px; background: var(--gold); display: inline-block; }
-      .hero h1 { font-size: clamp(38px, 4.6vw, 60px); line-height: 1.02; letter-spacing: -0.045em; margin: 18px 0 0; }
-      .hero h1 mark { background: linear-gradient(transparent 62%, var(--butter) 62%, var(--butter) 94%, transparent 94%); color: inherit; padding: 0 2px; }
-      .hero .lead { font-size: 18px; line-height: 1.55; color: var(--muted); margin: 20px 0 0; max-width: 46ch; }
-      .hero .lead b { color: var(--ink); font-weight: 500; }
-      .ctas { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 28px; }
-      .btn { display: inline-flex; align-items: center; gap: 8px; height: 42px; padding: 0 16px; border-radius: 8px; font: 500 15px/1 var(--font); text-decoration: none; border: 1px solid transparent; white-space: nowrap; transition: background 0.15s, border-color 0.15s; }
-      .btn svg { width: 15px; height: 15px; }
+      .hero .wrap { padding-top: 72px; padding-bottom: 112px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 72px; align-items: center; }
+      .eyebrow { font: 500 13px/1 var(--mono); color: var(--muted); display: inline-flex; gap: 9px; align-items: center; }
+      .eyebrow i { width: 8px; height: 8px; border-radius: 2px; background: var(--gold); }
+      h1 { font-size: clamp(42px, 5.4vw, 72px); line-height: 1; letter-spacing: -0.05em; margin-top: 22px; }
+      h1 mark { background: linear-gradient(transparent 60%, var(--butter) 60%, var(--butter) 94%, transparent 94%); color: inherit; padding: 0 2px; }
+      .sub { font-size: 20px; line-height: 1.5; color: var(--muted); margin-top: 24px; max-width: 30em; }
+      .ctas { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 36px; }
+      .btn { display: inline-flex; align-items: center; gap: 8px; height: 48px; padding: 0 22px; border-radius: 10px; font: 500 16px/1 var(--font); text-decoration: none; border: 1px solid transparent; white-space: nowrap; transition: background 0.15s, border-color 0.15s; }
+      .btn svg { width: 16px; height: 16px; }
       .btn-ink { background: var(--ink); color: #fff; }
       .btn-ink:hover { background: #2a2a2d; }
-      .btn-line { border-color: var(--line-2); color: var(--ink); background: var(--paper); }
+      .btn-line { border-color: var(--line-2); }
       .btn-line:hover { border-color: var(--ink); }
-      .install { margin-top: 28px; display: flex; align-items: center; gap: 10px; border: 1px solid var(--line); background: var(--rail); border-radius: 8px; padding: 10px 12px; font: 13px/1.4 var(--mono); max-width: 470px; min-width: 0; }
+
+      /* centrepiece: the exchange, with the payment itself in shadow */
+      .shadow { margin: 0; background: var(--code-bg); color: var(--code-text); border-radius: 16px; padding: 34px 34px 26px; font: 15.5px/1.5 var(--mono); box-shadow: 0 40px 80px -48px rgba(12, 12, 13, 0.55); min-width: 0; }
+      .shadow ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 22px; }
+      .shadow li { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 14px; align-items: baseline; }
+      .shadow .c { color: var(--code-dim); }
+      .shadow .c.g { color: var(--gold); }
+      .shadow .c.ok { color: var(--code-num); }
+      .shadow .r { overflow-wrap: anywhere; }
+      .shadow .r small { display: block; color: var(--code-dim); font-size: 13px; margin-top: 3px; }
+      .veil { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 10px; font-size: 13px; color: var(--code-dim); }
+      .veil span { display: inline-flex; align-items: center; gap: 7px; }
+      .veil i { display: inline-block; height: 10px; border-radius: 2px; background: repeating-linear-gradient(135deg, #4a4a50 0 4px, #26262a 4px 8px); }
+      .payer { color: #fff; }
+      .payer b { color: var(--gold); font-weight: 500; }
+      .shadow figcaption { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--code-line); font-size: 12px; color: var(--code-dim); }
+
+      /* below the fold */
+      section.band { padding: 112px 0; }
+      section.band + section.band { padding-top: 0; }
+      .band h2 { font-size: clamp(30px, 3.4vw, 44px); letter-spacing: -0.04em; line-height: 1.08; max-width: 18em; }
+      .band .lede { font-size: 18px; color: var(--muted); margin-top: 14px; max-width: 36em; }
+      .steps { list-style: none; margin: 56px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 48px; counter-reset: s; }
+      .steps li { counter-increment: s; border-top: 2px solid var(--ink); padding-top: 22px; }
+      .steps li::before { content: "0" counter(s); font: 500 13px/1 var(--mono); color: var(--faint); }
+      .steps h3 { font-size: 22px; letter-spacing: -0.03em; margin-top: 14px; }
+      .steps p { color: var(--muted); margin-top: 8px; }
+
+      .facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 48px; margin-top: 56px; }
+      .facts b { display: block; font: 600 clamp(64px, 8vw, 112px)/0.95 var(--font); letter-spacing: -0.06em; font-variant-numeric: tabular-nums; }
+      .facts span { display: block; margin-top: 12px; font: 500 14px/1 var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+      .more { display: inline-flex; gap: 8px; align-items: center; margin-top: 48px; font-weight: 500; text-decoration: none; border-bottom: 2px solid var(--gold); padding-bottom: 2px; }
+
+      .strip { margin-top: 48px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); border-top: 1px solid var(--line); }
+      .strip div { padding: 22px 32px 0 0; }
+      .strip h3 { font: 500 13px/1 var(--mono); text-transform: uppercase; letter-spacing: 0.06em; display: flex; align-items: center; gap: 8px; }
+      .strip h3::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+      .strip .setup h3::before { background: var(--gold); }
+      .strip p { margin-top: 12px; color: var(--muted); }
+      .strip a { color: var(--ink); text-underline-offset: 3px; }
+
+      .end { background: var(--rail); border-top: 1px solid var(--line); }
+      .end .wrap { padding-top: 112px; padding-bottom: 112px; }
+      .install { margin-top: 32px; display: flex; align-items: center; gap: 12px; max-width: 640px; border: 1px solid var(--line-2); background: var(--paper); border-radius: 10px; padding: 12px 14px; font: 14px/1.4 var(--mono); }
       .install span { color: var(--faint); user-select: none; }
-      .install-note { margin: 8px 0 0; max-width: 470px; font-size: 13px; line-height: 1.5; color: var(--muted); }
       .install code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
       .install code::-webkit-scrollbar { display: none; }
-      .copy { font: 500 12px/1 var(--font); border: 1px solid var(--line-2); background: var(--paper); border-radius: 6px; padding: 6px 9px; cursor: pointer; color: var(--muted); flex: none; }
+      .copy { font: 500 13px/1 var(--font); border: 1px solid var(--line-2); background: var(--paper); border-radius: 7px; padding: 7px 10px; cursor: pointer; color: var(--muted); flex: none; }
       .copy:hover { color: var(--ink); border-color: var(--ink); }
-      .facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin-top: 34px; border-top: 1px solid var(--line); max-width: 470px; }
-      .facts div { padding: 14px 14px 0 0; }
-      .facts b { display: block; font: 600 22px/1.1 var(--font); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
-      .facts span { font-size: 13px; color: var(--muted); line-height: 1.35; display: block; margin-top: 4px; }
-
-      /* the wire: a recorded exchange */
-      .wire { background: var(--code-bg); color: var(--code-text); border-radius: 12px; overflow: hidden; box-shadow: 0 1px 0 rgba(12, 12, 13, 0.04), 0 24px 48px -32px rgba(12, 12, 13, 0.45); min-width: 0; }
-      .wire-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--code-line); font: 12px/1.3 var(--mono); color: var(--code-dim); }
-      .wire-head b { color: var(--code-text); font-weight: 500; }
-      .rec { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
-      .rec::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--gold); }
-      .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--code-line); overflow-x: auto; scrollbar-width: none; }
-      .tabs::-webkit-scrollbar { display: none; }
-      .tab { flex: none; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--code-dim); font: 500 12.5px/1 var(--mono); padding: 13px 14px 11px; cursor: pointer; white-space: nowrap; display: inline-flex; gap: 8px; align-items: center; }
-      .tab .n { width: 18px; height: 18px; border-radius: 4px; border: 1px solid var(--code-line); display: grid; place-items: center; font-size: 11px; }
-      .tab[aria-selected="true"] { color: var(--code-text); border-bottom-color: var(--gold); }
-      .tab[aria-selected="true"] .n { background: var(--gold); color: var(--ink); border-color: var(--gold); }
-      .tab:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
-      .pane { padding: 16px 18px 18px; min-height: 392px; }
-      .pane[hidden] { display: none; }
-      .pane pre { margin: 0; font: 12.5px/1.6 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--code-text); }
-      .pane .req { color: var(--code-dim); }
-      .pane .req b { color: var(--code-text); font-weight: 500; }
-      .k { color: var(--code-key); } .s { color: var(--code-str); } .nu { color: var(--code-num); } .d { color: var(--code-dim); }
-      .st402 { color: var(--gold); font-weight: 500; } .st200 { color: var(--code-num); font-weight: 500; }
-      .label { font: 500 11px/1 var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--code-dim); margin: 16px 0 8px; }
-      .label:first-child { margin-top: 0; }
-      .tape { list-style: none; margin: 0; padding: 0; font: 12.5px/1.5 var(--mono); }
-      .tape li { display: grid; grid-template-columns: 74px 44px minmax(0, 1fr); gap: 10px; padding: 6px 0; border-bottom: 1px dashed var(--code-line); }
-      .tape li:last-child { border-bottom: 0; }
-      .tape .t { color: var(--code-dim); font-variant-numeric: tabular-nums; }
-      .tape .c { color: var(--gold); }
-      .tape li.win .c { color: var(--code-num); }
-      .tape li.win { color: #fff; }
-      .tape .r { overflow-wrap: anywhere; }
-      .clock { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font: 12px/1 var(--mono); color: var(--code-dim); }
-      .clock .bar { flex: 1; height: 4px; background: var(--code-line); border-radius: 2px; overflow: hidden; }
-      .clock .bar i { display: block; height: 100%; width: 100%; background: var(--gold); transform-origin: left; }
-      .wire-foot { display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 12px 18px; border-top: 1px solid var(--code-line); font: 12px/1.4 var(--mono); color: var(--code-dim); }
-      .wire-foot[hidden] { display: none; }
-      .wire-foot a { color: var(--code-text); text-decoration: none; border-bottom: 1px solid #3a3a3e; }
-      .wire-foot a:hover { border-bottom-color: var(--gold); }
-
-      /* docs layout */
-      .docs { max-width: 1320px; margin: 0 auto; padding: 0 24px; display: grid; grid-template-columns: 236px minmax(0, 1fr); gap: 56px; }
-      .side { position: sticky; top: var(--top); align-self: start; max-height: calc(100vh - var(--top)); overflow: auto; padding: 32px 0 40px; border-right: 1px solid var(--line); }
-      .toc summary { display: none; }
-      .toc .grp { font: 500 11.5px/1 var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--faint); margin: 22px 0 8px; }
-      .toc .grp:first-of-type { margin-top: 0; }
-      .toc ul { list-style: none; margin: 0; padding: 0; }
-      .toc a { display: block; text-decoration: none; font-size: 14px; color: var(--muted); padding: 5px 12px 5px 12px; margin-right: 16px; border-left: 2px solid transparent; border-radius: 0 6px 6px 0; }
-      .toc a:hover { color: var(--ink); background: var(--rail); }
-      .toc a.on { color: var(--ink); font-weight: 500; border-left-color: var(--gold); background: var(--rail); }
-      .content { padding: 40px 0 80px; min-width: 0; max-width: 820px; }
-      .doc { padding: 36px 0; border-bottom: 1px solid var(--line); }
-      .doc:first-child { padding-top: 8px; }
-      .doc:last-child { border-bottom: 0; }
-      .doc .path { font: 500 12px/1 var(--mono); color: var(--faint); }
-      .doc h2 { font-size: 28px; letter-spacing: -0.035em; line-height: 1.15; margin: 10px 0 0; }
-      .doc h3 { font-size: 17px; letter-spacing: -0.02em; margin: 26px 0 0; }
-      .doc p { margin: 14px 0 0; color: #2c2c2a; }
-      .doc ul, .doc ol { margin: 14px 0 0; padding-left: 22px; color: #2c2c2a; }
-      .doc li { margin: 6px 0; }
-      .doc li::marker { color: var(--faint); }
-      .anchor { text-decoration: none; color: var(--line-2); margin-left: 8px; font-weight: 400; }
-      .anchor:hover, .doc h2:hover .anchor { color: var(--faint); }
-
-      /* tables */
-      .tbl { margin-top: 18px; border: 1px solid var(--line); border-radius: 10px; overflow-x: auto; }
-      table { border-collapse: collapse; width: 100%; font-size: 14px; }
-      th { text-align: left; font: 500 12px/1.2 var(--mono); color: var(--muted); background: var(--rail); padding: 10px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; }
-      td { padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.5; }
-      tr:last-child td { border-bottom: 0; }
-      td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
-      td .m { font: 12.5px/1.45 var(--mono); }
-      .pill { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 5px; font: 500 12px/1 var(--mono); white-space: nowrap; }
-      .p-ok { background: var(--ok-bg); color: var(--ok); }
-      .p-wait { background: var(--butter); color: #6b4e00; }
-      .p-bad { background: var(--bad-bg); color: var(--bad); }
-      .p-ink { background: var(--ink); color: var(--gold); }
-
-      /* code blocks and terminal */
-      .code { margin-top: 18px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--rail); }
-      .code .bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--line); font: 12px/1 var(--mono); color: var(--muted); }
-      .code pre { margin: 0; padding: 14px 16px; font: 13px/1.6 var(--mono); overflow-x: auto; color: var(--ink); }
-      .code pre .c { color: var(--faint); }
-      .term { margin-top: 18px; background: var(--code-bg); color: var(--code-text); border-radius: 10px; overflow: hidden; }
-      .term .bar { display: flex; justify-content: space-between; gap: 10px; padding: 9px 14px; border-bottom: 1px solid var(--code-line); font: 12px/1.3 var(--mono); color: var(--code-dim); }
-      .term pre { margin: 0; padding: 14px 16px 16px; font: 12.5px/1.65 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
-      .term .ps { color: var(--gold); user-select: none; }
-      .term .o { color: var(--code-dim); }
-      .term .ok { color: var(--code-num); }
-      .term .no { color: #ff9b93; }
-      .callout { margin-top: 18px; background: var(--butter); border-radius: 10px; padding: 14px 16px; font-size: 14.5px; line-height: 1.55; color: #3b3220; }
-      .callout b { color: var(--ink); font-weight: 600; }
-      .callout.plain { background: var(--rail); border: 1px solid var(--line); color: #2c2c2a; }
-
-      .roles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 18px; }
-      .role { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; min-width: 0; }
-      .role h3 { margin: 0; font-size: 15px; display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
-      .role dl { margin: 10px 0 0; display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 6px 10px; font-size: 13.5px; }
-      .role dt { color: var(--faint); font: 500 12px/1.6 var(--mono); }
-      .role dd { margin: 0; color: #2c2c2a; }
-
-      footer { border-top: 1px solid var(--line); background: var(--rail); }
-      footer .in { max-width: 1320px; margin: 0 auto; padding: 26px 24px 30px; display: flex; flex-wrap: wrap; gap: 12px 28px; align-items: center; justify-content: space-between; font-size: 13.5px; color: var(--muted); }
-      footer nav { display: flex; gap: 18px; flex-wrap: wrap; }
+      footer .wrap { padding-top: 28px; padding-bottom: 32px; display: flex; flex-wrap: wrap; gap: 10px 24px; justify-content: space-between; font-size: 14px; color: var(--muted); }
+      footer nav { display: flex; flex-wrap: wrap; gap: 18px; }
       footer a { text-decoration: none; }
       footer a:hover { color: var(--ink); }
 
-      @media (max-width: 1080px) {
-        .hero .in { grid-template-columns: minmax(0, 1fr); gap: 40px; padding-top: 48px; }
-        .hero .lead, .install, .facts { max-width: 640px; }
-      }
-      @media (max-width: 920px) {
-        .docs { grid-template-columns: minmax(0, 1fr); gap: 0; }
-        .side { position: sticky; top: var(--top); z-index: 30; max-height: none; overflow: visible; border-right: 0; padding: 0; margin: 0 -24px; background: rgba(255, 255, 255, 0.96); border-bottom: 1px solid var(--line); backdrop-filter: blur(8px); }
-        .toc summary { display: flex; align-items: center; justify-content: space-between; padding: 12px 24px; cursor: pointer; font: 500 14px/1 var(--font); list-style: none; }
-        .toc summary::-webkit-details-marker { display: none; }
-        .toc summary span { font: 12px/1 var(--mono); color: var(--faint); }
-        .toc[open] .toc-body { max-height: 60vh; overflow: auto; padding: 4px 24px 16px; border-top: 1px solid var(--line); }
-        .content { padding-top: 24px; }
-        .toplinks a.hide-sm { display: none; }
+      @media (max-width: 980px) {
+        .hero .wrap { grid-template-columns: minmax(0, 1fr); gap: 56px; padding-top: 40px; padding-bottom: 88px; }
+        .steps { grid-template-columns: minmax(0, 1fr); gap: 32px; }
       }
       @media (max-width: 640px) {
-        .topbar .in { padding: 0 16px; gap: 10px; }
-        .ver { display: none; }
-        .hero .in { padding: 36px 16px 40px; }
-        .hero .lead { font-size: 16.5px; }
-        .docs { padding: 0 16px; }
-        .side { margin: 0 -16px; }
-        .toc summary { padding: 12px 16px; }
-        .toc[open] .toc-body { padding: 4px 16px 16px; }
-        .doc h2 { font-size: 24px; }
-        .roles { grid-template-columns: minmax(0, 1fr); }
-        .pane { padding: 14px 14px 16px; min-height: 0; }
-        .pane pre, .tape { font-size: 11.5px; }
-        .tape li { grid-template-columns: 64px 34px minmax(0, 1fr); gap: 8px; }
-        .wire-head .hide-xs { display: none; }
-        .facts b { font-size: 19px; }
-        footer .in { padding: 22px 16px 26px; }
+        .wrap { padding: 0 16px; }
+        .topbar .wrap { height: 60px; }
+        .toplinks a.hide-sm { display: none; }
+        .sub { font-size: 18px; }
+        .btn { flex: 1 1 auto; justify-content: center; }
+        .shadow { padding: 20px 16px 16px; font-size: 13px; border-radius: 12px; }
+        .shadow li { grid-template-columns: 40px minmax(0, 1fr); gap: 10px; }
+        section.band { padding: 80px 0; }
+        .facts { gap: 16px; }
+        .facts b { font-size: 48px; }
+        .facts span { font-size: 12px; }
+        .strip { grid-template-columns: minmax(0, 1fr); }
+        .strip div { padding-right: 0; }
+        .end .wrap { padding-top: 80px; padding-bottom: 80px; }
       }
-      @media (prefers-reduced-motion: reduce) {
-        html { scroll-behavior: auto; }
-        *, *::before, *::after { transition: none !important; animation: none !important; }
-      }
+      /* the one animation: the exchange plays in once */
       @media (prefers-reduced-motion: no-preference) {
-        html { scroll-behavior: smooth; }
-        .tape li { animation: tick 0.35s ease-out both; }
-        @keyframes tick { from { opacity: 0; transform: translateY(3px); } }
+        .js .shadow li { opacity: 0; transform: translateY(4px); transition: opacity 0.4s ease-out, transform 0.4s ease-out; }
+        .js .shadow li.in { opacity: 1; transform: none; }
       }
     </style>
   </head>
   <body>
-    <a class="skip" href="#content">Skip to the spec</a>
+    <script>document.documentElement.classList.add('js');</script>
     <header class="topbar">
-      <div class="in">
+      <div class="wrap">
         <a class="mark" href="#top" aria-label="Kage home">
           <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#0c0c0d" /><path d="M8 23V9M8 16l9-7M11.5 13.3L18 23" fill="none" stroke="#f4b728" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /><circle cx="23.5" cy="20.5" r="2.5" fill="#f4b728" /></svg>
           Kage <small lang="ja">影</small>
         </a>
-        <span class="ver">x402 v1 · zcash-testnet</span>
         <nav class="toplinks" aria-label="Main">
-          <a class="hide-sm" href="#quickstart">Quickstart</a>
-          <a class="hide-sm" href="#evidence">Evidence</a>
-          <a href="https://github.com/nickthelegend/zec-shielded-x402/blob/main/docs/spec-shielded-x402-agents.md">Spec</a>
-          <a class="gh" href="https://github.com/nickthelegend/zec-shielded-x402"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.56-.29-5.25-1.28-5.25-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.41-2.7 5.38-5.26 5.67.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5z"/></svg>GitHub</a>
+          <a class="hide-sm" href="evidence.html">Spec &amp; evidence</a>
+          <a class="gh" href="https://github.com/nickthelegend/zec-shielded-x402">GitHub</a>
         </nav>
       </div>
     </header>
 
-    <section class="hero" id="top" aria-labelledby="h1">
-      <div class="in">
-        <div>
-          <span class="eyebrow"><i></i>scheme: zcash-shielded</span>
-          <h1 id="h1">HTTP 402, paid in <mark>shielded</mark> ZEC.</h1>
-          <p class="lead">Kage lets AI agents pay for APIs in the <b>x402 v1</b> wire format, settled as Zcash shielded testnet transactions. <b>spendguard</b> checks every payment before a transaction exists. The merchant's facilitator verifies it with an <b>incoming viewing key</b> alone: no spend key, no view of the merchant's own spends.</p>
-          <div class="ctas">
-            <a class="btn btn-ink" href="#quickstart">Quickstart <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg></a>
-            <a class="btn btn-line" href="#evidence">Live testnet evidence</a>
+    <main>
+      <section class="hero" id="top" aria-labelledby="h1">
+        <div class="wrap">
+          <div>
+            <span class="eyebrow"><i></i>x402 v1 · zcash-testnet</span>
+            <h1 id="h1">Agents pay per call. Nobody learns <mark>who paid</mark>.</h1>
+            <p class="sub">HTTP 402 settled in shielded Zcash: spendguard checks each payment, the merchant verifies with a viewing key alone.</p>
+            <div class="ctas">
+              <a class="btn btn-ink" href="evidence.html#quickstart">Quickstart <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg></a>
+              <a class="btn btn-line" href="https://kage-api.201-18-198-162.sslip.io/api/quote">Try the live 402</a>
+            </div>
           </div>
-          <div class="install" aria-label="Clone and test">
-            <span aria-hidden="true">$</span><code id="clone">git clone https://github.com/nickthelegend/zec-shielded-x402 &amp;&amp; cd zec-shielded-x402 &amp;&amp; cargo test -p x402z-server</code>
-            <button class="copy" type="button" data-copy="#clone">Copy</button>
-          </div>
-          <p class="install-note">42 server tests, including the Kage Tab attacks, the public/admin port split and the admin port's Host check. A first build took about 2 minutes on a laptop at 2 build jobs, with no Zcash crates involved. The agent and MCP crates compile librustzcash, which took about 4 more minutes. This page is docs and recorded output. A live testnet 402 answers at <a href="https://kage-api.201-18-198-162.sslip.io/api/quote">kage-api…/api/quote</a> (not paid yet; any testnet wallet can pay its ZIP 321 URI), and the <a href="#quickstart">Quickstart</a> runs the whole stack on your machine.</p>
+
+          <figure class="shadow" aria-label="One recorded x402 exchange on Zcash testnet">
+            <ol>
+              <li><span class="c">GET</span><span class="r">/api/quote</span></li>
+              <li><span class="c g">402</span><span class="r">Payment Required<small>scheme zcash-shielded · 0.001 ZEC · one-time nonce</small></span></li>
+              <li><span class="c g">pay</span><span class="r">shielded transaction, nonce in the encrypted memo
+                <span class="veil" aria-label="On the public chain the amount, memo, sender and receiver are hidden"><span>amount <i style="width: 34px"></i></span><span>memo <i style="width: 46px"></i></span><span>from <i style="width: 28px"></i></span><span>to <i style="width: 28px"></i></span></span></span></li>
+              <li><span class="c">GET</span><span class="r">/api/quote + X-PAYMENT</span></li>
+              <li><span class="c ok">200</span><span class="r payer">OK · <b>"payer": ""</b></span></li>
+            </ol>
+            <figcaption>Recorded on Zcash testnet, 2026-10-21. Shaded fields are what the public chain hides.</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section class="band" aria-labelledby="h-how">
+        <div class="wrap">
+          <h2 id="h-how">Three steps. No account, no card.</h2>
+          <ol class="steps">
+            <li><h3>Ask</h3><p>The API answers 402 with a Zcash option in the standard x402 body.</p></li>
+            <li><h3>Pay</h3><p>spendguard checks the cap and host, then the agent pays shielded.</p></li>
+            <li><h3>Retry</h3><p>The facilitator finds the memo with its viewing key; the API answers 200.</p></li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="band" aria-labelledby="h-proof">
+        <div class="wrap">
+          <h2 id="h-proof">Paid on testnet, not on slides.</h2>
           <div class="facts">
-            <div><b>10</b><span>paid testnet txs, verifiable with a published UIVK; 2 paid by an LLM</span></div>
-            <div><b>139</b><span>tests, 5 against live testnet</span></div>
-            <div><b>0</b><span>spend keys on the merchant side</span></div>
+            <div><b>10</b><span>Payments</span></div>
+            <div><b>139</b><span>Tests</span></div>
+            <div><b>0</b><span>Spend keys</span></div>
+          </div>
+          <a class="more" href="evidence.html#evidence">See the evidence <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg></a>
+        </div>
+      </section>
+
+      <section class="band" aria-labelledby="h-live">
+        <div class="wrap">
+          <h2 id="h-live">What's live today</h2>
+          <div class="strip">
+            <div><h3>Live</h3><p>The <a href="https://kage-api.201-18-198-162.sslip.io/api/quote">paid API</a> and its <a href="https://kage-facilitator.201-18-198-162.sslip.io/health">facilitator</a> on Zcash testnet.</p></div>
+            <div class="setup"><h3>Setup required</h3><p>Paying it needs your own funded testnet wallet. Mainnet is not supported.</p></div>
           </div>
         </div>
+      </section>
+    </main>
 
-        <figure class="wire" aria-label="Recorded x402 runs on Zcash testnet: an LLM paying over MCP, and one exchange step by step" style="margin: 0">
-          <div class="wire-head">
-            <span class="rec" id="recDate">recorded run · <b>2026-10-22</b> <span class="hide-xs">15:34:30–15:36:22 UTC</span></span>
-            <span id="recWhat">LLM over <b>MCP</b></span>
-          </div>
-          <div class="tabs" role="tablist" aria-label="Recorded runs and the steps of one exchange">
-            <button class="tab" role="tab" id="t0" aria-controls="p0" aria-selected="true" data-rec="recorded run · &lt;b&gt;2026-10-22&lt;/b&gt; &lt;span class=&quot;hide-xs&quot;&gt;15:34:30–15:36:22 UTC&lt;/span&gt;" data-what="LLM over &lt;b&gt;MCP&lt;/b&gt;"><span class="n">AI</span>MCP</button>
-            <button class="tab" role="tab" id="t1" aria-controls="p1" aria-selected="false" tabindex="-1"><span class="n">1</span>402</button>
-            <button class="tab" role="tab" id="t2" aria-controls="p2" aria-selected="false" tabindex="-1"><span class="n">2</span>X-PAYMENT</button>
-            <button class="tab" role="tab" id="t3" aria-controls="p3" aria-selected="false" tabindex="-1"><span class="n">3</span>pending ×10</button>
-            <button class="tab" role="tab" id="t4" aria-controls="p4" aria-selected="false" tabindex="-1"><span class="n">4</span>200</button>
-          </div>
-
-          <div class="pane" role="tabpanel" id="p0" aria-labelledby="t0">
-            <p class="label">An LLM (opencode, nemotron-3-ultra) calling x402z-mcp; the agent pays from its own wallet. Tool calls in order, from docs/mcp-paid-run.jsonl.</p>
-            <ol class="tape" id="mcptape" aria-label="The model's tool calls and what each returned">
-              <li><span class="t">15:34:30</span><span class="c">call</span><span class="r">spend_status → cap 600000 zat, spent 0, allowedHosts ["127.0.0.1:4220"]</span></li>
-              <li><span class="t">15:34:47</span><span class="c">402</span><span class="r">paid_fetch /api/quote → "status":"settlement_pending", "txid":"f037d597…e22a", 100000 zat</span></li>
-              <li class="win"><span class="t">15:35:18</span><span class="c">200</span><span class="r">redeem_payment f037d597…e22a → {"success":true,"transaction":"f037d597…e22a","payer":""}</span></li>
-              <li><span class="t">15:35:31</span><span class="c">202</span><span class="r">tab_fetch {"buy":3} → "status":"tab_pending", "txid":"b75b2415…4b91", 300000 zat</span></li>
-              <li><span class="t">15:35:35</span><span class="c">202</span><span class="r">tab_fetch → tab_pending, the same txid b75b2415…4b91 (not paid again)</span></li>
-              <li><span class="t">15:35:39</span><span class="c">202</span><span class="r">tab_fetch → tab_pending, the same txid b75b2415…4b91 (not paid again)</span></li>
-              <li><span class="t">15:35:43</span><span class="c">202</span><span class="r">tab_fetch → tab_pending, the same txid b75b2415…4b91 (not paid again)</span></li>
-              <li class="win"><span class="t">15:36:08</span><span class="c">200</span><span class="r">tab_fetch → {"success":true,"transaction":"tab:f64cf56451454ddc","payer":""}, 1 ms, 2 tokens left</span></li>
-              <li class="win"><span class="t">15:36:12</span><span class="c">200</span><span class="r">tab_fetch → "tab:268c28cae693f124", 1 ms, 1 left</span></li>
-              <li class="win"><span class="t">15:36:14</span><span class="c">200</span><span class="r">tab_fetch → "tab:3dc634365b4e2de9", 0 ms, 0 left</span></li>
-              <li><span class="t">15:36:22</span><span class="c">call</span><span class="r">ledger_tail → 2 payments: f037d597… 100000 zat settled, b75b2415… 300000 zat</span></li>
-            </ol>
-            <p class="label">Shortened here: txids, and the fields each call returned. Unedited events: <a href="https://github.com/nickthelegend/zec-shielded-x402/blob/main/docs/mcp-paid-run.jsonl">mcp-paid-run.jsonl</a>. The other tabs replay one X-PAYMENT exchange step by step.</p>
-          </div>
-
-          <div class="pane" role="tabpanel" id="p1" aria-labelledby="t1" hidden>
-<pre><span class="req">GET <b>/api/quote</b> HTTP/1.1</span>
-<span class="st402">HTTP/1.1 402 Payment Required</span>
-<span class="d">content-type: application/json</span>
-
-{ <span class="k">"x402Version"</span>: <span class="nu">1</span>,
-  <span class="k">"accepts"</span>: [{
-    <span class="k">"scheme"</span>: <span class="s">"zcash-shielded"</span>,
-    <span class="k">"network"</span>: <span class="s">"zcash-testnet"</span>,
-    <span class="k">"maxAmountRequired"</span>: <span class="s">"100000"</span>,
-    <span class="k">"resource"</span>: <span class="s">"http://127.0.0.1:4020/api/quote"</span>,
-    <span class="k">"payTo"</span>: <span class="s">"utest100fnpp4zd4lp0vmu093gwx6p6ujv8lusunnkvrsuxyaca9avmea5fqgt0ktkvm0sf2wnn8fw7ad034fy9lvsrq0x04vn0jqq7dvnyua5zk9s30v2lcys8pk3mm7xnkdt7fyf65xe0vtnv7sswdflaltg9uesty00c6x2kvgc25ygcrzs"</span>,
-    <span class="k">"maxTimeoutSeconds"</span>: <span class="nu">900</span>,
-    <span class="k">"asset"</span>: <span class="s">"ZEC"</span>,
-    <span class="k">"extra"</span>: {
-      <span class="k">"expiresAt"</span>: <span class="nu">1792562981</span>,
-      <span class="k">"memoNonce"</span>: <span class="s">"x402z-696c58afd509cc0f8753f3b0"</span>,
-      <span class="k">"paymentUri"</span>: <span class="s">"zcash:utest100fnpp4…?amount=0.001&amp;memo=eDQwMnotNjk2YzU4YWZkNTA5Y2MwZjg3NTNmM2Iw"</span> } }],
-  <span class="k">"error"</span>: <span class="s">"X-PAYMENT header is required"</span> }</pre>
-            <p class="label">Shortened here: description, mimeType, and the address inside paymentUri.</p>
-          </div>
-
-          <div class="pane" role="tabpanel" id="p2" aria-labelledby="t2" hidden>
-            <p class="label">a shielded payment: 100000 zat to payTo, memo = nonce</p>
-<pre><span class="d">broadcast txid=</span><span class="s">25a8b324bebee30220382113c6fb9cc3be1144b036117c34778bde3b1d8b689d</span> <span class="d">at 05:55:21Z</span></pre>
-            <p class="label">then the retry</p>
-<pre><span class="req">GET <b>/api/quote</b> HTTP/1.1</span>
-<span class="k">X-PAYMENT</span>: <span class="d">eyJ4NDAyVmVyc2lvbiI6IDEsICJzY2hlbWUiOiAiemNhc2gtc2hpZWxkZWQiLCAibmV0d29yayI6ICJ6Y2FzaC10ZXN0bmV0IiwgInBheWxvYWQiOiB7InR4aWQiOiAiMjVhOGIzMjRiZWJlZTMwMjIwMzgyMTEzYzZmYjljYzNiZTExNDRiMDM2MTE3YzM0Nzc4YmRlM2IxZDhiNjg5ZCIsICJtZW1vTm9uY2UiOiAieDQwMnotNjk2YzU4YWZkNTA5Y2MwZjg3NTNmM2IwIn19</span></pre>
-            <p class="label">base64-decoded</p>
-<pre>{ <span class="k">"x402Version"</span>: <span class="nu">1</span>, <span class="k">"scheme"</span>: <span class="s">"zcash-shielded"</span>, <span class="k">"network"</span>: <span class="s">"zcash-testnet"</span>,
-  <span class="k">"payload"</span>: { <span class="k">"txid"</span>: <span class="s">"25a8b324bebee30220382113c6fb9cc3be1144b036117c34778bde3b1d8b689d"</span>,
-               <span class="k">"memoNonce"</span>: <span class="s">"x402z-696c58afd509cc0f8753f3b0"</span> } }</pre>
-          </div>
-
-          <div class="pane" role="tabpanel" id="p3" aria-labelledby="t3" hidden>
-            <div class="clock" aria-hidden="true"><span>05:55:21</span><span class="bar"><i id="clockbar"></i></span><span>05:58:47</span></div>
-            <ol class="tape" id="tape" aria-label="Each retry with the same X-PAYMENT header, and the decoded X-PAYMENT-RESPONSE">
-              <li><span class="t">05:55:21</span><span class="c">402</span><span class="r">{"success":false,"errorReason":"settlement_pending"}</span></li>
-              <li><span class="t">05:55:42</span><span class="c">402</span><span class="r">{"success":false,"errorReason":"settlement_pending"}</span></li>
-              <li><span class="t">05:56:03</span><span class="c">402</span><span class="r">{"success":false,"errorReason":"settlement_pending"}</span></li>
-              <li><span class="t">05:56:23</span><span class="c">402</span><span class="r">{"success":false,"errorReason":"settlement_pending"}</span></li>
-              <li><span class="t">05:56:44</span><span class="c">402</span><span class="r">{"success":false,"errorReason":"settlement_pending"}</span></li>
-              <li><span class="t">05:57:04</span><span class="c">402</span><span class="r">{"success":false,"errorReason":"settlement_pending"}</span></li>
-              <li><span class="t">05:57:25</span><span class="c">402</span><span class="r">{"success":false,"errorReason":"settlement_pending"}</span></li>
-              <li><span class="t">05:57:45</span><span class="c">402</span><span class="r">{"success":false,"errorReason":"settlement_pending"}</span></li>
-              <li><span class="t">05:58:06</span><span class="c">402</span><span class="r">{"success":false,"errorReason":"settlement_pending"}</span></li>
-              <li><span class="t">05:58:26</span><span class="c">402</span><span class="r">{"success":false,"errorReason":"settlement_pending"}</span></li>
-              <li class="win"><span class="t">05:58:47</span><span class="c">200</span><span class="r">{"success":true,"transaction":"25a8b324…689d"}</span></li>
-            </ol>
-            <p class="label">Same X-PAYMENT every 20 s. Pending keeps the same challenge and burns nothing. Fields network and payer ("") left out of each line.</p>
-          </div>
-
-          <div class="pane" role="tabpanel" id="p4" aria-labelledby="t4" hidden>
-<pre><span class="st200">HTTP/1.1 200 OK</span>
-<span class="k">x-payment-response</span>: <span class="d">eyJzdWNjZXNzIjp0cnVlLCJ0cmFuc2FjdGlvbiI6IjI1YThiMzI0YmViZWUzMDIyMDM4MjExM2M2ZmI5Y2MzYmUxMTQ0YjAzNjExN2MzNDc3OGJkZTNiMWQ4YjY4OWQiLCJuZXR3b3JrIjoiemNhc2gtdGVzdG5ldCIsInBheWVyIjoiIn0=</span>
-<span class="d"># decoded</span>
-{<span class="k">"success"</span>:<span class="nu">true</span>,<span class="k">"transaction"</span>:<span class="s">"25a8b324bebee30220382113c6fb9cc3be1144b036117c34778bde3b1d8b689d"</span>,<span class="k">"network"</span>:<span class="s">"zcash-testnet"</span>,<span class="k">"payer"</span>:<span class="s">""</span>}
-
-<span class="d"># body</span>
-{ <span class="k">"product"</span>: <span class="s">"Kage demo quote"</span>,
-  <span class="k">"servedAt"</span>: <span class="nu">1792562327</span>,
-  <span class="k">"settlement"</span>: { <span class="k">"amountZat"</span>: <span class="nu">100000</span>, <span class="k">"confirmations"</span>: <span class="nu">1</span>,
-    <span class="k">"memoNonce"</span>: <span class="s">"x402z-696c58afd509cc0f8753f3b0"</span>,
-    <span class="k">"minedAt"</span>: <span class="nu">1792562282</span>,
-    <span class="k">"txid"</span>: <span class="s">"25a8b324bebee30220382113c6fb9cc3be1144b036117c34778bde3b1d8b689d"</span> } }</pre>
-            <p class="label">Shortened here: the body's "quote" text. payer is always "": nobody learns the payer's address.</p>
-          </div>
-
-          <div class="wire-foot" id="footMcp">
-            <span>tx <a href="https://testnet.zecblock.com/tx/f037d5978fec7817340ff118d328995288f0a575a1850b083ca05f7d71d4e22a">f037d597…e22a ↗</a></span>
-            <span>block 4,529,425</span>
-            <span>payer: the agent's own wallet, chosen by the LLM</span>
-          </div>
-          <div class="wire-foot" id="footExchange" hidden>
-            <span>tx <a href="https://testnet.zecblock.com/tx/25a8b324bebee30220382113c6fb9cc3be1144b036117c34778bde3b1d8b689d">25a8b324…689d ↗</a></span>
-            <span>block 4,524,602</span>
-            <span>payer: a separate zingo-cli demo wallet</span>
-          </div>
-        </figure>
+    <section class="end" aria-labelledby="h-end">
+      <div class="wrap">
+        <h2 id="h-end" style="font-size: clamp(30px, 3.4vw, 44px); letter-spacing: -0.04em; line-height: 1.08">Run the server tests in two minutes.</h2>
+        <div class="install" aria-label="Clone and test">
+          <span aria-hidden="true">$</span><code id="clone">git clone https://github.com/nickthelegend/zec-shielded-x402 &amp;&amp; cd zec-shielded-x402 &amp;&amp; cargo test -p x402z-server</code>
+          <button class="copy" type="button" data-copy="#clone">Copy</button>
+        </div>
+        <div class="ctas"><a class="btn btn-ink" href="https://github.com/nickthelegend/zec-shielded-x402">View on GitHub</a></div>
       </div>
     </section>
 
-    <div class="docs">
-      <aside class="side" aria-label="Spec contents">
-        <details class="toc" id="toc" open>
-          <summary>On this page <span id="tocNow">Overview</span></summary>
-          <div class="toc-body">
-            <p class="grp">Start</p>
-            <ul><li><a href="#overview">Overview</a></li><li><a href="#quickstart">Quickstart</a></li></ul>
-            <p class="grp">Protocol</p>
-            <ul><li><a href="#the-402">The 402</a></li><li><a href="#spendguard">spendguard</a></li><li><a href="#x-payment">X-PAYMENT</a></li><li><a href="#facilitator">Facilitator</a></li><li><a href="#settlement">Settlement</a></li></ul>
-            <p class="grp">Surfaces</p>
-            <ul><li><a href="#zip321">Any wallet (ZIP 321)</a></li><li><a href="#mcp">MCP server</a></li><li><a href="#tab">Kage Tab</a></li></ul>
-            <p class="grp">Trust</p>
-            <ul><li><a href="#leaks">What still leaks</a></li><li><a href="#evidence">Live evidence</a></li><li><a href="#tests">Tests</a></li></ul>
-          </div>
-        </details>
-      </aside>
-
-      <main class="content" id="content">
-        <section class="doc" id="overview" aria-labelledby="h-overview">
-          <span class="path">docs / overview</span>
-          <h2 id="h-overview">Overview<a class="anchor" href="#overview" aria-label="Link to Overview">#</a></h2>
-          <p>An agent asks for a paid resource and gets <code>402 Payment Required</code> with a Zcash option in <code>accepts[]</code>. It pays the merchant's shielded address with the challenge's nonce in the encrypted memo, then retries with <code>X-PAYMENT</code> naming the txid. The chain shows neither the amount, the memo nor either party.</p>
-          <div class="roles">
-            <div class="role"><h3>Client <span class="pill p-ink">agent or any wallet</span></h3><dl><dt>holds</dt><dd>its own spending key, the spendguard policy and ledger</dd><dt>never</dt><dd>the merchant's keys</dd></dl></div>
-            <div class="role"><h3>Resource server <span class="pill p-ok">x402z-server</span></h3><dl><dt>holds</dt><dd>the merchant's shielded UA, the receipt public key, a SQLite challenge book</dd><dt>never</dt><dd>any Zcash key</dd></dl></div>
-            <div class="role"><h3>Facilitator <span class="pill p-ok">x402z-facilitator</span></h3><dl><dt>holds</dt><dd>the merchant's unified incoming viewing key (UIVK), an ed25519 receipt key</dd><dt>never</dt><dd>a spending key or a full viewing key</dd></dl></div>
-            <div class="role"><h3>lightwalletd <span class="pill p-wait">testnet.zec.rocks</span></h3><dl><dt>holds</dt><dd>the public chain</dd><dt>never</dt><dd>anything shielded</dd></dl></div>
-          </div>
-          <p><b>Prior art.</b> coinbase/x402 v1 defines the 402 body, <code>X-PAYMENT</code> and the facilitator endpoints for EVM payments; Kage keeps that wire format and adds a <code>zcash-shielded</code> scheme. A Zcash Community Grants application, "Shielded x402" (forum topic 57826, posted 2026-09-25 by the forum user baby-zack-agent), proposed private machine payments over x402 and was rejected on 2026-09-28. That application is another applicant's: Kage is a separate build by Nivesh Gajengi and shares none of its code. Kage adds a facilitator that holds only the incoming viewing key, spendguard before the wallet, Kage Tab blind-RSA batching, and ten live testnet payments anyone can check.</p>
-        </section>
-
-        <section class="doc" id="quickstart" aria-labelledby="h-quick">
-          <span class="path">docs / quickstart</span>
-          <h2 id="h-quick">Quickstart<a class="anchor" href="#quickstart" aria-label="Link to Quickstart">#</a></h2>
-          <p>A Rust workspace pinned to toolchain 1.89.0. Run the tests one crate at a time; the Zcash crates are large.</p>
-          <div class="code"><div class="bar"><span>shell</span><button class="copy" type="button" data-copy="#qs">Copy</button></div>
-<pre id="qs">cargo test -p spendguard -p x402z-protocol -p x402z-server   <span class="c"># 16 + 14 + 42</span>
-cargo test -p x402z-agent                                      <span class="c"># 32</span>
-cargo test -p x402z-mcp                                        <span class="c"># 7, drives the binary over stdio</span>
-cargo test -p x402z-facilitator                                <span class="c"># 17: 6 build Halo2 proofs, 3 hit testnet</span>
-cd packages/x402-zcash &amp;&amp; npm test                             <span class="c"># 11: TypeScript, 2 hit the binaries and testnet</span></pre></div>
-          <p>Nothing is mocked. Without a key, a wallet or funds, each binary stops with a readable error and a non-zero exit code:</p>
-          <div class="term" role="group" aria-label="Terminal output"><div class="bar"><span>zsh · 2026-10-21</span><span>no .env, then cap below the price</span></div>
-<pre><span class="ps">$ </span>target/debug/x402z-facilitator
-<span class="o">ZCASH_LWD_URL not set; using https://testnet.zec.rocks:443</span>
-<span class="no">error: X402Z_MERCHANT_UIVK not configured (see .env.example)</span>
-<span class="ps">$ </span>echo $?
-<span class="o">2</span>
-<span class="ps">$ </span>X402Z_AGENT_DAILY_CAP_ZAT=50000 target/debug/x402z-agent
-<span class="o">402 challenge: pay 100000 zat to utest100fnpp4zd4lp0v… memo x402z-00fc4d5bdee5d4ba0609bd04 (expires in 900s)</span>
-<span class="no">error: spendguard refused the payment: daily cap exceeded: spent 0 + requested 100000 &gt; cap 50000 zat. No transaction was built or broadcast.</span>
-<span class="ps">$ </span>echo $?
-<span class="o">3</span></pre></div>
-          <p>After a <code>cargo build</code>, <code>cd e2e &amp;&amp; npm ci &amp;&amp; npm run stack</code> runs the whole stack locally with the published demo UIVK and no wallet (dashboard on <code>127.0.0.1:4120</code>; <code>npm run test:e2e</code> then drives it in Google Chrome), then pay the QR from any testnet wallet. A paid agent run needs a funded testnet wallet for the agent, a merchant UA and UIVK, a receipt key pair from <code>x402z-facilitator keygen</code> and a shared <code>X402Z_FACILITATOR_TOKEN</code>. The README walks through it; <code>x402z-server</code> serves the paid API on <code>127.0.0.1:4020</code> and the dashboard on a separate loopback port, <code>127.0.0.1:4029</code>.</p>
-        </section>
-
-        <section class="doc" id="the-402" aria-labelledby="h-402">
-          <span class="path">protocol / payment required</span>
-          <h2 id="h-402">The 402<a class="anchor" href="#the-402" aria-label="Link to The 402">#</a></h2>
-          <p>The body follows coinbase/x402 <a href="https://github.com/coinbase/x402/blob/main/specs/x402-specification-v1.md">v1</a>: <code>{x402Version: 1, accepts: [PaymentRequirements], error}</code>. The Zcash entry:</p>
-          <div class="tbl"><table>
-            <thead><tr><th>Field</th><th>Value</th><th>Notes</th></tr></thead>
-            <tbody>
-              <tr><td><code>scheme</code> / <code>network</code></td><td><code>zcash-shielded</code> / <code>zcash-testnet</code></td><td>Mainnet challenges are refused by the protocol crate.</td></tr>
-              <tr><td><code>maxAmountRequired</code></td><td>zatoshi, as a string</td><td>1 ZEC = 10<sup>8</sup> zat. The demo price is 100,000 zat.</td></tr>
-              <tr><td><code>payTo</code></td><td>unified address</td><td>Shielded receivers only. A UA with a transparent receiver is refused.</td></tr>
-              <tr><td><code>extra.memoNonce</code></td><td><code>x402z-&lt;24 hex&gt;</code></td><td>Single use. Goes into the payment's encrypted memo as text.</td></tr>
-              <tr><td><code>extra.expiresAt</code></td><td>Unix seconds</td><td><code>maxTimeoutSeconds</code> is 900. Persisted in SQLite, so a restart keeps it.</td></tr>
-              <tr><td><code>extra.paymentUri</code></td><td>ZIP 321 URI</td><td>For any wallet; see <a href="#zip321">ZIP 321</a>.</td></tr>
-              <tr><td><code>extra.tab</code></td><td>optional</td><td>The <a href="#tab">Kage Tab</a> offer.</td></tr>
-            </tbody>
-          </table></div>
-          <p>Each client IP gets a token bucket of <code>X402Z_CHALLENGE_RATE_PER_MIN</code> challenges and redeem attempts (default 30). Over it: <code>429</code> with <code>Retry-After</code>.</p>
-        </section>
-
-        <section class="doc" id="spendguard" aria-labelledby="h-sg">
-          <span class="path">protocol / client policy</span>
-          <h2 id="h-sg">spendguard<a class="anchor" href="#spendguard" aria-label="Link to spendguard">#</a></h2>
-          <p>The agent checks every payment before it touches the wallet. Rules run in order, and the first denial wins:</p>
-          <ol>
-            <li><b>Host allowlist.</b> Deny by default. Exact host or <code>*.suffix</code>; <code>*.data.test</code> matches <code>x.data.test</code>, not <code>evildata.test</code>. An entry with a port (<code>127.0.0.1:4020</code>) or a scheme (<code>https://…</code>) allows only that. Checked before the agent's first request, with plain HTTP to a non-loopback host refused.</li>
-            <li><b>Amount &gt; 0.</b></li>
-            <li><b>Daily cap</b> per agent and UTC day, inclusive, with checked arithmetic: an overflow is a denial.</li>
-            <li><b>Approval threshold</b>, inclusive. The CLI asks the operator; the MCP server always declines.</li>
-          </ol>
-          <p>A denied payment builds no transaction. Two agent runs at once take turns on a file lock, so they can't both pass the cap: a test runs six at once against room for one payment, and exactly one pays.</p>
-        </section>
-
-        <section class="doc" id="x-payment" aria-labelledby="h-xp">
-          <span class="path">protocol / retry</span>
-          <h2 id="h-xp">X-PAYMENT<a class="anchor" href="#x-payment" aria-label="Link to X-PAYMENT">#</a></h2>
-          <p>The client retries with <code>X-PAYMENT: base64(json)</code>. The payload names the challenge as well as the txid, because a shielded transaction gives the server nothing to look up. The facilitator then has to find that same nonce inside the encrypted memo, so a payment can't be pointed at another challenge.</p>
-          <div class="code"><div class="bar"><span>X-PAYMENT, decoded</span></div>
-<pre>{ "x402Version": 1, "scheme": "zcash-shielded", "network": "zcash-testnet",
-  "payload": { "txid": "&lt;64 hex&gt;", "memoNonce": "x402z-…" } }</pre></div>
-          <p>Wallets that can't set headers use <code>POST /api/redeem {memoNonce, txid}</code>. It runs the same checks.</p>
-        </section>
-
-        <section class="doc" id="facilitator" aria-labelledby="h-fac">
-          <span class="path">protocol / verification</span>
-          <h2 id="h-fac">Facilitator<a class="anchor" href="#facilitator" aria-label="Link to Facilitator">#</a></h2>
-          <p><code>GET /supported</code>, <code>POST /verify</code> (read-only), <code>POST /settle</code> and <code>GET /health</code>. For each payment it:</p>
-          <ol>
-            <li>fetches the transaction with lightwalletd <code>GetTransaction</code> and checks its txid;</li>
-            <li>parses it at the consensus branch of its mined height;</li>
-            <li>trial-decrypts every Sapling, Orchard and Ironwood output with the merchant <b>UIVK</b>;</li>
-            <li>sums the outputs whose memo is the nonce and whose recipient is the matching <code>payTo</code> receiver;</li>
-            <li>reads the mined block's header time and checks it against <code>expiresAt</code> plus a 1,200 s grace.</li>
-          </ol>
-          <div class="callout"><b>Least privilege, tested.</b> A test builds the merchant's own change and outgoing outputs with the open nonce in every memo. The full viewing key sees all four outputs; the UIVK sees none, so none can be credited.</div>
-          <p>It refuses: no matching output, a wrong or sibling diversified recipient, underpaid, mined after expiry plus grace, a foreign <code>payTo</code>, a <code>payTo</code> with a transparent receiver, and a nonce already bound to another txid (kept in SQLite across restarts). It then signs an ed25519 receipt: <code>base64url(claims) "." base64url(sig)</code> with <code>minedAt</code> from the block header.</p>
-        </section>
-
-        <section class="doc" id="settlement" aria-labelledby="h-set">
-          <span class="path">protocol / response</span>
-          <h2 id="h-set">Settlement<a class="anchor" href="#settlement" aria-label="Link to Settlement">#</a></h2>
-          <p>The server checks the receipt against <code>X402Z_RECEIPT_PUBKEY</code> and the stored challenge, burns the nonce once in SQLite, and answers:</p>
-          <div class="tbl"><table>
-            <thead><tr><th>Outcome</th><th>Status</th><th>X-PAYMENT-RESPONSE</th></tr></thead>
-            <tbody>
-              <tr><td>Paid</td><td><span class="pill p-ok">200</span></td><td><code>{success: true, transaction, network, payer: ""}</code></td></tr>
-              <tr><td>Not confirmed yet</td><td><span class="pill p-wait">402</span></td><td><code>settlement_pending</code>, the <b>same</b> challenge, nothing burned</td></tr>
-              <tr><td>Refused</td><td><span class="pill p-bad">402</span></td><td><code>invalid_payment</code>, <code>payment_expired</code>, <code>nonce_already_used</code>, <code>unknown_challenge</code>, <code>invalid_payload</code>, <code>invalid_network</code>, <code>invalid_scheme</code>; a fresh challenge</td></tr>
-              <tr><td>Facilitator down</td><td><span class="pill p-bad">502</span></td><td><code>facilitator_error</code>, nothing burned</td></tr>
-            </tbody>
-          </table></div>
-          <p>Testnet blocks come about every 75 s, sometimes much slower. The default is one confirmation, and the agent retries every 15 s for up to 900 s.</p>
-        </section>
-
-        <section class="doc" id="zip321" aria-labelledby="h-zip">
-          <span class="path">surfaces / any wallet</span>
-          <h2 id="h-zip">Any wallet (ZIP 321)<a class="anchor" href="#zip321" aria-label="Link to ZIP 321">#</a></h2>
-          <p><code>extra.paymentUri</code> is a <a href="https://zips.z.cash/zip-0321">ZIP 321</a> URI. librustzcash's own parser reads it back to the same address, amount and memo. The dashboard's 402 card renders its QR locally at <code>/api/challenge/{nonce}/qr.svg</code>, with copy, <b>Open in wallet</b> and a <b>paste txid</b> box that answers paid, pending (re-checked every 15 s) or refused.</p>
-          <div class="code"><div class="bar"><span>the recorded challenge's URI (address shortened)</span></div>
-<pre>zcash:utest100fnpp4…crzs?amount=0.001&amp;memo=eDQwMnotNjk2YzU4YWZkNTA5Y2MwZjg3NTNmM2Iw</pre></div>
-          <p>Run live on 2026-10-21: zingo-cli paid the QR's address, amount and memo, the txid was pasted, and <code>/api/redeem</code> answered <code>paid</code>; a second redeem answered <code>nonce_already_used</code> (tx <a href="https://testnet.zecblock.com/tx/ccb4214c6a1fdf183c086ae5b4f559d181ead4c1c61dc7e711fc4a08b95b0ed3"><code>ccb4214c…0ed3</code></a>).</p>
-        </section>
-
-        <section class="doc" id="mcp" aria-labelledby="h-mcp">
-          <span class="path">surfaces / llm agents</span>
-          <h2 id="h-mcp">MCP server<a class="anchor" href="#mcp" aria-label="Link to MCP server">#</a></h2>
-          <p><code>x402z-mcp</code> speaks MCP over stdio (JSON-RPC 2.0, protocol <code>2025-06-18</code>) with the agent's own configuration.</p>
-          <div class="tbl"><table>
-            <thead><tr><th>Tool</th><th>Does</th></tr></thead>
-            <tbody>
-              <tr><td><code>paid_fetch {url}</code></td><td>The agent's x402 flow. Returns <code>settlement_pending</code> with the txid right after the broadcast (a block takes about 75 s; MCP clients time out at about 60 s); calling it again for the same URL never pays twice. Refusals, wallet errors, rejected payments and missing config come back as <code>isError</code> results.</td></tr>
-              <tr><td><code>redeem_payment {url, txid, memoNonce}</code></td><td>Presents an earlier payment once with <code>X-PAYMENT</code>. Never pays.</td></tr>
-              <tr><td><code>tab_fetch {url, buy?}</code></td><td>Spends one <a href="#tab">Kage Tab</a> token. With none left, it buys a tab of <code>buy</code> tokens from the agent's wallet inside spendguard first, and collects it on a later call without paying again.</td></tr>
-              <tr><td><code>spend_status {}</code></td><td>Spent today against the cap, the allowlist and the threshold.</td></tr>
-              <tr><td><code>ledger_tail {n}</code></td><td>The last n spendguard decisions.</td></tr>
-            </tbody>
-          </table></div>
-          <div class="term" role="group" aria-label="MCP live run, paid by the agent's own wallet"><div class="bar"><span>opencode · nemotron-3-ultra:free · 2026-10-22</span><span>agent's own wallet</span></div>
-<pre><span class="o">[2] kage_paid_fetch {"url": "http://127.0.0.1:4220/api/quote"}</span>
-<span class="o">  "status": "settlement_pending", "txid": "f037d5978fec…d4e22a",</span>
-<span class="o">[3] kage_redeem_payment {"url": …, "txid": "f037d5978fec…", "memoNonce": "x402z-ca140754…"}</span>
-<span class="ok">  "settlement": {"network": "zcash-testnet", "payer": "", "success": true, …}, "status": 200</span>
-<span class="o">[4] kage_tab_fetch {"buy": 3, "url": …}   "status": "tab_pending", "txid": "b75b2415…4b91"</span>
-<span class="d">  … four retries collect the same paid tab, none pays again …</span>
-<span class="ok">[8] kage_tab_fetch {"url": …}   "status": 200, "remainingTokens": 2</span></pre></div>
-          <p>Lines excerpted from the <a href="https://github.com/nickthelegend/zec-shielded-x402/blob/main/docs/mcp-paid-run.txt">full transcript</a>, where … marks a cut. The model chose every call; the agent paid from its own wallet (txs <a href="https://testnet.zecblock.com/tx/f037d5978fec7817340ff118d328995288f0a575a1850b083ca05f7d71d4e22a"><code>f037d597…e22a</code></a> and <a href="https://testnet.zecblock.com/tx/b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91"><code>b75b2415…4b91</code></a>). An earlier LLM run shows a spendguard refusal (<a href="https://github.com/nickthelegend/zec-shielded-x402/blob/main/docs/mcp-live-run.txt">refusal transcript</a>).</p>
-        </section>
-
-        <section class="doc" id="tab" aria-labelledby="h-tab">
-          <span class="path">surfaces / batching</span>
-          <h2 id="h-tab">Kage Tab<a class="anchor" href="#tab" aria-label="Link to Kage Tab">#</a></h2>
-          <p>One shielded payment buys N tokens, each spent on one later request with <code>X-PAYMENT</code> scheme <code>zcash-shielded-tab</code>. The server can't link a token to the payment or to its siblings: RFC 9474 blind RSA (RSABSSA-SHA384-PSS-Randomized, RSA-2048), with a SQLite spent set.</p>
-          <p>The agent side: <code>x402z-agent tab-buy &lt;n&gt;</code> pays from the agent's wallet, or <code>tab-buy &lt;n&gt; --external</code> prints a ZIP 321 request for any wallet followed by <code>tab-redeem &lt;txid&gt;</code>. Then <code>tab-fetch</code> spends one token per request; the MCP tool <code>tab_fetch</code> does the same, and an LLM bought and spent a tab with it on Oct 22. Spendguard checks the whole tab price before anything is paid, and the agent refuses a different key from the same server within one key epoch.</p>
-          <div class="term" role="group" aria-label="Kage Tab live run"><div class="bar"><span>x402z-agent · testnet · 2026-10-21</span><span>1 tx → 5 calls</span></div>
-<pre><span class="ps">$ </span>x402z-agent tab-buy 5 --external
-<span class="o">spendguard: allowed 500000 zat (0 of 1000000 zat already spent today)</span>
-<span class="d"># zingo-cli pays the ZIP 321 request: tx fa011720…c3ad, block 4,526,095</span>
-<span class="ps">$ </span>x402z-agent tab-redeem fa01172015c63ce47a0285f7fae130a3efe5f821b938a8befa1ca547d00ac3ad
-<span class="o">{"tab":{"amountZat":500000,…,"keyId":"d3e83a274b8e8fc7",…,"tokens":5,…}}</span>
-<span class="ps">$ </span>x402z-agent tab-fetch   <span class="d"># ×5</span>
-<span class="ok">X-PAYMENT-RESPONSE: success=true transaction=tab:5ae308b4e401aac9</span>
-<span class="o">served 200 in 0 ms with a tab token; 4 token(s) left</span>
-<span class="d">  …</span>
-<span class="o">served 200 in 0 ms with a tab token; 0 token(s) left</span>
-<span class="d"># a copy of an already spent token, sent again</span>
-<span class="no">error: server refused the tab token (402 Payment Required, nonce_already_used): tab token already spent</span></pre></div>
-          <p>Lines excerpted from the <a href="https://github.com/nickthelegend/zec-shielded-x402/blob/main/docs/tab-live-run.txt">full transcript</a>, where … marks a cut. Each token call was a localhost round trip under 1 ms, about 18 ms per CLI process, with no new transaction. A second tab of 3 (tx <a href="https://testnet.zecblock.com/tx/d3bf0b49408fed118fe9e1241239d98319cbb83088c45a5ba357f68cd97bd00d"><code>d3bf0b49…d00d</code></a>) was spent through MCP <code>tab_fetch</code> by a Python stdio script. The fourth call found no token left, and spendguard refused a new tab over the daily cap.</p>
-          <div class="callout plain"><b>Limits.</b> A token hides only among the tokens issued under the same key (7-day epochs by default), and only if the merchant gives every buyer that same key; spending them in a burst links them by time. The runs used one machine. Those two tabs were paid from a zingo-cli demo wallet through <code>--external</code>; the third (Oct 22) from the agent's own wallet. Tokens are bearer secrets, sealed on disk with the ledger key.</div>
-        </section>
-
-        <section class="doc" id="leaks" aria-labelledby="h-leaks">
-          <span class="path">trust / limits</span>
-          <h2 id="h-leaks">What still leaks<a class="anchor" href="#leaks" aria-label="Link to What still leaks">#</a></h2>
-          <ul>
-            <li><b>The client's IP</b> reaches the merchant. The paid request is ordinary HTTP; use Tor or a proxy if it matters.</li>
-            <li><b>lightwalletd</b> sees which txid is looked up, and when.</li>
-            <li><b><code>X-PAYMENT</code></b> is a bearer credential: whoever presents a paid (nonce, txid) first gets the content, and the server serves the same pair again for 10 minutes so a lost 200 is not a refusal. The server's feed lives on a loopback admin port that answers only to its own Host, and shows only a nonce prefix next to a txid.</li>
-            <li><b>Kage Tab</b> unlinkability assumes one key per epoch for every buyer; the agent pins the key it saw, but can't see what other buyers got.</li>
-            <li><b>The agent ledger and tab tokens</b> are sealed at rest (XChaCha20-Poly1305); anyone with the ledger key or the agent seed can read them.</li>
-            <li><b>Timing.</b> The 402 and the next block can be linked by time, even though the transaction reveals nothing.</li>
-          </ul>
-          <p>Also: testnet only, pre-release librustzcash crates (NU7 is live on testnet), not audited.</p>
-        </section>
-
-        <section class="doc" id="evidence" aria-labelledby="h-ev">
-          <span class="path">trust / on-chain</span>
-          <h2 id="h-ev">Live evidence<a class="anchor" href="#evidence" aria-label="Link to Live evidence">#</a></h2>
-          <p>Ten payments went end to end against <code>testnet.zec.rocks</code>, each an Ironwood note to the same demo merchant: seven single payments of 100,000 zat and three Kage Tabs. From Oct 21 on, the runs used x402 v1, a facilitator holding only the published UIVK, and SQLite state. The two Oct 22 payments came from the agent's own wallet, chosen by an LLM over MCP.</p>
-          <div class="tbl"><table>
-            <thead><tr><th>Txid</th><th>Block</th><th>Date</th><th>Path</th></tr></thead>
-            <tbody>
-              <tr><td><a class="m" href="https://testnet.zecblock.com/tx/030c3cbf78ce8460553bba4e82c0ba813f039bd3ecf4d7f2e81c59837dc28351">030c3cbf…8351 ↗</a></td><td class="num">4,521,112</td><td class="num">Oct 20</td><td>Agent's own wallet, first paid run (earlier receipt header)</td></tr>
-              <tr><td><a class="m" href="https://testnet.zecblock.com/tx/cd64980a5247881a727aa916476a3ba757e59794263c2ff1bcde467654a0916d">cd64980a…916d ↗</a></td><td class="num">4,521,440</td><td class="num">Oct 20</td><td>Agent's own wallet (earlier receipt header)</td></tr>
-              <tr><td><a class="m" href="https://testnet.zecblock.com/tx/ccb4214c6a1fdf183c086ae5b4f559d181ead4c1c61dc7e711fc4a08b95b0ed3">ccb4214c…0ed3 ↗</a></td><td class="num">4,524,586</td><td class="num">Oct 21</td><td>ZIP 321 QR paid by zingo-cli, txid pasted, <code>/api/redeem</code> → paid</td></tr>
-              <tr><td><a class="m" href="https://testnet.zecblock.com/tx/25a8b324bebee30220382113c6fb9cc3be1144b036117c34778bde3b1d8b689d">25a8b324…689d ↗</a></td><td class="num">4,524,602</td><td class="num">Oct 21</td><td><code>X-PAYMENT</code> → <code>settlement_pending</code> ×10 → 200 (the exchange above)</td></tr>
-              <tr><td><a class="m" href="https://testnet.zecblock.com/tx/408aba269ac7ca946e3b0eaedcf4cadd582a01090679e98391b4e7c706d88dd0">408aba26…8dd0 ↗</a></td><td class="num">4,524,693</td><td class="num">Oct 21</td><td><code>X-PAYMENT</code> path, repeated</td></tr>
-              <tr><td><a class="m" href="https://testnet.zecblock.com/tx/a7c3b0b2eaeb406ddcd02276cd71e69e4e618b22a1cab8977c959f2da3fc38bc">a7c3b0b2…38bc ↗</a></td><td class="num">4,524,694</td><td class="num">Oct 21</td><td>ZIP 321 + paste txid, repeated</td></tr>
-              <tr><td><a class="m" href="https://testnet.zecblock.com/tx/fa01172015c63ce47a0285f7fae130a3efe5f821b938a8befa1ca547d00ac3ad">fa011720…c3ad ↗</a></td><td class="num">4,526,095</td><td class="num">Oct 21</td><td>Kage Tab: 500,000 zat → 5 tokens → 5 calls (CLI)</td></tr>
-              <tr><td><a class="m" href="https://testnet.zecblock.com/tx/d3bf0b49408fed118fe9e1241239d98319cbb83088c45a5ba357f68cd97bd00d">d3bf0b49…d00d ↗</a></td><td class="num">4,526,113</td><td class="num">Oct 21</td><td>Kage Tab: 300,000 zat → 3 tokens → 3 MCP <code>tab_fetch</code> calls (scripted)</td></tr>
-              <tr><td><a class="m" href="https://testnet.zecblock.com/tx/f037d5978fec7817340ff118d328995288f0a575a1850b083ca05f7d71d4e22a">f037d597…e22a ↗</a></td><td class="num">4,529,425</td><td class="num">Oct 22</td><td>LLM over MCP, agent's own wallet: <code>paid_fetch</code> → <code>redeem_payment</code> → 200</td></tr>
-              <tr><td><a class="m" href="https://testnet.zecblock.com/tx/b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91">b75b2415…4b91 ↗</a></td><td class="num">4,529,427</td><td class="num">Oct 22</td><td>Kage Tab, LLM over MCP, agent's own wallet: 300,000 zat → 3 tokens → 3 calls</td></tr>
-            </tbody>
-          </table></div>
-          <p>Anyone can check them with the demo merchant's published incoming viewing key (in the README). It shows incoming payments to that demo wallet only; it can't spend and shows nothing about the payer.</p>
-          <div class="term" role="group" aria-label="check_uivk output"><div class="bar"><span>check_uivk · 2026-10-20</span><span>UIVK only</span></div>
-<pre><span class="ps">$ </span>cargo run --release -p x402z-facilitator --example check_uivk -- "$uivk" 030c3cbf…8351 x402z-f19a63da20cbc0749ea800b3
-<span class="o">tx 030c3cbf…8351: mined at 4521112, 20 confirmation(s) (tip 4521131)</span>
-<span class="o">incoming 100000 zat via Ironwood, memo text "x402z-f19a63da20cbc0749ea800b3"</span>
-<span class="ok">total to merchant with memo "x402z-f19a63da20cbc0749ea800b3": 100000 zat</span></pre></div>
-        </section>
-
-        <section class="doc" id="tests" aria-labelledby="h-tests">
-          <span class="path">trust / tests</span>
-          <h2 id="h-tests">Tests<a class="anchor" href="#tests" aria-label="Link to Tests">#</a></h2>
-          <p>139 tests: 128 in Rust, 11 in TypeScript. Six build in-process transactions with real keys, real note encryption and real Halo2 proofs for the Orchard/Ironwood parts (Sapling outputs use sapling-crypto's mock proof bytes); those are not broadcast. Five reach live testnet: three verify the ten real payments with only the UIVK, and two run the TypeScript client and middleware against the real binaries and testnet. A Playwright suite drives the dashboard and this page in Google Chrome. The full list is in <a href="https://github.com/nickthelegend/zec-shielded-x402/blob/main/TESTING.md">TESTING.md</a>.</p>
-          <div class="tbl"><table>
-            <thead><tr><th>Crate</th><th>Tests</th><th>Runs against</th></tr></thead>
-            <tbody>
-              <tr><td><code>spendguard</code></td><td class="num">16</td><td>pure logic (allowlist ports and schemes), sealed ledger format</td></tr>
-              <tr><td><code>x402z-protocol</code></td><td class="num">14</td><td>the x402 spec's own examples, ZIP 321's memo example</td></tr>
-              <tr><td><code>x402z-server</code></td><td class="num">42</td><td>in-process, incl. 6 Kage Tab attack tests, the X-PAYMENT budget, a lost 200 served again, the admin Host check, an https <code>resource</code> behind a TLS proxy</td></tr>
-              <tr><td><code>x402z-agent</code></td><td class="num">32</td><td>file-locked sealed ledger, six concurrent runs, racing calls for one URL or tab, a crash mid-broadcast, lost answers, the allowlist before any request, redirects, Tab client and key rules against a localhost RFC 9474 issuer</td></tr>
-              <tr><td><code>x402z-mcp</code></td><td class="num">7</td><td>the real binary over stdio, incl. resume instead of a second payment</td></tr>
-              <tr><td><code>x402z-facilitator</code></td><td class="num">17</td><td>6 Halo2 transactions in-process, <b>3 live on Zcash testnet</b>, bearer auth, cached health</td></tr>
-              <tr><td><code>x402-zcash</code></td><td class="num">11</td><td>TypeScript; <b>2 against the real binaries and testnet</b>; paywall limits in-process</td></tr>
-            </tbody>
-          </table></div>
-        </section>
-      </main>
-    </div>
-
     <footer>
-      <div class="in">
-        <span><b style="color: var(--ink); font-weight: 600">Kage</b> <span lang="ja">影</span>, "shadow" · MIT, Copyright (c) 2026 Nivesh Gajengi · Zcash testnet · not audited</span>
-        <nav aria-label="Footer"><a href="https://github.com/nickthelegend/zec-shielded-x402">GitHub</a><a href="https://github.com/nickthelegend/zec-shielded-x402/blob/main/docs/spec-shielded-x402-agents.md">Spec</a><a href="https://github.com/nickthelegend/zec-shielded-x402/blob/main/TESTING.md">Testing</a><a href="#evidence">Evidence</a></nav>
+      <div class="wrap">
+        <span>Kage <span lang="ja">影</span>, "shadow" · MIT, Copyright (c) 2026 Nivesh Gajengi · Zcash testnet · not audited</span>
+        <nav aria-label="Footer"><a href="evidence.html">Spec &amp; evidence</a><a href="https://github.com/nickthelegend/zec-shielded-x402/blob/main/TESTING.md">Testing</a><a href="https://github.com/nickthelegend/zec-shielded-x402">GitHub</a></nav>
       </div>
     </footer>
 
     <script>
-      // Tabs: arrow keys move between them; the recorded exchange autoplays once unless reduced motion is set.
-      const tabs = [...document.querySelectorAll('.tab')];
-      const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-      let auto = null;
-      // The MCP tab has its own run; tabs 1-4 replay the Oct 21 X-PAYMENT exchange.
-      const EXCHANGE = { rec: 'recorded run · <b>2026-10-21</b> <span class="hide-xs">05:54:41–05:58:47 UTC</span>', what: 'GET <b>/api/quote</b>' };
-      function show(i, focus) {
-        tabs.forEach((t, k) => {
-          const on = k === i;
-          t.setAttribute('aria-selected', on); t.tabIndex = on ? 0 : -1;
-          document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
-        });
-        document.getElementById('recDate').innerHTML = tabs[i].dataset.rec || EXCHANGE.rec;
-        document.getElementById('recWhat').innerHTML = tabs[i].dataset.what || EXCHANGE.what;
-        document.getElementById('footMcp').hidden = tabs[i].id !== 't0';
-        document.getElementById('footExchange').hidden = tabs[i].id === 't0';
-        if (focus) tabs[i].focus();
-        const tape = tabs[i].id === 't0' ? '#mcptape li' : tabs[i].id === 't3' ? '#tape li' : null;
-        if (tape && !reduce) {
-          document.querySelectorAll(tape).forEach((li, k) => { li.style.animationDelay = (k * 0.22) + 's'; li.style.animation = 'none'; li.offsetHeight; li.style.animation = ''; });
-        }
-        if (tabs[i].id === 't3' && !reduce) {
-          const bar = document.getElementById('clockbar');
-          bar.style.transition = 'none'; bar.style.transform = 'scaleX(0)';
-          requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.transition = 'transform 2.6s linear'; bar.style.transform = 'scaleX(1)'; }));
-        }
-      }
-      tabs.forEach((t, i) => {
-        t.addEventListener('click', () => { clearInterval(auto); show(i); });
-        t.addEventListener('keydown', e => {
-          const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
-          if (d) { e.preventDefault(); clearInterval(auto); show((i + d + tabs.length) % tabs.length, true); }
-        });
-      });
-      if (!reduce) {
-        let i = 0;
-        auto = setInterval(() => { i += 1; if (i >= tabs.length) { clearInterval(auto); return; } show(i); }, 4200);
-        document.querySelector('.wire').addEventListener('pointerenter', () => clearInterval(auto), { once: true });
-        // Once the reader scrolls or clicks anywhere, the hero stops changing height under them.
-        const stop = () => clearInterval(auto);
-        addEventListener('scroll', stop, { once: true, passive: true });
-        addEventListener('pointerdown', stop, { once: true });
-        addEventListener('keydown', stop, { once: true });
-      }
-
-      // Copy buttons.
+      // The exchange plays in once; with reduced motion it is simply there.
+      const rows = [...document.querySelectorAll('.shadow li')];
+      if (matchMedia('(prefers-reduced-motion: no-preference)').matches) rows.forEach((li, k) => setTimeout(() => li.classList.add('in'), 250 + k * 420));
+      else rows.forEach(li => li.classList.add('in'));
       document.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', () => {
-        const el = document.querySelector(b.dataset.copy);
-        const text = el.innerText.replace(/\s+#.*$/gm, '').trim();
+        const text = document.querySelector(b.dataset.copy).innerText.trim();
         navigator.clipboard?.writeText(text).then(() => { b.textContent = 'Copied'; setTimeout(() => (b.textContent = 'Copy'), 1200); });
       }));
-
-      // Table of contents: open on wide screens, collapsible on narrow ones, current section highlighted.
-      const toc = document.getElementById('toc'), now = document.getElementById('tocNow');
-      const wide = matchMedia('(min-width: 921px)');
-      const syncToc = () => { toc.open = wide.matches; };
-      syncToc(); wide.addEventListener('change', syncToc);
-      toc.querySelectorAll('a').forEach(a => a.addEventListener('click', () => { if (!wide.matches) toc.open = false; }));
-      const links = new Map([...toc.querySelectorAll('a')].map(a => [a.getAttribute('href').slice(1), a]));
-      const docs = [...document.querySelectorAll('.doc')];
-      let ticking = false;
-      const spy = () => {
-        ticking = false;
-        let cur = docs[0];
-        for (const d of docs) if (d.getBoundingClientRect().top < 160) cur = d;
-        if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) cur = docs[docs.length - 1];
-        links.forEach((a, id) => a.classList.toggle('on', id === cur.id));
-        now.textContent = links.get(cur.id).textContent;
-      };
-      addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(spy); } }, { passive: true });
-      spy();
     </script>
   </body>
 </html>

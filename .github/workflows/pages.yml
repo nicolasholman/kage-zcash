@@ -2,8 +2,9 @@ name: Pages
 
 # Publishes the static landing page (landing/) to GitHub Pages:
 #   https://nickthelegend.github.io/zec-shielded-x402/
-# The page is a single self-contained index.html (inline CSS/JS, anchor links and
-# absolute https links only), so it works unchanged under the /zec-shielded-x402/ base path.
+# Two self-contained pages, index.html (the landing) and evidence.html (spec, recorded runs,
+# evidence, tests): inline CSS/JS, relative and absolute https links only, so they work
+# unchanged under the /zec-shielded-x402/ base path.
 # One-time setup: Settings -> Pages -> Source: "GitHub Actions"
 # (or: gh api -X POST repos/nickthelegend/zec-shielded-x402/pages -f build_type=workflow).
 
