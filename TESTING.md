@@ -12,7 +12,12 @@ cargo build -p x402z-server -p x402z-facilitator --bins --examples && (cd packag
 
 All 137 passed on 2026-10-23 (macOS, Rust 1.89.0, Node 26); the 2 resource-URL tests added to `x402z-server` on 2026-10-24 passed with its other 40 that day. CI (`.github/workflows/ci.yml`) runs them in four jobs: the fast crates; the facilitator's in-process real-transaction tests, which do Halo2 proving; the live testnet tests; and the TypeScript package against the built binaries.
 
-The browser E2E suite (Playwright in Google Chrome, `e2e/`) is separate: `e2e/stack.sh` starts the real stack on 127.0.0.1 and `npm run test:e2e` runs 32 specs at 1280 px and at 375 px (62 runs, one mobile-only spec skipped on desktop). Last run 2026-10-23: 61 passed, 1 skipped.
+The browser E2E suite (Playwright in headless Google Chrome, `e2e/`) is separate: `e2e/stack.sh` starts the real stack on 127.0.0.1 and `npm run test:e2e` runs 32 specs at 1280 px and at 375 px (64 runs, one mobile-only spec skipped on desktop). Last run 2026-10-25: **63 passed, 0 failed, 1 skipped**, with no retries. The stack and Chrome ran under the shared heavy slot; the stack was stopped and the slot released afterward.
+
+| Browser project | Viewport width | Passed | Failed | Skipped |
+|---|---|---|---|---|
+| desktop | 1280 px | 31 | 0 | 1 |
+| mobile | 375 px | 32 | 0 | 0 |
 
 | Crate / file | Tests | Runs against | What it proves |
 |---|---|---|---|
