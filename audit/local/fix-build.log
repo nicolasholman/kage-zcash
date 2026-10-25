@@ -1,0 +1,6 @@
+   Compiling x402z-protocol v0.1.0 (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t6/crates/x402z-protocol)
+   Compiling x402z-facilitator v0.1.0 (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t6/crates/x402z-facilitator)
+   Compiling spendguard v0.1.0 (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t6/crates/spendguard)
+   Compiling x402z-agent v0.1.0 (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t6/crates/x402z-agent)
+   Compiling x402z-server v0.1.0 (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t6/crates/x402z-server)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 37.08s

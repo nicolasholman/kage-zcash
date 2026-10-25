@@ -1,0 +1,1245 @@
+[
+  {
+    "width": 1280,
+    "port": 4050,
+    "at": "2026-10-25T23:22:42.669Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4050/zec-shielded-x402/",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4050,
+    "at": "2026-10-25T23:22:42.807Z",
+    "type": "response",
+    "url": "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4050,
+    "at": "2026-10-25T23:22:42.898Z",
+    "type": "response",
+    "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmhHkjko.woff2",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4050,
+    "at": "2026-10-25T23:22:42.902Z",
+    "type": "response",
+    "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFWNOITd.woff2",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:43.540Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:43.730Z",
+    "type": "response",
+    "url": "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:43.740Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/api/status",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:43.746Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/api/events?since=0",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:43.820Z",
+    "type": "response",
+    "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFWNOITd.woff2",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:43.822Z",
+    "type": "response",
+    "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmhHkjko.woff2",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4050,
+    "at": "2026-10-25T23:22:44.750Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4050/zec-shielded-x402/",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4050,
+    "at": "2026-10-25T23:22:44.896Z",
+    "type": "response",
+    "url": "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4050,
+    "at": "2026-10-25T23:22:44.987Z",
+    "type": "response",
+    "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmhHkjko.woff2",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4050,
+    "at": "2026-10-25T23:22:44.987Z",
+    "type": "response",
+    "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFWNOITd.woff2",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4120,
+    "at": "2026-10-25T23:22:45.574Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4120,
+    "at": "2026-10-25T23:22:45.704Z",
+    "type": "response",
+    "url": "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4120,
+    "at": "2026-10-25T23:22:45.723Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/api/events?since=0",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4120,
+    "at": "2026-10-25T23:22:45.723Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/api/status",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4120,
+    "at": "2026-10-25T23:22:45.900Z",
+    "type": "response",
+    "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmhHkjko.woff2",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4120,
+    "at": "2026-10-25T23:22:45.910Z",
+    "type": "response",
+    "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFWNOITd.woff2",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:46.792Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:47.003Z",
+    "type": "response",
+    "url": "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:47.034Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/api/events?since=0",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:47.034Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/api/status",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:47.113Z",
+    "type": "response",
+    "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmhHkjko.woff2",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:47.118Z",
+    "type": "response",
+    "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFWNOITd.woff2",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:47.455Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/api/quote",
+    "method": "GET",
+    "status": 402,
+    "expected": true
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:47.456Z",
+    "type": "console.error",
+    "text": "Failed to load resource: the server responded with a status of 402 (Payment Required)",
+    "location": {
+      "url": "http://127.0.0.1:4120/api/quote",
+      "line": 0,
+      "column": 0,
+      "lineNumber": 0,
+      "columnNumber": 0
+    }
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:47.460Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/api/challenge/x402z-097136a4c537d41d42ba4a0f/qr.svg",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:47.460Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/api/events?since=0",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:48.539Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/api/events?since=1",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:49.826Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/api/redeem",
+    "method": "POST",
+    "status": 422,
+    "expected": true
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:49.827Z",
+    "type": "console.error",
+    "text": "Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)",
+    "location": {
+      "url": "http://127.0.0.1:4120/api/redeem",
+      "line": 0,
+      "column": 0,
+      "lineNumber": 0,
+      "columnNumber": 0
+    }
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:49.831Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/api/events?since=1",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:50.040Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/api/events?since=2",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4130,
+    "at": "2026-10-25T23:22:50.212Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4130/",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4130,
+    "at": "2026-10-25T23:22:50.339Z",
+    "type": "response",
+    "url": "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4130,
+    "at": "2026-10-25T23:22:50.361Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4130/api/status",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4130,
+    "at": "2026-10-25T23:22:50.361Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4130/api/events?since=0",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4130,
+    "at": "2026-10-25T23:22:50.450Z",
+    "type": "response",
+    "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmhHkjko.woff2",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4130,
+    "at": "2026-10-25T23:22:50.451Z",
+    "type": "response",
+    "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFWNOITd.woff2",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4130,
+    "at": "2026-10-25T23:22:50.767Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4130/api/quote",
+    "method": "GET",
+    "status": 402,
+    "expected": true
+  },
+  {
+    "width": 1280,
+    "port": 4130,
+    "at": "2026-10-25T23:22:50.768Z",
+    "type": "console.error",
+    "text": "Failed to load resource: the server responded with a status of 402 (Payment Required)",
+    "location": {
+      "url": "http://127.0.0.1:4130/api/quote",
+      "line": 0,
+      "column": 0,
+      "lineNumber": 0,
+      "columnNumber": 0
+    }
+  },
+  {
+    "width": 1280,
+    "port": 4130,
+    "at": "2026-10-25T23:22:50.771Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4130/api/challenge/x402z-8a1147926c54f982a541dbbc/qr.svg",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4130,
+    "at": "2026-10-25T23:22:50.772Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4130/api/events?since=0",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4130,
+    "at": "2026-10-25T23:22:50.815Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4130/api/redeem",
+    "method": "POST",
+    "status": 502,
+    "expected": true
+  },
+  {
+    "width": 1280,
+    "port": 4130,
+    "at": "2026-10-25T23:22:50.816Z",
+    "type": "console.error",
+    "text": "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+    "location": {
+      "url": "http://127.0.0.1:4130/api/redeem",
+      "line": 0,
+      "column": 0,
+      "lineNumber": 0,
+      "columnNumber": 0
+    }
+  },
+  {
+    "width": 1280,
+    "port": 4130,
+    "at": "2026-10-25T23:22:50.816Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4130/api/events?since=1",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4142,
+    "at": "2026-10-25T23:22:51.188Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4142/",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4142,
+    "at": "2026-10-25T23:22:51.309Z",
+    "type": "response",
+    "url": "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4142,
+    "at": "2026-10-25T23:22:51.330Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4142/api/events?since=0",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4142,
+    "at": "2026-10-25T23:22:51.330Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4142/api/status",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4142,
+    "at": "2026-10-25T23:22:51.413Z",
+    "type": "response",
+    "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmhHkjko.woff2",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4142,
+    "at": "2026-10-25T23:22:51.413Z",
+    "type": "response",
+    "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFWNOITd.woff2",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4142,
+    "at": "2026-10-25T23:22:51.743Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4142/api/quote",
+    "method": "GET",
+    "status": 402,
+    "expected": true
+  },
+  {
+    "width": 1280,
+    "port": 4142,
+    "at": "2026-10-25T23:22:51.744Z",
+    "type": "console.error",
+    "text": "Failed to load resource: the server responded with a status of 402 (Payment Required)",
+    "location": {
+      "url": "http://127.0.0.1:4142/api/quote",
+      "line": 0,
+      "column": 0,
+      "lineNumber": 0,
+      "columnNumber": 0
+    }
+  },
+  {
+    "width": 1280,
+    "port": 4142,
+    "at": "2026-10-25T23:22:51.746Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4142/api/events?since=0",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4142,
+    "at": "2026-10-25T23:22:51.749Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4142/api/challenge/x402z-f0d638059e6e550b58c30da1/qr.svg",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4142,
+    "at": "2026-10-25T23:22:51.799Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4142/api/quote",
+    "method": "GET",
+    "status": 429,
+    "expected": true
+  },
+  {
+    "width": 1280,
+    "port": 4142,
+    "at": "2026-10-25T23:22:51.799Z",
+    "type": "console.error",
+    "text": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)",
+    "location": {
+      "url": "http://127.0.0.1:4142/api/quote",
+      "line": 0,
+      "column": 0,
+      "lineNumber": 0,
+      "columnNumber": 0
+    }
+  },
+  {
+    "width": 1280,
+    "port": 4142,
+    "at": "2026-10-25T23:22:51.800Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4142/api/events?since=1",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:52.150Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:52.282Z",
+    "type": "response",
+    "url": "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:52.291Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/api/events?since=0",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:52.291Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/api/status",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:52.369Z",
+    "type": "response",
+    "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFWNOITd.woff2",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:52.375Z",
+    "type": "response",
+    "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmhHkjko.woff2",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4120,
+    "at": "2026-10-25T23:22:52.760Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4120,
+    "at": "2026-10-25T23:22:52.886Z",
+    "type": "response",
+    "url": "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4120,
+    "at": "2026-10-25T23:22:52.895Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/api/events?since=0",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4120,
+    "at": "2026-10-25T23:22:52.895Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/api/status",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4120,
+    "at": "2026-10-25T23:22:52.978Z",
+    "type": "response",
+    "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFWNOITd.woff2",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4120,
+    "at": "2026-10-25T23:22:52.983Z",
+    "type": "response",
+    "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmhHkjko.woff2",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4120,
+    "at": "2026-10-25T23:22:53.306Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/api/quote",
+    "method": "GET",
+    "status": 402,
+    "expected": true
+  },
+  {
+    "width": 375,
+    "port": 4120,
+    "at": "2026-10-25T23:22:53.307Z",
+    "type": "console.error",
+    "text": "Failed to load resource: the server responded with a status of 402 (Payment Required)",
+    "location": {
+      "url": "http://127.0.0.1:4120/api/quote",
+      "line": 0,
+      "column": 0,
+      "lineNumber": 0,
+      "columnNumber": 0
+    }
+  },
+  {
+    "width": 375,
+    "port": 4120,
+    "at": "2026-10-25T23:22:53.307Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/api/events?since=2",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4120,
+    "at": "2026-10-25T23:22:53.314Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/api/challenge/x402z-a53ff1f0a977daf303030bff/qr.svg",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:53.794Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/api/events?since=2",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4120,
+    "at": "2026-10-25T23:22:54.400Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/api/events?since=3",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4120,
+    "at": "2026-10-25T23:22:54.863Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/api/redeem",
+    "method": "POST",
+    "status": 422,
+    "expected": true
+  },
+  {
+    "width": 375,
+    "port": 4120,
+    "at": "2026-10-25T23:22:54.864Z",
+    "type": "console.error",
+    "text": "Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)",
+    "location": {
+      "url": "http://127.0.0.1:4120/api/redeem",
+      "line": 0,
+      "column": 0,
+      "lineNumber": 0,
+      "columnNumber": 0
+    }
+  },
+  {
+    "width": 375,
+    "port": 4120,
+    "at": "2026-10-25T23:22:54.868Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/api/events?since=3",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4130,
+    "at": "2026-10-25T23:22:55.232Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4130/",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:55.294Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/api/events?since=3",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4130,
+    "at": "2026-10-25T23:22:55.387Z",
+    "type": "response",
+    "url": "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4130,
+    "at": "2026-10-25T23:22:55.416Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4130/api/events?since=0",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4130,
+    "at": "2026-10-25T23:22:55.416Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4130/api/status",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4130,
+    "at": "2026-10-25T23:22:55.491Z",
+    "type": "response",
+    "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFWNOITd.woff2",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4130,
+    "at": "2026-10-25T23:22:55.499Z",
+    "type": "response",
+    "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmhHkjko.woff2",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4130,
+    "at": "2026-10-25T23:22:55.826Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4130/api/quote",
+    "method": "GET",
+    "status": 402,
+    "expected": true
+  },
+  {
+    "width": 375,
+    "port": 4130,
+    "at": "2026-10-25T23:22:55.827Z",
+    "type": "console.error",
+    "text": "Failed to load resource: the server responded with a status of 402 (Payment Required)",
+    "location": {
+      "url": "http://127.0.0.1:4130/api/quote",
+      "line": 0,
+      "column": 0,
+      "lineNumber": 0,
+      "columnNumber": 0
+    }
+  },
+  {
+    "width": 375,
+    "port": 4130,
+    "at": "2026-10-25T23:22:55.827Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4130/api/events?since=1",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4130,
+    "at": "2026-10-25T23:22:55.830Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4130/api/challenge/x402z-4d592c8a5a23a0b5f8a204e2/qr.svg",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4130,
+    "at": "2026-10-25T23:22:55.878Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4130/api/redeem",
+    "method": "POST",
+    "status": 502,
+    "expected": true
+  },
+  {
+    "width": 375,
+    "port": 4130,
+    "at": "2026-10-25T23:22:55.879Z",
+    "type": "console.error",
+    "text": "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+    "location": {
+      "url": "http://127.0.0.1:4130/api/redeem",
+      "line": 0,
+      "column": 0,
+      "lineNumber": 0,
+      "columnNumber": 0
+    }
+  },
+  {
+    "width": 375,
+    "port": 4130,
+    "at": "2026-10-25T23:22:55.879Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4130/api/events?since=2",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4142,
+    "at": "2026-10-25T23:22:56.242Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4142/",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4142,
+    "at": "2026-10-25T23:22:56.442Z",
+    "type": "response",
+    "url": "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4142,
+    "at": "2026-10-25T23:22:56.469Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4142/api/status",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4142,
+    "at": "2026-10-25T23:22:56.469Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4142/api/events?since=0",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4142,
+    "at": "2026-10-25T23:22:56.546Z",
+    "type": "response",
+    "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmhHkjko.woff2",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4142,
+    "at": "2026-10-25T23:22:56.552Z",
+    "type": "response",
+    "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFWNOITd.woff2",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:56.796Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/api/events?since=4",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4142,
+    "at": "2026-10-25T23:22:56.894Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4142/api/quote",
+    "method": "GET",
+    "status": 429,
+    "expected": true
+  },
+  {
+    "width": 375,
+    "port": 4142,
+    "at": "2026-10-25T23:22:56.895Z",
+    "type": "console.error",
+    "text": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)",
+    "location": {
+      "url": "http://127.0.0.1:4142/api/quote",
+      "line": 0,
+      "column": 0,
+      "lineNumber": 0,
+      "columnNumber": 0
+    }
+  },
+  {
+    "width": 375,
+    "port": 4142,
+    "at": "2026-10-25T23:22:56.895Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4142/api/events?since=2",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4120,
+    "at": "2026-10-25T23:22:57.271Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:57.295Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/api/status",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4120,
+    "at": "2026-10-25T23:22:57.484Z",
+    "type": "response",
+    "url": "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4120,
+    "at": "2026-10-25T23:22:57.503Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/api/events?since=0",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4120,
+    "at": "2026-10-25T23:22:57.509Z",
+    "type": "response",
+    "url": "http://127.0.0.1:4120/api/status",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4120,
+    "at": "2026-10-25T23:22:57.585Z",
+    "type": "response",
+    "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmhHkjko.woff2",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 375,
+    "port": 4120,
+    "at": "2026-10-25T23:22:57.590Z",
+    "type": "response",
+    "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFWNOITd.woff2",
+    "method": "GET",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:58.294Z",
+    "type": "requestfailed",
+    "url": "http://127.0.0.1:4120/api/events?since=4",
+    "method": "GET",
+    "error": "net::ERR_CONNECTION_REFUSED"
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:58.294Z",
+    "type": "console.error",
+    "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+    "location": {
+      "url": "http://127.0.0.1:4120/api/events?since=4",
+      "line": 0,
+      "column": 0,
+      "lineNumber": 0,
+      "columnNumber": 0
+    }
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:58.404Z",
+    "type": "requestfailed",
+    "url": "http://127.0.0.1:4120/api/quote",
+    "method": "GET",
+    "error": "net::ERR_CONNECTION_REFUSED"
+  },
+  {
+    "width": 1280,
+    "port": 4120,
+    "at": "2026-10-25T23:22:58.404Z",
+    "type": "console.error",
+    "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+    "location": {
+      "url": "http://127.0.0.1:4120/api/quote",
+      "line": 0,
+      "column": 0,
+      "lineNumber": 0,
+      "columnNumber": 0
+    }
+  },
+  {
+    "width": 375,
+    "port": 4120,
+    "at": "2026-10-25T23:22:58.713Z",
+    "type": "requestfailed",
+    "url": "http://127.0.0.1:4120/api/quote",
+    "method": "GET",
+    "error": "net::ERR_CONNECTION_REFUSED"
+  },
+  {
+    "width": 375,
+    "port": 4120,
+    "at": "2026-10-25T23:22:58.713Z",
+    "type": "console.error",
+    "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+    "location": {
+      "url": "http://127.0.0.1:4120/api/quote",
+      "line": 0,
+      "column": 0,
+      "lineNumber": 0,
+      "columnNumber": 0
+    }
+  }
+]

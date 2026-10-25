@@ -1,0 +1,10 @@
+fast: PID 66613
+{"name": "fast", "command": ["cargo", "test", "-p", "spendguard", "-p", "x402z-protocol", "-p", "x402z-server"], "pid": 66613, "exitCode": 0, "seconds": 14.63}
+agent: PID 77484
+{"name": "agent", "command": ["cargo", "test", "-p", "x402z-agent"], "pid": 77484, "exitCode": 0, "seconds": 58.66}
+mcp: PID 98256
+{"name": "mcp", "command": ["cargo", "test", "-p", "x402z-mcp"], "pid": 98256, "exitCode": 0, "seconds": 22.18}
+facilitator: PID 7065
+{"name": "facilitator", "command": ["cargo", "test", "-p", "x402z-facilitator", "--test", "verify_real_tx", "--test", "zip321_uri"], "pid": 7065, "exitCode": 0, "seconds": 57.43}
+typescript: PID 29577
+{"name": "typescript", "command": ["node", "--test", "test/unit.test.ts"], "pid": 29577, "exitCode": 0, "seconds": 0.5}

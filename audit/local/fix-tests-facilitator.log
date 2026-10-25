@@ -1,0 +1,23 @@
+Command: cargo test -p x402z-facilitator --test verify_real_tx --test zip321_uri
+   Compiling x402z-protocol v0.1.0 (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t6/crates/x402z-protocol)
+   Compiling x402z-facilitator v0.1.0 (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t6/crates/x402z-facilitator)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 12.30s
+     Running tests/verify_real_tx.rs (target/debug/deps/verify_real_tx-f41703ccc17642d8)
+
+running 6 tests
+test confirmations_and_lwd_height_sentinels ... ok
+test receipt_round_trip_uses_server_wire_format ... ok
+test uivk_cannot_see_the_merchants_own_change_or_outgoing_outputs ... ok
+test ironwood_and_sapling_payments_verify_with_viewing_key_only ... ok
+test transparent_receivers_and_outputs_are_never_accepted ... ok
+test wrong_amount_memo_key_and_address_are_rejected ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 43.30s
+
+     Running tests/zip321_uri.rs (target/debug/deps/zip321_uri-5036859e5d019f25)
+
+running 1 test
+test librustzcash_parses_the_challenge_uri_back_to_the_challenge ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
