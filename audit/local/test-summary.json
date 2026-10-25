@@ -1,0 +1,75 @@
+[
+  {
+    "name": "live-testnet",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "x402z-facilitator",
+      "--test",
+      "live_testnet",
+      "--",
+      "--test-threads=1"
+    ],
+    "pid": 24140,
+    "exitCode": 0,
+    "seconds": 38.32
+  },
+  {
+    "name": "mcp",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "x402z-mcp",
+      "--",
+      "--test-threads=1"
+    ],
+    "pid": 40428,
+    "exitCode": 0,
+    "seconds": 39.86
+  },
+  {
+    "name": "agent",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "x402z-agent",
+      "--",
+      "--test-threads=1"
+    ],
+    "pid": 51664,
+    "exitCode": 0,
+    "seconds": 26.69
+  },
+  {
+    "name": "protocol-spendguard-server",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "spendguard",
+      "-p",
+      "x402z-protocol",
+      "-p",
+      "x402z-server",
+      "--",
+      "--test-threads=1"
+    ],
+    "pid": 66929,
+    "exitCode": 0,
+    "seconds": 29.21
+  },
+  {
+    "name": "typescript-unit",
+    "command": [
+      "node",
+      "--test",
+      "test/unit.test.ts"
+    ],
+    "pid": 74782,
+    "exitCode": 0,
+    "seconds": 0.56
+  }
+]

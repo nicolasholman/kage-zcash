@@ -1,0 +1,1001 @@
+[
+  {
+    "id": "U-001",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Local half only; live host assigned separately",
+    "errors": []
+  },
+  {
+    "id": "U-002",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-003",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-004",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": [
+      "GET /api/quote",
+      "402 Payment Required scheme zcash-shielded · 0.001 ZEC · one-time nonce",
+      "pay shielded transaction, nonce in the encrypted memo amount memo from to",
+      "GET /api/quote + X-PAYMENT",
+      "200 OK · \"payer\": \"\""
+    ],
+    "errors": []
+  },
+  {
+    "id": "U-005",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-007",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-008",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-009",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-010",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-011",
+    "viewport": 1280,
+    "status": "FAIL",
+    "detail": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    [\n+     'Spec & evidence',\n-     'Spec',\n      'evidence.html'\n    ],\n    [\n      'GitHub',\n      'https://github.com/nickthelegend/zec-shielded-x402'\n"
+  },
+  {
+    "id": "U-012",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "01/02/03 are CSS counters on the three list items",
+    "errors": []
+  },
+  {
+    "id": "U-013",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-014",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-015",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-016",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-017",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-018",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-019",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-020",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-021",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-022",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "audit/local/landing-1280.jpg",
+    "errors": []
+  },
+  {
+    "id": "U-024",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-006",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": {
+      "times": [
+        {
+          "index": 0,
+          "ms": 252.89999999850988
+        },
+        {
+          "index": 1,
+          "ms": 671.2999999970198
+        },
+        {
+          "index": 2,
+          "ms": 1091.5
+        },
+        {
+          "index": 3,
+          "ms": 1512.1000000014901
+        },
+        {
+          "index": 4,
+          "ms": 1932.2999999970198
+        }
+      ],
+      "toleranceMs": 150
+    },
+    "errors": []
+  },
+  {
+    "id": "U-025",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Local half only",
+    "errors": []
+  },
+  {
+    "id": "U-026",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-027",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-028",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-029",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-030",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": [
+      "10 paid testnet txs, verifiable with a published UIVK; 2 paid by an LLM 139 tests, 5 against live testnet 0 spend keys on the merchant side"
+    ],
+    "errors": []
+  },
+  {
+    "id": "U-034",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": [
+      "AI MCP",
+      "1 402",
+      "2 X-PAYMENT",
+      "3 pending ×10",
+      "4 200"
+    ],
+    "errors": []
+  },
+  {
+    "id": "U-038",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-039",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "A SHIELDED PAYMENT: 100000 ZAT TO PAYTO, MEMO = NONCE broadcast txid=25a8b324bebee30220382113c6fb9cc3be1144b036117c34778bde3b1d8b689d at 05:55:21Z THEN THE RETRY GET /api/quote HTTP/1.1 X-PAYMENT: eyJ4NDAyVmVyc2lvbiI6IDEsICJzY2hlbWUiOiAiemNhc2gtc2hpZWxkZWQiLCAibmV0d29yayI6ICJ6Y2FzaC10ZXN0bmV0IiwgInBheWxvYWQiOiB7InR4aWQiOiAiMjVhOGIzMjRiZWJlZTMwMjIwMzgyMTEzYzZmYjljYzNiZTExNDRiMDM2MTE3YzM0Nzc4YmRlM2IxZDhiNjg5ZCIsICJtZW1vTm9uY2UiOiAieDQwMnotNjk2YzU4YWZkNTA5Y2MwZjg3NTNmM2IwIn19 BASE64-DECODED { \"x402Version\": 1, \"scheme\": \"zcash-shielded\", \"network\": \"zcash-testnet\", \"payload\": { \"txid\": \"25a8b324bebee30220382113c6fb9cc3be1144b036117c34778bde3b1d8b689d\", \"memoNonce\": \"x402z-696c58afd509cc0f8753f3b0\" } }",
+    "errors": []
+  },
+  {
+    "id": "U-041",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-046",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-054",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-055",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-056",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "audit/local/evidence-1280.jpg",
+    "errors": []
+  },
+  {
+    "id": "U-058",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-061",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-062",
+    "viewport": 1280,
+    "status": "FAIL",
+    "detail": "Expected values to be strictly deep-equal:\n+ actual - expected\n... Skipped lines\n\n  [\n    [\n      'pay',\n      'Try a paid request'\n    ],\n...\n    ],\n-   [\n-     'keys',\n-     'Keys'\n-   ]\n  ]\n"
+  },
+  {
+    "id": "U-063",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-065",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-068",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-069",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-071",
+    "viewport": 1280,
+    "status": "FAIL",
+    "detail": "Assertions matched",
+    "errors": [
+      {
+        "viewport": 1280,
+        "page": "http://127.0.0.1:4120/",
+        "type": "console.error",
+        "text": "Failed to load resource: the server responded with a status of 402 (Payment Required)",
+        "url": "http://127.0.0.1:4120/api/quote"
+      }
+    ]
+  },
+  {
+    "id": "U-073",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-076",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-079",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-080",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "audit/local/invalid-txid-1280.jpg",
+    "errors": []
+  },
+  {
+    "id": "U-081",
+    "viewport": 1280,
+    "status": "FAIL",
+    "detail": "audit/local/recorded-refusal-1280.jpg",
+    "errors": [
+      {
+        "viewport": 1280,
+        "page": "http://127.0.0.1:4120/",
+        "type": "console.error",
+        "text": "Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)",
+        "url": "http://127.0.0.1:4120/api/redeem"
+      }
+    ]
+  },
+  {
+    "id": "U-090",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-099",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "audit/local/dashboard-card-1280.jpg",
+    "errors": []
+  },
+  {
+    "id": "U-101",
+    "viewport": 1280,
+    "status": "FAIL",
+    "detail": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n+ [\n+   {\n+     page: 'http://127.0.0.1:4120/',\n+     text: 'Failed to load resource: the server responded with a status of 402 (Payment Required)',\n+     type: 'console.error',\n+     url: 'http://127.0.0.1:4120/api/quote',\n+     viewport: 1280\n+   },\n+   {\n+     page: 'http://127.0.0.1:4120/',\n+     text: 'Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)',\n+     type: 'console.error',\n+     url: 'http://127.0.0.1:4120/api/redeem',\n+     viewport: 1280\n+   }\n+ ]\n- []\n"
+  },
+  {
+    "id": "U-096",
+    "viewport": 1280,
+    "status": "FAIL",
+    "detail": "Injected connection refusal; no server killed, no payment sent",
+    "errors": [
+      {
+        "viewport": 1280,
+        "page": "http://127.0.0.1:4120/",
+        "type": "requestfailed",
+        "method": "GET",
+        "url": "http://127.0.0.1:4120/api/quote",
+        "error": "net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "viewport": 1280,
+        "page": "http://127.0.0.1:4120/",
+        "type": "console.error",
+        "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+        "url": "http://127.0.0.1:4120/api/quote"
+      }
+    ]
+  },
+  {
+    "id": "U-092",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "audit/local/state-4130-1280.jpg",
+    "errors": []
+  },
+  {
+    "id": "U-093",
+    "viewport": 1280,
+    "status": "FAIL",
+    "detail": "audit/local/facilitator-down-redeem-1280.jpg",
+    "errors": [
+      {
+        "viewport": 1280,
+        "page": "http://127.0.0.1:4130/",
+        "type": "console.error",
+        "text": "Failed to load resource: the server responded with a status of 402 (Payment Required)",
+        "url": "http://127.0.0.1:4130/api/quote"
+      },
+      {
+        "viewport": 1280,
+        "page": "http://127.0.0.1:4130/",
+        "type": "console.error",
+        "text": "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "url": "http://127.0.0.1:4130/api/redeem"
+      }
+    ]
+  },
+  {
+    "id": "U-091",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "audit/local/state-4141-1280.jpg",
+    "errors": []
+  },
+  {
+    "id": "U-095",
+    "viewport": 1280,
+    "status": "FAIL",
+    "detail": "audit/local/state-4142-1280.jpg",
+    "errors": [
+      {
+        "viewport": 1280,
+        "page": "http://127.0.0.1:4142/",
+        "type": "console.error",
+        "text": "Failed to load resource: the server responded with a status of 402 (Payment Required)",
+        "url": "http://127.0.0.1:4142/api/quote"
+      },
+      {
+        "viewport": 1280,
+        "page": "http://127.0.0.1:4142/",
+        "type": "console.error",
+        "text": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)",
+        "url": "http://127.0.0.1:4142/api/quote"
+      }
+    ]
+  },
+  {
+    "id": "U-001",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Local half only; live host assigned separately",
+    "errors": []
+  },
+  {
+    "id": "U-002",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-003",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-004",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": [
+      "GET /api/quote",
+      "402 Payment Required scheme zcash-shielded · 0.001 ZEC · one-time nonce",
+      "pay shielded transaction, nonce in the encrypted memo amount memo from to",
+      "GET /api/quote + X-PAYMENT",
+      "200 OK · \"payer\": \"\""
+    ],
+    "errors": []
+  },
+  {
+    "id": "U-005",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-007",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-008",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-009",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-010",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-011",
+    "viewport": 375,
+    "status": "FAIL",
+    "detail": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    [\n+     'Spec & evidence',\n-     'Spec',\n      'evidence.html'\n    ],\n    [\n      'GitHub',\n      'https://github.com/nickthelegend/zec-shielded-x402'\n"
+  },
+  {
+    "id": "U-012",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "01/02/03 are CSS counters on the three list items",
+    "errors": []
+  },
+  {
+    "id": "U-013",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-014",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-015",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-016",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-017",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-018",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-019",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-020",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-021",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-023",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "audit/local/landing-375.jpg",
+    "errors": []
+  },
+  {
+    "id": "U-024",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-006",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": {
+      "times": [
+        {
+          "index": 0,
+          "ms": 252.90000000596046
+        },
+        {
+          "index": 1,
+          "ms": 670.1000000014901
+        },
+        {
+          "index": 2,
+          "ms": 1091.4000000059605
+        },
+        {
+          "index": 3,
+          "ms": 1512.1000000014901
+        },
+        {
+          "index": 4,
+          "ms": 1932.5
+        }
+      ],
+      "toleranceMs": 150
+    },
+    "errors": []
+  },
+  {
+    "id": "U-025",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Local half only",
+    "errors": []
+  },
+  {
+    "id": "U-026",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-027",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-028",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-029",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-030",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": [
+      "10 paid testnet txs, verifiable with a published UIVK; 2 paid by an LLM 139 tests, 5 against live testnet 0 spend keys on the merchant side"
+    ],
+    "errors": []
+  },
+  {
+    "id": "U-034",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": [
+      "AI MCP",
+      "1 402",
+      "2 X-PAYMENT",
+      "3 pending ×10",
+      "4 200"
+    ],
+    "errors": []
+  },
+  {
+    "id": "U-038",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-039",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "A SHIELDED PAYMENT: 100000 ZAT TO PAYTO, MEMO = NONCE broadcast txid=25a8b324bebee30220382113c6fb9cc3be1144b036117c34778bde3b1d8b689d at 05:55:21Z THEN THE RETRY GET /api/quote HTTP/1.1 X-PAYMENT: eyJ4NDAyVmVyc2lvbiI6IDEsICJzY2hlbWUiOiAiemNhc2gtc2hpZWxkZWQiLCAibmV0d29yayI6ICJ6Y2FzaC10ZXN0bmV0IiwgInBheWxvYWQiOiB7InR4aWQiOiAiMjVhOGIzMjRiZWJlZTMwMjIwMzgyMTEzYzZmYjljYzNiZTExNDRiMDM2MTE3YzM0Nzc4YmRlM2IxZDhiNjg5ZCIsICJtZW1vTm9uY2UiOiAieDQwMnotNjk2YzU4YWZkNTA5Y2MwZjg3NTNmM2IwIn19 BASE64-DECODED { \"x402Version\": 1, \"scheme\": \"zcash-shielded\", \"network\": \"zcash-testnet\", \"payload\": { \"txid\": \"25a8b324bebee30220382113c6fb9cc3be1144b036117c34778bde3b1d8b689d\", \"memoNonce\": \"x402z-696c58afd509cc0f8753f3b0\" } }",
+    "errors": []
+  },
+  {
+    "id": "U-041",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-046",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-054",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-055",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-057",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "audit/local/evidence-375.jpg",
+    "errors": []
+  },
+  {
+    "id": "U-058",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-061",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-062",
+    "viewport": 375,
+    "status": "FAIL",
+    "detail": "Expected values to be strictly deep-equal:\n+ actual - expected\n... Skipped lines\n\n  [\n    [\n      'pay',\n      'Try a paid request'\n    ],\n...\n    ],\n-   [\n-     'keys',\n-     'Keys'\n-   ]\n  ]\n"
+  },
+  {
+    "id": "U-063",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-065",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-068",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-069",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-071",
+    "viewport": 375,
+    "status": "FAIL",
+    "detail": "Assertions matched",
+    "errors": [
+      {
+        "viewport": 375,
+        "page": "http://127.0.0.1:4120/",
+        "type": "console.error",
+        "text": "Failed to load resource: the server responded with a status of 402 (Payment Required)",
+        "url": "http://127.0.0.1:4120/api/quote"
+      }
+    ]
+  },
+  {
+    "id": "U-073",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-076",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-079",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-080",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "audit/local/invalid-txid-375.jpg",
+    "errors": []
+  },
+  {
+    "id": "U-081",
+    "viewport": 375,
+    "status": "FAIL",
+    "detail": "audit/local/recorded-refusal-375.jpg",
+    "errors": [
+      {
+        "viewport": 375,
+        "page": "http://127.0.0.1:4120/",
+        "type": "console.error",
+        "text": "Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)",
+        "url": "http://127.0.0.1:4120/api/redeem"
+      }
+    ]
+  },
+  {
+    "id": "U-090",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-100",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "audit/local/dashboard-card-375.jpg",
+    "errors": []
+  },
+  {
+    "id": "U-101",
+    "viewport": 375,
+    "status": "FAIL",
+    "detail": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n+ [\n+   {\n+     page: 'http://127.0.0.1:4120/',\n+     text: 'Failed to load resource: the server responded with a status of 402 (Payment Required)',\n+     type: 'console.error',\n+     url: 'http://127.0.0.1:4120/api/quote',\n+     viewport: 375\n+   },\n+   {\n+     page: 'http://127.0.0.1:4120/',\n+     text: 'Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)',\n+     type: 'console.error',\n+     url: 'http://127.0.0.1:4120/api/redeem',\n+     viewport: 375\n+   }\n+ ]\n- []\n"
+  },
+  {
+    "id": "U-096",
+    "viewport": 375,
+    "status": "FAIL",
+    "detail": "Injected connection refusal; no server killed, no payment sent",
+    "errors": [
+      {
+        "viewport": 375,
+        "page": "http://127.0.0.1:4120/",
+        "type": "requestfailed",
+        "method": "GET",
+        "url": "http://127.0.0.1:4120/api/quote",
+        "error": "net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "viewport": 375,
+        "page": "http://127.0.0.1:4120/",
+        "type": "console.error",
+        "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+        "url": "http://127.0.0.1:4120/api/quote"
+      }
+    ]
+  },
+  {
+    "id": "U-092",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "audit/local/state-4130-375.jpg",
+    "errors": []
+  },
+  {
+    "id": "U-093",
+    "viewport": 375,
+    "status": "FAIL",
+    "detail": "audit/local/facilitator-down-redeem-375.jpg",
+    "errors": [
+      {
+        "viewport": 375,
+        "page": "http://127.0.0.1:4130/",
+        "type": "console.error",
+        "text": "Failed to load resource: the server responded with a status of 402 (Payment Required)",
+        "url": "http://127.0.0.1:4130/api/quote"
+      },
+      {
+        "viewport": 375,
+        "page": "http://127.0.0.1:4130/",
+        "type": "console.error",
+        "text": "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "url": "http://127.0.0.1:4130/api/redeem"
+      }
+    ]
+  },
+  {
+    "id": "U-091",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "audit/local/state-4141-375.jpg",
+    "errors": []
+  },
+  {
+    "id": "U-095",
+    "viewport": 375,
+    "status": "FAIL",
+    "detail": "audit/local/state-4142-375.jpg",
+    "errors": [
+      {
+        "viewport": 375,
+        "page": "http://127.0.0.1:4142/",
+        "type": "console.error",
+        "text": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)",
+        "url": "http://127.0.0.1:4142/api/quote"
+      }
+    ]
+  }
+]

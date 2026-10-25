@@ -1,0 +1,78 @@
+Command: cargo test -p x402z-mcp -- --test-threads=1
+   Compiling num-traits v0.2.19
+   Compiling tokio v1.54.0
+   Compiling bitflags v2.13.2
+   Compiling secp256k1 v0.33.1
+   Compiling zcash_protocol v0.11.0-pre.1
+   Compiling incrementalmerkletree v0.9.0
+   Compiling rustix v1.1.5
+   Compiling errno v0.3.14
+   Compiling fastrand v2.5.0
+   Compiling rusqlite v0.37.0
+   Compiling zcash_address v0.14.0-pre.2
+   Compiling shardtree v0.8.0
+   Compiling regex-syntax v0.8.11
+   Compiling bip32 v0.6.0
+   Compiling zip321 v0.10.0-pre.2
+   Compiling zcash_script v0.6.0
+   Compiling schemerz-rusqlite v0.370.0
+   Compiling regex-automata v0.4.18
+   Compiling num-integer v0.1.47
+   Compiling num-bigint v0.5.1
+   Compiling zcash_transparent v0.11.0-pre.2
+   Compiling tempfile v3.27.0
+   Compiling prost-build v0.14.4
+   Compiling fpe v0.7.0
+   Compiling tokio-util v0.7.20
+   Compiling tokio-rustls v0.26.6
+   Compiling h2 v0.4.20
+   Compiling tower v0.5.3
+   Compiling orchard v0.16.0
+   Compiling sapling-crypto v0.9.0
+   Compiling tokio-stream v0.1.19
+   Compiling tonic-prost-build v0.14.6
+   Compiling crypto-bigint v0.7.5
+   Compiling hyper v1.12.0
+   Compiling zcash_primitives v0.31.0-pre.2
+   Compiling zcash_keys v0.17.0-pre.2
+   Compiling hyper-util v0.1.21
+   Compiling hyper-timeout v0.5.2
+   Compiling axum v0.8.9
+   Compiling pczt v0.10.0-pre.2
+   Compiling zcash_client_backend v0.25.0-pre.2
+   Compiling crypto-primes v0.7.0
+   Compiling hyper-rustls v0.27.10
+   Compiling tower-http v0.6.11
+   Compiling regex v1.13.1
+   Compiling rsa v0.10.0-rc.19
+   Compiling rand_distr v0.6.0
+   Compiling reqwest v0.12.28
+   Compiling zcash_proofs v0.31.0-pre.2
+   Compiling tonic v0.14.6
+   Compiling blind-rsa-signatures v0.18.0
+   Compiling tonic-prost v0.14.6
+   Compiling zcash_pool_migration v0.2.0-pre.2
+   Compiling zcash_client_sqlite v0.23.0-pre.2
+   Compiling x402z-facilitator v0.1.0 (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t5/crates/x402z-facilitator)
+   Compiling x402z-agent v0.1.0 (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t5/crates/x402z-agent)
+   Compiling x402z-mcp v0.1.0 (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t5/crates/x402z-mcp)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 36.26s
+     Running unittests src/main.rs (target/debug/deps/x402z_mcp-897e7729da5b9164)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/stdio.rs (target/debug/deps/stdio-dd3b5bab2977a8af)
+
+running 7 tests
+test a_retried_paid_fetch_resumes_the_broadcast_payment_instead_of_paying_twice ... ok
+test a_slow_call_does_not_block_the_next_request ... ok
+test handshake_and_tool_list ... ok
+test missing_config_is_setup_required_not_a_crash ... ok
+test spendguard_refusals_are_tool_errors_and_land_in_the_ledger ... ok
+test tab_fetch_without_tokens_buys_a_tab_inside_spendguard ... ok
+test without_a_ledger_key_the_tools_say_setup_required_and_the_ledger_stays_sealed ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.58s
+
