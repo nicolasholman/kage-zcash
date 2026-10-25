@@ -131,6 +131,10 @@
         .end .wrap { padding-top: 80px; padding-bottom: 80px; }
       }
       /* the one animation: the exchange plays in once */
+      @media (prefers-reduced-motion: reduce) {
+        html { scroll-behavior: auto; }
+        *, *::before, *::after { transition: none !important; animation: none !important; }
+      }
       @media (prefers-reduced-motion: no-preference) {
         .js .shadow li { opacity: 0; transform: translateY(4px); transition: opacity 0.4s ease-out, transform 0.4s ease-out; }
         .js .shadow li.in { opacity: 1; transform: none; }
@@ -237,8 +241,25 @@
       if (matchMedia('(prefers-reduced-motion: no-preference)').matches) rows.forEach((li, k) => setTimeout(() => li.classList.add('in'), 250 + k * 420));
       else rows.forEach(li => li.classList.add('in'));
       document.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', () => {
-        const text = document.querySelector(b.dataset.copy).innerText.trim();
-        navigator.clipboard?.writeText(text).then(() => { b.textContent = 'Copied'; setTimeout(() => (b.textContent = 'Copy'), 1200); });
+        const el = document.querySelector(b.dataset.copy);
+        if (!el) return;
+        const text = el.innerText.trim();
+        const done = () => { b.textContent = 'Copied'; setTimeout(() => (b.textContent = 'Copy'), 1200); };
+        if (navigator.clipboard?.writeText) {
+          navigator.clipboard.writeText(text).then(done).catch(() => {});
+        } else {
+          try {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            done();
+          } catch (_) {}
+        }
       }));
     </script>
   </body>
