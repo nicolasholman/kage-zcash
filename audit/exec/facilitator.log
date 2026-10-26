@@ -1,0 +1,208 @@
+Command: cargo test -p x402z-facilitator --lib --bin x402z-facilitator --test verify_real_tx --test zip321_uri -- --test-threads=1 --nocapture
+CARGO_BUILD_JOBS=1
+   Compiling x402z-facilitator v0.1.0 (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t10/crates/x402z-facilitator)
+warning: unused import: `collections::HashMap`
+ --> /Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t10/crates/x402z-facilitator/../../audit/exec/fac-transaction.rs:2:11
+  |
+2 | use std::{collections::HashMap, str::FromStr};
+  |           ^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `receipt`
+ --> /Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t10/crates/x402z-facilitator/../../audit/exec/fac-transaction.rs:6:5
+  |
+6 |     receipt,
+  |     ^^^^^^^
+
+warning: unused import: `ReceiptClaims`
+  --> /Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t10/crates/x402z-facilitator/../../audit/exec/fac-transaction.rs:10:48
+   |
+10 | use x402z_protocol::{Network, PaymentRequired, ReceiptClaims, SCHEME};
+   |                                                ^^^^^^^^^^^^^
+
+warning: unused import: `ShieldedPool`
+  --> /Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t10/crates/x402z-facilitator/../../audit/exec/fac-transaction.rs:21:5
+   |
+21 |     ShieldedPool,
+   |     ^^^^^^^^^^^^
+
+warning: unused imports: `TransferType` and `decrypt_transaction`
+  --> /Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t10/crates/x402z-facilitator/../../audit/exec/fac-transaction.rs:28:28
+   |
+28 | use zcash_client_backend::{decrypt_transaction, TransferType};
+   |                            ^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^
+
+warning: unused import: `Scope`
+  --> /Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t10/crates/x402z-facilitator/../../audit/exec/fac-transaction.rs:29:31
+   |
+29 | use zip32::{DiversifierIndex, Scope};
+   |                               ^^^^^
+
+warning: constant `PRICE` is never used
+  --> /Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t10/crates/x402z-facilitator/../../audit/exec/fac-transaction.rs:32:18
+   |
+32 | pub(super) const PRICE: u64 = 100_000;
+   |                  ^^^^^
+   |
+   = note: `#[warn(dead_code)]` on by default
+
+warning: variants `Sapling`, `IronwoodOvk`, and `SaplingOvk` are never constructed
+  --> /Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t10/crates/x402z-facilitator/../../audit/exec/fac-transaction.rs:69:5
+   |
+66 | pub(super) enum Out<'a> {
+   |                 --- variants in this enum
+...
+69 |     Sapling(sapling::PaymentAddress, u64, &'a str),
+   |     ^^^^^^^
+...
+73 |     IronwoodOvk(orchard::Address, u64, &'a str, orchard::keys::OutgoingViewingKey),
+   |     ^^^^^^^^^^^
+74 |     SaplingOvk(sapling::PaymentAddress, u64, &'a str, sapling::keys::OutgoingViewingKey),
+   |     ^^^^^^^^^^
+
+warning: `x402z-facilitator` (bin "x402z-facilitator" test) generated 8 warnings (run `cargo fix --bin "x402z-facilitator" --tests` to apply 6 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.32s
+     Running unittests src/lib.rs (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t7/target/debug/deps/x402z_facilitator-742f1bb8d9eaa38e)
+
+running 3 tests
+test store::tests::a_dust_binding_at_another_amount_does_not_lock_out_the_real_payment ... ok
+test store::tests::nonce_binds_to_first_txid_and_survives_restart ... ok
+test store::tests::rows_from_the_old_nonce_only_table_still_block_their_nonce ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/main.rs (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t7/target/debug/deps/x402z_facilitator-3f6db1d6a45c620a)
+
+running 10 tests
+test tests::audit_auth_and_payload_rejections_without_chain ... AUDIT B-163 PASS
+AUDIT B-164 PASS
+AUDIT B-165 PASS
+AUDIT B-166 PASS
+AUDIT B-167 PASS
+AUDIT B-168 PASS
+AUDIT B-169 PASS
+AUDIT B-170 PASS
+AUDIT B-171 PASS
+AUDIT B-172 PASS
+AUDIT B-173 PASS
+AUDIT B-192 PASS
+AUDIT B-193 PASS
+AUDIT B-194 PASS
+AUDIT B-195 PASS
+AUDIT B-196 PASS
+AUDIT B-197 PASS
+AUDIT B-198 PASS
+AUDIT B-199 PASS
+AUDIT B-200 PASS
+AUDIT B-201 PASS
+AUDIT B-202 PASS
+AUDIT B-225 PASS
+AUDIT B-226 PASS
+ok
+test tests::audit_facilitator_ufvk_compatibility_and_mainnet_refusal ... facilitator PID 9219 killed and reaped
+AUDIT B-251 PASS
+AUDIT B-257 PASS
+ok
+test tests::audit_grpc_real_transaction_route_failures ... verify x402z-0123456789abcdef01234567 tx cf6001e2705f45adef64e118c617e527d77c0d648adc0b3588e803304415175b: rejected: underpaid: 99999 zat < 100000 zat
+AUDIT B-174 PASS
+verify x402z-another tx 4f8e03ee759d38c22d83974fb3952f6b58610d4bed7867b319b469574e9f9f85: rejected: no output in this transaction decrypts to the merchant viewing key with this memo nonce
+AUDIT B-175 PASS
+verify x402z-0123456789abcdef01234567 tx 4f8e03ee759d38c22d83974fb3952f6b58610d4bed7867b319b469574e9f9f85: rejected: no output in this transaction decrypts to the merchant viewing key with this memo nonce
+AUDIT B-176 PASS
+verify x402z-0123456789abcdef01234567 tx 4f8e03ee759d38c22d83974fb3952f6b58610d4bed7867b319b469574e9f9f85: rejected: memo matches but the note was sent to a different address than payTo
+AUDIT B-178 PASS
+verify x402z-0123456789abcdef01234567 tx 4f8e03ee759d38c22d83974fb3952f6b58610d4bed7867b319b469574e9f9f85: rejected: payTo is not a shielded-only testnet unified address (needs a Sapling or Orchard receiver and no transparent receiver)
+AUDIT B-179 PASS
+verify x402z-0123456789abcdef01234567 tx efad5b3ba1e96ecde24537c89318b241fa3270eb0d595c782c33df3434f6847d: rejected: no output in this transaction decrypts to the merchant viewing key with this memo nonce
+AUDIT B-180 PASS
+verify x402z-0123456789abcdef01234567 tx b894c42f997dbdf9ad762750f9a5f2b97722db4e433173c25ec80791db25aa39: rejected: underpaid: 99999 zat < 100000 zat
+AUDIT B-181 PASS
+verify x402z-0123456789abcdef01234567 tx 4f8e03ee759d38c22d83974fb3952f6b58610d4bed7867b319b469574e9f9f85: rejected: paid after expiry (was mined at 1792560000, expired 1792550000)
+AUDIT B-183 PASS
+verify x402z-0123456789abcdef01234567 tx 4f8e03ee759d38c22d83974fb3952f6b58610d4bed7867b319b469574e9f9f85: rejected: transaction did not parse: Unknown transaction format
+AUDIT B-184 PASS
+verify x402z-0123456789abcdef01234567 tx abababababababababababababababababababababababababababababababab: rejected: lightwalletd returned tx 4f8e03ee759d38c22d83974fb3952f6b58610d4bed7867b319b469574e9f9f85 for abababababababababababababababababababababababababababababababab
+AUDIT B-185 PASS
+AUDIT B-187 PASS
+AUDIT B-189 PASS
+verify x402z-0123456789abcdef01234567 tx 4f8e03ee759d38c22d83974fb3952f6b58610d4bed7867b319b469574e9f9f85: pending (1 of 2 confirmations, tip 4465126)
+AUDIT B-190 PASS
+AUDIT B-191 PASS
+verify x402z-0123456789abcdef01234567 tx cf6001e2705f45adef64e118c617e527d77c0d648adc0b3588e803304415175b: rejected: underpaid: 99999 zat < 100000 zat
+AUDIT B-203 PASS
+verify x402z-another tx 4f8e03ee759d38c22d83974fb3952f6b58610d4bed7867b319b469574e9f9f85: rejected: no output in this transaction decrypts to the merchant viewing key with this memo nonce
+AUDIT B-204 PASS
+verify x402z-0123456789abcdef01234567 tx 4f8e03ee759d38c22d83974fb3952f6b58610d4bed7867b319b469574e9f9f85: rejected: no output in this transaction decrypts to the merchant viewing key with this memo nonce
+AUDIT B-205 PASS
+verify x402z-0123456789abcdef01234567 tx 4f8e03ee759d38c22d83974fb3952f6b58610d4bed7867b319b469574e9f9f85: rejected: memo matches but the note was sent to a different address than payTo
+AUDIT B-207 PASS
+verify x402z-0123456789abcdef01234567 tx 4f8e03ee759d38c22d83974fb3952f6b58610d4bed7867b319b469574e9f9f85: rejected: payTo is not a shielded-only testnet unified address (needs a Sapling or Orchard receiver and no transparent receiver)
+AUDIT B-208 PASS
+verify x402z-0123456789abcdef01234567 tx efad5b3ba1e96ecde24537c89318b241fa3270eb0d595c782c33df3434f6847d: rejected: no output in this transaction decrypts to the merchant viewing key with this memo nonce
+AUDIT B-209 PASS
+verify x402z-0123456789abcdef01234567 tx b894c42f997dbdf9ad762750f9a5f2b97722db4e433173c25ec80791db25aa39: rejected: underpaid: 99999 zat < 100000 zat
+AUDIT B-210 PASS
+verify x402z-0123456789abcdef01234567 tx 4f8e03ee759d38c22d83974fb3952f6b58610d4bed7867b319b469574e9f9f85: rejected: paid after expiry (was mined at 1792560000, expired 1792550000)
+AUDIT B-212 PASS
+verify x402z-0123456789abcdef01234567 tx 4f8e03ee759d38c22d83974fb3952f6b58610d4bed7867b319b469574e9f9f85: rejected: transaction did not parse: Unknown transaction format
+AUDIT B-213 PASS
+verify x402z-0123456789abcdef01234567 tx abababababababababababababababababababababababababababababababab: rejected: lightwalletd returned tx 4f8e03ee759d38c22d83974fb3952f6b58610d4bed7867b319b469574e9f9f85 for abababababababababababababababababababababababababababababababab
+AUDIT B-214 PASS
+AUDIT B-216 PASS
+AUDIT B-218 PASS
+verify x402z-0123456789abcdef01234567 tx 4f8e03ee759d38c22d83974fb3952f6b58610d4bed7867b319b469574e9f9f85: pending (1 of 2 confirmations, tip 4465126)
+AUDIT B-219 PASS
+AUDIT B-220 PASS
+ok
+test tests::audit_grpc_success_replay_database_faults_and_health ... verify x402z-0123456789abcdef01234567 tx 60b4310140ac02c620ba86fae9eaf3e8898b7e005e1e9cb755757512a8c6d44b: valid (100000 zat, 1 conf); read-only check, no receipt
+AUDIT B-221 PASS
+verify x402z-0123456789abcdef01234567 tx 60b4310140ac02c620ba86fae9eaf3e8898b7e005e1e9cb755757512a8c6d44b: CONFIRMED 100000 zat via [Ironwood], 1 conf (tip 4465126); receipt issued
+AUDIT B-222 PASS
+verify x402z-0123456789abcdef01234567 tx 60b4310140ac02c620ba86fae9eaf3e8898b7e005e1e9cb755757512a8c6d44b: CONFIRMED 100000 zat via [Ironwood], 1 conf (tip 4465126); receipt issued
+AUDIT B-223 PASS
+verify x402z-0123456789abcdef01234567 tx 60b4310140ac02c620ba86fae9eaf3e8898b7e005e1e9cb755757512a8c6d44b: CONFIRMED 100000 zat via [Ironwood], 1 conf (tip 4465126); receipt issued
+AUDIT B-224 PASS
+AUDIT B-229 PASS
+AUDIT B-243 PASS
+AUDIT B-467 PASS
+AUDIT B-188 PASS
+AUDIT B-217 PASS
+AUDIT B-228 PASS
+ok
+test tests::audit_non_text_memo_is_never_credited ... AUDIT B-235 PASS
+ok
+test tests::audit_real_binding_pin_and_outage ... AUDIT B-177 PASS
+AUDIT B-182 PASS
+AUDIT B-186 PASS
+AUDIT B-206 PASS
+AUDIT B-211 PASS
+AUDIT B-215 PASS
+AUDIT B-240 PASS
+AUDIT B-242 PASS
+ok
+test tests::health_probes_lightwalletd_once_for_a_burst_of_requests_and_keeps_the_503 ... ok
+test tests::supported_lists_zcash_shielded_testnet ... ok
+test tests::verify_and_settle_refuse_callers_without_the_token ... ok
+test tests::x402_request_extracts_challenge_and_txid ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 26.35s
+
+     Running tests/verify_real_tx.rs (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t7/target/debug/deps/verify_real_tx-2da44d806d435517)
+
+running 6 tests
+test confirmations_and_lwd_height_sentinels ... ok
+test ironwood_and_sapling_payments_verify_with_viewing_key_only ... ok
+test receipt_round_trip_uses_server_wire_format ... ok
+test transparent_receivers_and_outputs_are_never_accepted ... ok
+test uivk_cannot_see_the_merchants_own_change_or_outgoing_outputs ... ok
+test wrong_amount_memo_key_and_address_are_rejected ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 47.42s
+
+     Running tests/zip321_uri.rs (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t7/target/debug/deps/zip321_uri-5319aba14052ea0b)
+
+running 1 test
+test librustzcash_parses_the_challenge_uri_back_to_the_challenge ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s

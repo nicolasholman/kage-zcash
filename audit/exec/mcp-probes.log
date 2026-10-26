@@ -1,0 +1,39 @@
+MCP PID 45184 exited 0; 1 response lines
+AUDIT B-346 PASS
+MCP PID 45185 exited 0; 1 response lines
+AUDIT B-347 PASS
+MCP PID 45186 exited 0; 1 response lines
+AUDIT B-348 PASS
+MCP PID 45187 exited 0; 1 response lines
+AUDIT B-349 PASS
+MCP PID 45188 exited 0; 1 response lines
+AUDIT B-353 PASS
+MCP PID 45189 exited 0; 1 response lines
+AUDIT B-354 PASS
+MCP PID 45190 exited 0; 2 response lines
+AUDIT B-355 PASS
+MCP PID 45191 exited 0; 1 response lines
+AUDIT B-356 PASS
+MCP PID 45192 exited 0; 5 response lines
+AUDIT B-358 PASS
+MCP PID 45283 exited 0; 3 response lines
+AUDIT B-361 PASS
+MCP PID 45284 exited 0; 1 response lines
+AUDIT B-362 PASS
+MCP PID 45285 exited 0; 4 response lines
+AUDIT B-363 PASS
+MCP PID 45286 exited 0; 1 response lines
+AUDIT B-364 PASS
+MCP PID 45287 exited 0; 2 response lines
+AUDIT B-374 PASS
+AUDIT B-375 PASS
+MCP PID 45289 exited 0; 6 response lines
+AUDIT B-376 PASS
+AUDIT B-373 PASS
+MCP PID 45291 exited 0; 1 response lines
+AUDIT B-371 PASS
+MCP PID 45293 exited 0; 1 response lines
+MCP PID 45339 exited 0; 2 response lines
+AUDIT B-370 PASS
+real server PID 45290 killed/reaped
+19 row probes passed; no wallet, seed or broadcast.

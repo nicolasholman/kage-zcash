@@ -1,0 +1,92 @@
+[
+  {
+    "name": "spendguard",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "spendguard",
+      "--",
+      "--test-threads=1",
+      "--nocapture"
+    ],
+    "pid": 32161,
+    "exitCode": 0
+  },
+  {
+    "name": "protocol",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "x402z-protocol",
+      "--",
+      "--test-threads=1",
+      "--nocapture"
+    ],
+    "pid": 32983,
+    "exitCode": 0
+  },
+  {
+    "name": "server",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "x402z-server",
+      "--",
+      "--test-threads=1",
+      "--nocapture"
+    ],
+    "pid": 33625,
+    "exitCode": 0
+  },
+  {
+    "name": "agent",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "x402z-agent",
+      "--",
+      "--test-threads=1",
+      "--nocapture"
+    ],
+    "pid": 65329,
+    "exitCode": 0
+  },
+  {
+    "name": "mcp",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "x402z-mcp",
+      "--",
+      "--test-threads=1"
+    ],
+    "pid": 5002,
+    "exitCode": 0
+  },
+  {
+    "name": "facilitator",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "x402z-facilitator",
+      "--lib",
+      "--bin",
+      "x402z-facilitator",
+      "--test",
+      "verify_real_tx",
+      "--test",
+      "zip321_uri",
+      "--",
+      "--test-threads=1",
+      "--nocapture"
+    ],
+    "pid": 8029,
+    "exitCode": 0
+  }
+]

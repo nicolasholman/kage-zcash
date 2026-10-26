@@ -1,0 +1,172 @@
+Command: cargo test -p x402z-server -- --test-threads=1 --nocapture
+CARGO_BUILD_JOBS=1
+   Compiling x402z-server v0.1.0 (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t10/crates/x402z-server)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.21s
+     Running unittests src/main.rs (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t7/target/debug/deps/x402z_server-986299089fa125f4)
+
+running 68 tests
+test tests::a_facilitator_that_refuses_the_token_is_setup_required_and_burns_nothing ... ok
+test tests::a_lost_200_is_answered_again_for_the_same_payment_without_a_second_payment ... ok
+test tests::a_nonce_issues_once_and_underpaid_n_burns_nothing ... ok
+test tests::an_impossible_nonce_or_txid_is_a_400_with_no_feed_row_and_no_facilitator_call ... ok
+test tests::audit_90_second_timeout_and_truncated_body ... AUDIT B-054 PASS
+AUDIT B-052 PASS
+ok
+test tests::audit_admin_hosts_all_routes ... AUDIT B-010 PASS
+AUDIT B-011 PASS
+AUDIT B-012 PASS
+AUDIT B-013 PASS
+AUDIT B-014 PASS
+ok
+test tests::audit_default_rate_and_client_separation ... AUDIT B-089 PASS
+AUDIT B-091 PASS
+AUDIT B-088 PASS
+ok
+test tests::audit_direct_receipts_and_grace_boundaries ... AUDIT B-069 PASS
+AUDIT B-071 PASS
+AUDIT B-070 PASS
+AUDIT B-072 PASS
+AUDIT B-074 PASS
+AUDIT B-075 PASS
+AUDIT B-077 PASS
+AUDIT B-077 PASS
+ok
+test tests::audit_events_and_default_status ... AUDIT B-103 PASS
+AUDIT B-104 PASS
+AUDIT B-108 PASS
+ok
+test tests::audit_existing_signed_fixture_full_response_and_redeem ... AUDIT B-039 PASS
+AUDIT B-067 PASS
+AUDIT B-057 PASS
+AUDIT B-048 PASS
+AUDIT B-079 PASS
+AUDIT B-080 PASS
+AUDIT B-078 PASS
+AUDIT B-081 PASS
+ok
+test tests::audit_expired_direct_receipt_header ... AUDIT B-076 PASS
+ok
+test tests::audit_faulted_tab_key_still_quotes ... warning: tab offer left out: server database error: no such table: tab_keys
+AUDIT B-025 PASS
+ok
+test tests::audit_forwarded_and_ipv6_limiter_http ... AUDIT B-094 PASS
+AUDIT B-095 PASS
+AUDIT B-096 PASS
+ok
+test tests::audit_real_sqlite_faults_and_qr_capacity ... AUDIT B-026 PASS
+AUDIT B-037 PASS
+AUDIT B-038 PASS
+ok
+test tests::audit_refill_clock_and_persisted_spent_txid ... AUDIT B-092 PASS
+AUDIT B-098 PASS
+ok
+test tests::audit_rejected_receipt_retry_after ... AUDIT B-073 PASS
+ok
+test tests::audit_resource_status_and_disabled_tab ... AUDIT B-027 PASS
+AUDIT B-028 PASS
+AUDIT B-029 PASS
+AUDIT B-029 PASS
+AUDIT B-024 PASS
+AUDIT B-031 PASS
+ok
+test tests::audit_signed_receipt_faults_are_not_burned ... AUDIT B-047 PASS
+AUDIT B-049 PASS
+AUDIT B-050 PASS
+AUDIT B-050 PASS
+AUDIT B-059 PASS
+AUDIT B-055 PASS
+AUDIT B-056 PASS
+AUDIT B-058 PASS
+ok
+test tests::audit_status_sealed_ledger_errors_and_full_data ... AUDIT B-112 PASS
+AUDIT B-114 PASS
+AUDIT B-115 PASS
+ok
+test tests::audit_store_retention_and_concurrent_burn ... AUDIT B-099 PASS
+AUDIT B-102 PASS
+ok
+test tests::audit_tab_disabled_and_malformed_tokens ... AUDIT B-158 PASS
+AUDIT B-157 PASS
+ok
+test tests::audit_tab_fixture_persistence_and_replays ... AUDIT B-130 PASS
+AUDIT B-131 PASS
+AUDIT B-142 PASS
+AUDIT B-160 PASS
+AUDIT B-064 PASS
+AUDIT B-082 PASS
+AUDIT B-132 PASS
+ok
+test tests::audit_tab_pending_and_single_payment_collision ... AUDIT B-140 PASS
+AUDIT B-143 PASS
+ok
+test tests::audit_tab_rate_exhaustion_has_no_facilitator_call ... AUDIT B-145 PASS
+ok
+test tests::audit_tab_request_validation_and_outage ... AUDIT B-135 PASS
+AUDIT B-133 PASS
+AUDIT B-134 PASS
+AUDIT B-136 PASS
+AUDIT B-137 PASS
+AUDIT B-138 PASS
+AUDIT B-141 PASS
+AUDIT B-144 PASS
+AUDIT B-139 PASS
+ok
+test tests::audit_tab_rotation_and_atomic_faults ... AUDIT B-148 PASS
+AUDIT B-147 PASS
+AUDIT B-149 PASS
+AUDIT B-156 PASS
+AUDIT B-150 PASS
+AUDIT B-162 PASS
+AUDIT B-161 PASS
+ok
+test tests::audit_unavailable_unknown_and_malformed_redeem ... AUDIT B-084 PASS
+AUDIT B-083 PASS
+AUDIT B-085 PASS
+AUDIT B-086 PASS
+AUDIT B-087 PASS
+ok
+test tests::audit_zero_facilitator_calls_for_direct_receipt_and_validation ... AUDIT B-068 PASS
+AUDIT B-065 PASS
+ok
+test tests::empty_public_origin_reports_the_origin_requirement ... ok
+test tests::expired_challenges_are_pruned_at_most_once_a_minute ... ok
+test tests::expired_direct_receipt_reports_payment_expired_without_burning_nonce ... ok
+test tests::facilitator_down_is_a_502_and_burns_nothing ... ok
+test tests::feed_rows_are_clipped ... ok
+test tests::foreign_key_is_rejected ... ok
+test tests::forged_and_tampered_tokens_are_refused ... ok
+test tests::limiter_allows_burst_then_refuses_with_retry_after ... ok
+test tests::limiter_key_trusts_forwarded_for_only_from_configured_proxies_and_groups_ipv6_by_64 ... ok
+test tests::limiter_refills_over_time_and_caps_at_burst ... ok
+test tests::limiter_zero_means_disabled ... ok
+test tests::one_payment_buys_n_unlinkable_tokens_each_spendable_once ... ok
+test tests::paid_before_expiry_redeemed_after_is_accepted_by_mined_time ... ok
+test tests::pending_and_rate_limited_feed_rows_carry_no_full_nonce_and_no_client_address ... ok
+test tests::pending_payment_keeps_the_same_challenge_and_burns_nothing ... ok
+test tests::prune_keeps_spent_rows_and_live_challenges ... ok
+test tests::pruning_and_the_open_count_use_the_open_challenges_index ... ok
+test tests::public_base_url_must_be_an_http_origin ... ok
+test tests::quote_returns_429_with_retry_after_once_the_ip_budget_is_spent ... ok
+test tests::redeem_api_settles_a_pasted_txid ... ok
+test tests::redeemed_nonce_stays_burned_across_restart ... ok
+test tests::rejected_forged_unknown_and_malformed_x_payments ... ok
+test tests::rejected_receipt_reissue_is_rate_limited_too ... ok
+test tests::restart_between_challenge_and_redeem_keeps_the_challenge ... ok
+test tests::tab_key_and_spent_tokens_survive_a_restart ... ok
+test tests::tampered_claims_are_rejected ... ok
+test tests::the_402_body_is_x402_v1_payment_required_response ... ok
+test tests::the_402_carries_a_zip321_uri_and_a_local_qr ... ok
+test tests::the_402_resource_is_https_behind_a_tls_proxy_or_the_configured_public_base_url ... ok
+test tests::the_admin_console_refuses_a_foreign_host_header ... ok
+test tests::the_demo_panel_opens_the_sealed_agent_ledger_only_with_its_key ... ok
+test tests::the_previous_key_issues_and_accepts_tokens_during_its_grace_period_only ... ok
+test tests::the_public_port_serves_no_dashboard_feed_or_status ... ok
+test tests::tokens_from_another_key_epoch_are_refused ... ok
+test tests::valid_receipt_is_not_rate_limited ... ok
+test tests::valid_receipt_settles_once ... ok
+test tests::with_the_resend_window_off_a_replayed_x_payment_is_refused ... ok
+test tests::wrong_amount_expired_and_unknown_are_rejected ... ok
+test tests::x_payment_attempts_that_stay_pending_share_the_client_budget ... ok
+test tests::x_payment_settles_once_and_returns_x_payment_response ... ok
+
+test result: ok. 68 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 90.34s

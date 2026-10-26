@@ -1,0 +1,57 @@
+Command: cargo test -p x402z-protocol -- --test-threads=1 --nocapture
+CARGO_BUILD_JOBS=1
+   Compiling x402z-protocol v0.1.0 (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t10/crates/x402z-protocol)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.29s
+     Running unittests src/lib.rs (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t7/target/debug/deps/x402z_protocol-cafe3ac156a464dd)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/audit_exec.rs (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t7/target/debug/deps/audit_exec-f58943d830e1eb87)
+
+running 1 test
+test audit_address_nonce_and_payload_boundaries ... AUDIT B-431 PASS
+AUDIT B-433 PASS
+AUDIT B-440 PASS
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/challenge.rs (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t7/target/debug/deps/challenge-f43c96bbb8b93567)
+
+running 6 tests
+test receipt_claims_mined_at_is_optional_for_old_receipts ... ok
+test rejects_expired_mainnet_wrong_scheme_bad_nonce ... ok
+test round_trips_with_camel_case_keys ... ok
+test sample_parses_and_validates ... ok
+test shape_validation_ignores_expiry_and_paid_in_time_uses_grace ... ok
+test unknown_fields_rejected ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/x402_wire.rs (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t7/target/debug/deps/x402_wire-f4898f6830003dc3)
+
+running 6 tests
+test challenge_to_requirements_and_back ... ok
+test settlement_response_matches_spec_fields ... ok
+test spec_402_example_round_trips_and_the_zcash_option_is_found ... ok
+test spec_evm_payment_payload_parses_but_is_refused_as_zcash ... ok
+test tab_payload_round_trips_and_is_scheme_checked ... ok
+test x_payment_header_is_base64_json_and_round_trips ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/zip321.rs (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t7/target/debug/deps/zip321-fc07fa03a1689841)
+
+running 2 tests
+test amounts_are_decimal_zec_without_trailing_zeros ... ok
+test memo_is_base64url_without_padding ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests x402z_protocol
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

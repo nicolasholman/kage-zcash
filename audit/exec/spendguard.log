@@ -1,0 +1,39 @@
+Command: cargo test -p spendguard -- --test-threads=1 --nocapture
+CARGO_BUILD_JOBS=1
+   Compiling spendguard v0.1.0 (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t10/crates/spendguard)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.28s
+     Running unittests src/lib.rs (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t7/target/debug/deps/spendguard-d887abd49f82941e)
+
+running 16 tests
+test sealed::tests::hex_keys ... ok
+test sealed::tests::round_trip_and_nothing_readable_on_disk ... ok
+test sealed::tests::wrong_key_tampering_truncation_and_purpose_swaps_are_refused ... ok
+test tests::allows_within_cap_on_allowlisted_host ... ok
+test tests::an_entry_with_a_port_allows_only_that_port ... ok
+test tests::an_entry_with_a_scheme_allows_only_that_scheme ... ok
+test tests::approval_threshold_inclusive ... ok
+test tests::cap_is_inclusive_and_cumulative ... ok
+test tests::cap_resets_at_utc_midnight ... ok
+test tests::deny_beats_approval ... ok
+test tests::empty_allowlist_denies_everything ... ok
+test tests::host_normalisation_port_case_trailing_dot ... ok
+test tests::overflow_is_denied ... ok
+test tests::record_spend_refuses_over_cap_and_does_not_mutate ... ok
+test tests::unknown_agent_and_zero_amount_denied ... ok
+test tests::wildcard_matches_subdomains_only ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/audit_exec.rs (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t7/target/debug/deps/audit_exec-32d0a6edf8ae4329)
+
+running 1 test
+test audit_hex_key_shape ... AUDIT B-464 PASS
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests spendguard
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

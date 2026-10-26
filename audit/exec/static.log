@@ -1,0 +1,8 @@
+AUDIT B-244 PASS static dispatch, default bind/min confirmations, exact logging template
+AUDIT B-245 PASS static normal-return dispatch, ed25519 32-byte keys encoded to 64 hex characters; keygen not invoked by this probe
+AUDIT B-246 PASS static testnet UIVK encoding/normal return, required-UFVK diagnostic and exit 2; no derivation executed
+AUDIT B-262 PASS static wallet creation dispatch, output definitions, pre-creation existing-account exit 2; zero wallets/seeds opened or created
+AUDIT B-263 PASS static address command success output definitions and no-account exit 4; no wallet opened
+AUDIT B-264 PASS static balance success format and real sync/balance call sequence, no broadcast path invoked
+AUDIT B-290 PASS static zero spendable/100000 price requires 110000 with minimum fee; Wallet exit 4; no wallet built or broadcast
+AUDIT B-317 PASS static wallet tab-buy success dispatch, output fields and single gate-record accounting definitions; zero broadcast

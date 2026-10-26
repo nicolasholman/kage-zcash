@@ -1,0 +1,71 @@
+x402z-server PID 44410 exit=2
+AUDIT B-116 PASS exit 2 and named missing-setting diagnostic; process exited without listening
+x402z-server PID 44411 exit=2
+AUDIT B-118 PASS exit 2 and named missing-setting diagnostic; process exited without listening
+x402z-server PID 44412 exit=2
+AUDIT B-120 PASS exit 2 and named missing-setting diagnostic; process exited without listening
+x402z-server PID 44413 exit=2
+AUDIT B-121 PASS exit 2 and named missing-setting diagnostic; process exited without listening
+x402z-server PID 44414 exit=2
+AUDIT B-117 PASS exit 2 address diagnostic
+x402z-server PID 44415 exit=2
+x402z-server PID 44416 exit=2
+x402z-server PID 44417 exit=2
+AUDIT B-119 PASS invalid hex, length and invalid compressed ed25519 point rejected with exit 2
+x402z-server PID 44418 exit=2
+x402z-server PID 44419 exit=2
+AUDIT B-122 PASS zero and malformed price exit 2
+x402z-server PID 44420 exit=2
+AUDIT B-123 PASS exit 2 and exact diagnostic; no listener success
+x402z-server PID 44421 exit=2
+AUDIT B-124 PASS exit 2 and exact diagnostic; no listener success
+x402z-server PID 44422 exit=2
+AUDIT B-127 PASS exit 2 and exact diagnostic; no listener success
+x402z-server PID 44423 exit=2
+AUDIT B-128 PASS exit 2 and exact diagnostic; no listener success
+x402z-server PID 44424 exit=2
+x402z-server PID 44425 exit=2
+x402z-server PID 44426 exit=2
+x402z-server PID 44427 exit=2
+x402z-server PID 44428 exit=2
+AUDIT B-126 PASS all five invalid seconds settings exit 2
+x402z-server PID 44429 exit=2
+x402z-server PID 44430 exit=2
+AUDIT B-033 PASS missing scheme and ftp exit 2 with both exact diagnostic fragments
+x402z-server PID 44431 exit=2
+x402z-server PID 44432 exit=2
+x402z-server PID 44433 exit=2
+x402z-server PID 44434 exit=2
+x402z-server PID 44435 exit=2
+AUDIT B-034 PASS empty authority, path, query, fragment and interior whitespace exit 2
+x402z-server PID 44436 exit=2
+AUDIT B-017 PASS exit 2 with entire quoted error
+x402z-server PID 44437 exit=1
+AUDIT B-129 PASS actual loopback bind collision exits 1 and names occupied address
+x402z-facilitator PID 44438 exit=2
+AUDIT B-247 PASS sterile CLI exit and exact diagnostic
+x402z-facilitator PID 44709 exit=2
+AUDIT B-248 PASS sterile CLI exit and exact diagnostic
+x402z-facilitator PID 44710 exit=2
+AUDIT B-249 PASS sterile CLI exit and exact diagnostic
+x402z-facilitator PID 44711 exit=2
+AUDIT B-250 PASS sterile CLI exit and exact diagnostic
+x402z-facilitator PID 44712 exit=2
+AUDIT B-252 PASS sterile CLI exit and exact diagnostic
+x402z-facilitator PID 44713 exit=2
+AUDIT B-253 PASS sterile CLI exit and exact diagnostic
+x402z-facilitator PID 44759 exit=1
+AUDIT B-256 PASS sterile CLI exit and exact diagnostic
+x402z-facilitator PID 44760 exit=2
+AUDIT B-259 PASS sterile CLI exit and exact diagnostic
+x402z-facilitator PID 44806 exit=2
+x402z-facilitator PID 44807 exit=2
+AUDIT B-254 PASS absent and malformed signing key exit 2; no key output collected
+x402z-facilitator PID 44808 exit=2
+x402z-facilitator PID 44809 exit=2
+x402z-facilitator PID 44810 exit=2
+x402z-facilitator PID 44811 exit=2
+AUDIT B-258 PASS negative and noninteger confirmation/grace values exit 2
+x402z-facilitator PID 44812 exit=2
+AUDIT B-255 PASS default URL diagnostic and TLS webpki-root source assertion
+27 row probes passed. Raw command output was private and ephemeral; no seed or wallet loaded.
