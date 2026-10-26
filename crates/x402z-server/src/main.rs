@@ -921,7 +921,8 @@ async fn quote(State(app): State<Arc<App>>, ConnectInfo(peer): ConnectInfo<Socke
         }
         Err(e) => {
             app.book.lock().unwrap().push("rejected", None, None, None, e.reason());
-            mint(&app, client, Budget::Charge, &resource, "402 re-issued after rejection", Some(e.reason()), None)
+            let settlement = matches!(e, ReceiptError::Expired { .. }).then(|| SettlementResponse::failed(reason::EXPIRED));
+            mint(&app, client, Budget::Charge, &resource, "402 re-issued after rejection", Some(e.reason()), settlement)
         }
     }
 }
@@ -1635,6 +1636,22 @@ mod tests {
         let receipt = encode(&key(), &claims(&nonce, 100_000));
         // budget is spent, but redeeming a receipt mints no challenge
         assert_eq!(get_quote(app.clone(), [10, 0, 0, 1], Some(&receipt)).await.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn expired_direct_receipt_reports_payment_expired_without_burning_nonce() {
+        let app = test_app(0);
+        let ch = PaymentRequired {
+            scheme: SCHEME.into(), network: Network::Testnet, pay_to: UA.into(), amount_zat: 100_000,
+            memo_nonce: "x402z-expired-receipt".into(), expires_at: now() - GRACE - 2,
+        };
+        app.store.insert(&ch).unwrap();
+        let mut c = claims(&ch.memo_nonce, ch.amount_zat);
+        c.mined_at = Some(ch.expires_at + GRACE + 1);
+        let response = get_quote(app.clone(), [10, 0, 0, 1], Some(&encode(&key(), &c))).await;
+        assert_eq!(response.status(), StatusCode::PAYMENT_REQUIRED);
+        assert_eq!(settlement_of(&response).error_reason.as_deref(), Some(reason::EXPIRED));
+        assert!(app.store.get(&ch.memo_nonce).unwrap().unwrap().spent_txid.is_none());
     }
 
     #[tokio::test]
