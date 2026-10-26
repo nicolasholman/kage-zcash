@@ -1,0 +1,12 @@
+Command: cargo build -p x402z-server -p x402z-facilitator --bins --examples
+CARGO_BUILD_JOBS=1
+   Compiling orchard v0.16.0
+   Compiling sapling-crypto v0.9.0
+   Compiling zcash_keys v0.17.0-pre.2
+   Compiling zcash_primitives v0.31.0-pre.2
+   Compiling x402z-protocol v0.1.0 (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t11/crates/x402z-protocol)
+   Compiling zcash_client_backend v0.25.0-pre.2
+   Compiling x402z-facilitator v0.1.0 (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t11/crates/x402z-facilitator)
+   Compiling spendguard v0.1.0 (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t11/crates/spendguard)
+   Compiling x402z-server v0.1.0 (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t11/crates/x402z-server)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 58.16s

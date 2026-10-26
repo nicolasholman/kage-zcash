@@ -1,0 +1,12 @@
+Command: cargo run --offline --manifest-path /tmp/kage-defaults-rjphmc8k/probe/Cargo.toml --bin cap-race -- /tmp/kage-defaults-rjphmc8k/ledger.json
+CARGO_BUILD_JOBS=1
+   Compiling x402z-protocol v0.1.0 (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t11/crates/x402z-protocol)
+   Compiling x402z-facilitator v0.1.0 (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t11/crates/x402z-facilitator)
+   Compiling spendguard v0.1.0 (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t11/crates/spendguard)
+   Compiling x402z-agent v0.1.0 (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t11/crates/x402z-agent)
+   Compiling kage-b300-probe v0.0.0 (/tmp/kage-defaults-rjphmc8k/probe)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 53.38s
+     Running `/Volumes/Extreme SSD/Projects/zec-shielded-x402/target/debug/cap-race /tmp/kage-defaults-rjphmc8k/ledger.json`
+initial spent_today_zat=0; price_zat=100000; daily_cap_zat=100000
+PASS B-300: attempts=2 allowed_paid_rows=1 denied_rows=1 txid_bearing_rows=1 spent_today_zat=100000 price_zat=100000
+Ledger-only simulation; synthetic txid; no wallet, seed, lightwalletd, or broadcast.

@@ -1,0 +1,10 @@
+Command: bash e2e/stack.sh
+CARGO_BUILD_JOBS=1
+stack up; merchant UA utest100fnpp4zd4…
+facilitator 86268
+server 86269
+server-nofac 86270
+server-ledger 86271
+server-badledger 86272
+server-ratelimit 86273
+landing 86274
