@@ -396,16 +396,16 @@ fn resource_url(cfg: &Config, peer: IpAddr, headers: &HeaderMap) -> String {
 
 /// `X402Z_PUBLIC_BASE_URL`: an `http(s)://host[:port]` origin, no path; a trailing `/` is dropped.
 fn parse_public_base_url(raw: &str) -> Result<String, String> {
-    let s = raw.trim().trim_end_matches('/');
+    let s = raw.trim();
     let lower = s.to_ascii_lowercase();
-    let rest = match ["https://", "http://"].iter().find(|p| lower.starts_with(**p)) {
-        Some(p) => &s[p.len()..],
+    let scheme_len = match ["https://", "http://"].iter().find(|p| lower.starts_with(**p)) {
+        Some(p) => p.len(),
         None => return Err(format!("'{raw}' must start with https:// or http://")),
     };
+    let rest = s[scheme_len..].trim_end_matches('/');
     if rest.is_empty() || rest.contains('/') || rest.contains('?') || rest.contains('#') || rest.chars().any(char::is_whitespace) {
         return Err(format!("'{raw}' must be an origin like https://api.example (no path)"));
     }
-    let scheme_len = s.len() - rest.len();
     Ok(format!("{}{rest}", &lower[..scheme_len]))
 }
 
@@ -2490,6 +2490,14 @@ mod tests {
         assert!(parse_public_base_url("ftp://kage-api.example").is_err());
         assert!(parse_public_base_url("https://").is_err());
         assert!(parse_public_base_url("https://kage-api.example/api").is_err());
+    }
+
+    #[test]
+    fn empty_public_origin_reports_the_origin_requirement() {
+        for origin in ["https://", "http://", "https:///"] {
+            assert!(parse_public_base_url(origin).unwrap_err().contains("must be an origin like https://api.example (no path)"));
+        }
+        assert_eq!(parse_public_base_url("https://api.example/").unwrap(), "https://api.example");
     }
 
     #[test]
