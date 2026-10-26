@@ -167,7 +167,10 @@
         .end .wrap { padding-top: 80px; padding-bottom: 80px; }
       }
       /* the one animation: the exchange plays in once */
-      @media (prefers-reduced-motion: reduce) {
+            /* motion: a slow camera drift and one soft light sweep across the art (off with reduced motion) */
+      .stage::before { content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none; mix-blend-mode: screen; background: linear-gradient(105deg, transparent 38%, rgba(255, 214, 120, 0.22) 50%, transparent 62%) no-repeat; background-size: 260% 100%; background-position: 150% 0; }
+      @media (prefers-reduced-motion: no-preference) { .stage { animation: kg-drift 24s ease-in-out infinite alternate; } .stage::before { animation: kg-sweep 9s cubic-bezier(0.45, 0, 0.25, 1) 2.6s infinite; } @keyframes kg-drift { from { transform: scale(1) translate3d(0, 0, 0); } to { transform: scale(1.05) translate3d(-1.2%, -0.8%, 0); } } @keyframes kg-sweep { 0% { background-position: 150% 0; } 55%, 100% { background-position: -50% 0; } } }
+@media (prefers-reduced-motion: reduce) {
         html { scroll-behavior: auto; }
         *, *::before, *::after { transition: none !important; animation: none !important; }
       }
