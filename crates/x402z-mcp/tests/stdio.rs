@@ -199,7 +199,11 @@ fn without_a_ledger_key_the_tools_say_setup_required_and_the_ledger_stays_sealed
     let mut env2 = env.to_vec();
     env2.push(("X402Z_AGENT_LEDGER_KEY", String::new()));
     let mut m = Mcp::start(&env2);
-    for (tool, args) in [("spend_status", json!({})), ("ledger_tail", json!({})), ("paid_fetch", json!({ "url": url }))] {
+    for (tool, args) in [
+        ("spend_status", json!({})), ("ledger_tail", json!({})), ("paid_fetch", json!({ "url": url })),
+        ("redeem_payment", json!({ "url": url, "txid": "ab".repeat(32), "memoNonce": "x402z-fixture" })),
+        ("tab_fetch", json!({ "url": url })),
+    ] {
         let v = structured(&m.call(tool, args));
         assert_eq!(v["error"], "setup_required", "{tool}: {v}");
         assert!(v["message"].as_str().unwrap().contains("X402Z_AGENT_LEDGER_KEY"), "{tool}: {v}");

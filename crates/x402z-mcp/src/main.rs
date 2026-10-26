@@ -173,6 +173,9 @@ async fn redeem_payment(args: &Value) -> Value {
         Ok(c) => c,
         Err(e) => return setup_required(&e),
     };
+    if let Err(e) = cfg.key() {
+        return setup_required(&e);
+    }
     match pay::redeem_payment(&cfg, url, txid, nonce).await {
         Err(PayError::Config(m)) if m.contains("txid must be") => tool_error("invalid_arguments", &m),
         r => paid_result(r),

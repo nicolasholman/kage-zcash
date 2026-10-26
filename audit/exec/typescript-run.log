@@ -1,0 +1,43 @@
+Command: node --test audit/exec/typescript.test.ts
+✔ B-382 mixed options select complete Zcash challenge (0.787834ms)
+✔ B-383 invalid version and shape (0.1925ms)
+✔ B-384 no matching option (0.049834ms)
+✔ B-385 nonce bounds and charset (0.109375ms)
+✔ B-386 missing and nonnumeric expiry (0.073458ms)
+✔ B-387 amount syntax and zero (0.087667ms)
+✔ B-388 wrong address network (0.04825ms)
+✔ B-389 expiry inclusive (0.047834ms)
+✔ B-395 non GET rejected before network (4.246375ms)
+✔ B-397 missing facilitator token (0.145709ms)
+✔ B-398 public key format (0.111417ms)
+✔ B-399 middleware address network (0.041917ms)
+✔ B-405 empty real memory store (0.077125ms)
+✔ B-400 unpaid real HTTP paywall full challenge (12.802375ms)
+✔ B-401 invalid encoded payment (2.921333ms)
+✔ B-402 version scheme network failures (3.723584ms)
+✔ B-403 invalid pair shape (1.721125ms)
+✔ B-404 unknown issued nonce (0.964917ms)
+✔ B-407 store full preserves open entries (1.874291ms)
+✔ B-408 real memory store restart loses issued challenge (1.5865ms)
+✔ B-410 zero rate disables HTTP limit (59.655792ms)
+✔ B-411 real client abort timeout leaves challenge unspent (309.20975ms)
+✔ B-412 rejected authorization leaves challenge unspent (8.443625ms)
+✔ B-413 unreadable JSON leaves challenge unspent (5.29175ms)
+✔ B-414 pending and not-found retain exact challenge (5.635708ms)
+✔ B-415 rejected response issues fresh challenge (2.158292ms)
+✔ B-416 confirmed response requires receipt (1.947625ms)
+✔ B-417 foreign key and tampered claims (5.3605ms)
+✔ B-418 signed pair address and amount mismatches (8.420417ms)
+✔ B-419 signed zero confirmation keeps challenge (1.738542ms)
+✔ B-420 signed receipt mined after grace (1.537ms)
+✔ B-421 B-422 B-423 B-424 confirmed real signature and replay accounting (7.91475ms)
+✔ B-425 real concurrent spend causes markSpent false without next (1.581459ms)
+✔ B-396 redirects never forward payment to target (0.85225ms)
+ℹ tests 34
+ℹ suites 0
+ℹ pass 34
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 544.186167

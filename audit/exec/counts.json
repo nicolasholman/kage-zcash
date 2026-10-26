@@ -1,0 +1,56 @@
+{
+  "audit": {
+    "UNTESTED": 5,
+    "PASS": 573,
+    "FAIL": 6
+  },
+  "total": 584,
+  "upgraded_rows": 351,
+  "unchanged_initial_pass": 222,
+  "unchanged_initial_fail": 6,
+  "rust_passed": {
+    "spendguard": 17,
+    "protocol": 15,
+    "server": 68,
+    "agent": 50,
+    "mcp": 7,
+    "facilitator": 20
+  },
+  "rust_total": 177,
+  "typescript_passed": {
+    "typescript": 34,
+    "typescript-unit": 9,
+    "typescript-live": 2
+  },
+  "typescript_total": 45,
+  "blocked": {
+    "B-001": [
+      "Not executed: proving the default listener requires binding 4020, excluded by this run.",
+      "needs permission to bind the excluded default port 4020"
+    ],
+    "B-002": [
+      "Not executed: proving the default admin listener requires binding 4029, excluded by this run.",
+      "needs permission to bind the excluded default port 4029"
+    ],
+    "B-300": [
+      "Not executed: the map requires two real CLI pays, one successful; a fabricated broadcast outcome would not prove a funded payment. Sends are prohibited.",
+      "needs a funded Zcash testnet send"
+    ],
+    "U-083": [
+      "No newly funded payment was sent for the active dashboard challenge.",
+      "needs a funded Zcash testnet send"
+    ],
+    "U-084": [
+      "No unconfirmed payment was broadcast for the active dashboard challenge.",
+      "needs a funded Zcash testnet send"
+    ]
+  },
+  "root_fixes": {
+    "B-034": "Fixed empty-authority validation to report the origin-only error (4be20bf).",
+    "B-076": "Expired direct receipts now carry the existing payment_expired settlement response (6a701d8).",
+    "B-358": "MCP redemption requires the ledger key before sending a payment presentation (3b2ec47).",
+    "B-324": "Validate the offered issue origin before authorizing or preparing payment (b652695)."
+  },
+  "origin_pushed": false,
+  "broadcasts": 0
+}

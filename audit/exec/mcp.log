@@ -1,0 +1,23 @@
+Command: cargo test -p x402z-mcp -- --test-threads=1
+CARGO_BUILD_JOBS=1
+   Compiling x402z-agent v0.1.0 (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t10/crates/x402z-agent)
+   Compiling x402z-mcp v0.1.0 (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t10/crates/x402z-mcp)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.26s
+     Running unittests src/main.rs (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t7/target/debug/deps/x402z_mcp-897e7729da5b9164)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/stdio.rs (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t7/target/debug/deps/stdio-dd3b5bab2977a8af)
+
+running 7 tests
+test a_retried_paid_fetch_resumes_the_broadcast_payment_instead_of_paying_twice ... ok
+test a_slow_call_does_not_block_the_next_request ... ok
+test handshake_and_tool_list ... ok
+test missing_config_is_setup_required_not_a_crash ... ok
+test spendguard_refusals_are_tool_errors_and_land_in_the_ledger ... ok
+test tab_fetch_without_tokens_buys_a_tab_inside_spendguard ... ok
+test without_a_ledger_key_the_tools_say_setup_required_and_the_ledger_stays_sealed ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.62s

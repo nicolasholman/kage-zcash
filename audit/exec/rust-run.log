@@ -1,0 +1,13 @@
+Command: python3 audit/exec/run-rust.py
+spendguard PID 32161
+spendguard exit 0
+protocol PID 32983
+protocol exit 0
+server PID 33625
+server exit 0
+agent PID 65329
+agent exit 0
+mcp PID 5002
+mcp exit 0
+facilitator PID 8029
+facilitator exit 0

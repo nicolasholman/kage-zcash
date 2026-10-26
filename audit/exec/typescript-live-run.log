@@ -1,0 +1,11 @@
+Command: node --import ./audit/exec/track-children.mjs --test packages/x402-zcash/test/live.test.ts
+✔ x402z-server's 402 parses, its ZIP 321 URI is ours, and a mined payment for another nonce is refused (1265.399542ms)
+✔ the paywall middleware settles a real mined payment through the real facilitator, once (2032.315042ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4294.717833

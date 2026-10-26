@@ -1,0 +1,103 @@
+[
+  {
+    "name": "rust",
+    "command": [
+      "python3",
+      "audit/exec/run-rust.py"
+    ],
+    "pid": 32160,
+    "exitCode": 0,
+    "seconds": 287.37
+  },
+  {
+    "name": "build",
+    "command": [
+      "cargo",
+      "build",
+      "-p",
+      "x402z-server",
+      "-p",
+      "x402z-facilitator",
+      "--bins",
+      "--examples"
+    ],
+    "pid": 37696,
+    "exitCode": 0,
+    "seconds": 9.06
+  },
+  {
+    "name": "typescript",
+    "command": [
+      "node",
+      "--test",
+      "audit/exec/typescript.test.ts"
+    ],
+    "pid": 44404,
+    "exitCode": 0,
+    "seconds": 0.58
+  },
+  {
+    "name": "typescript-unit",
+    "command": [
+      "node",
+      "--test",
+      "test/unit.test.ts"
+    ],
+    "pid": 44406,
+    "exitCode": 0,
+    "seconds": 0.51
+  },
+  {
+    "name": "static",
+    "command": [
+      "python3",
+      "audit/exec/static.py"
+    ],
+    "pid": 44408,
+    "exitCode": 0,
+    "seconds": 0.05
+  },
+  {
+    "name": "cli",
+    "command": [
+      "python3",
+      "audit/exec/cli.py"
+    ],
+    "pid": 44409,
+    "exitCode": 0,
+    "seconds": 2.94
+  },
+  {
+    "name": "server-live",
+    "command": [
+      "node",
+      "audit/exec/server-live.mjs"
+    ],
+    "pid": 44813,
+    "exitCode": 0,
+    "seconds": 0.26
+  },
+  {
+    "name": "mcp-probes",
+    "command": [
+      "python3",
+      "audit/exec/mcp.py"
+    ],
+    "pid": 45183,
+    "exitCode": 0,
+    "seconds": 0.19
+  },
+  {
+    "name": "typescript-live",
+    "command": [
+      "node",
+      "--import",
+      "./audit/exec/track-children.mjs",
+      "--test",
+      "packages/x402-zcash/test/live.test.ts"
+    ],
+    "pid": 45385,
+    "exitCode": 0,
+    "seconds": 4.33
+  }
+]

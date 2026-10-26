@@ -1,0 +1,18 @@
+Command: node --test test/unit.test.ts
+✔ picks and checks the zcash-shielded testnet option (0.861708ms)
+✔ ZIP 321: decimal ZEC without trailing zeros and a base64url memo without padding (0.118958ms)
+✔ X-PAYMENT is base64 JSON with the payload x402z-server reads; bad shapes are refused (0.170542ms)
+✔ receipts verify only under the facilitator key and only unchanged (1.603ms)
+✔ a paywall without its facilitator token or receipt key refuses to start (0.44275ms)
+✔ the memory store forgets challenges whose redeem window is over: 10,000 unpaid 402s past TTL leave it bounded (3.1125ms)
+✔ a full store answers 503 and issues nothing; it never evicts an open challenge (16.984792ms)
+✔ 402s and X-PAYMENT attempts share a per-client budget: 30 a minute, then 429 with Retry-After (47.963958ms)
+✔ a facilitator that never answers is a 502 after facilitatorTimeoutMs, and nothing is burned (308.070584ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 473.073834

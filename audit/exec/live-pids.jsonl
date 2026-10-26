@@ -1,0 +1,4 @@
+{"name":"x402z-facilitator","pid":46199,"event":"start"}
+{"name":"x402z-server","pid":46200,"event":"start"}
+{"name":"x402z-facilitator","pid":46199,"event":"exit","code":null,"signal":"SIGTERM"}
+{"name":"x402z-server","pid":46200,"event":"exit","code":null,"signal":"SIGTERM"}

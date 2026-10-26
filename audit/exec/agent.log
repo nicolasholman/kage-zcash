@@ -1,0 +1,286 @@
+Command: cargo test -p x402z-agent -- --test-threads=1 --nocapture
+CARGO_BUILD_JOBS=1
+   Compiling x402z-agent v0.1.0 (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t10/crates/x402z-agent)
+warning: unused import: `path::PathBuf`
+ --> /Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t10/crates/x402z-agent/../../audit/exec/agent-tab-fixture.rs:6:5
+  |
+6 |     path::PathBuf,
+  |     ^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `DefaultRng`
+  --> /Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t10/crates/x402z-agent/../../audit/exec/agent-tab-fixture.rs:10:28
+   |
+10 | use blind_rsa_signatures::{DefaultRng, KeyPair, MessageRandomizer, Randomized, Sha384, Signature, PSS};
+   |                            ^^^^^^^^^^
+
+warning: unused import: `spendguard::Policy`
+  --> /Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t10/crates/x402z-agent/../../audit/exec/agent-tab-fixture.rs:12:5
+   |
+12 | use spendguard::Policy;
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `AgentConfig`, `PayError`, and `tab`
+  --> /Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t10/crates/x402z-agent/../../audit/exec/agent-tab-fixture.rs:14:11
+   |
+14 |     pay::{AgentConfig, PayError},
+   |           ^^^^^^^^^^^  ^^^^^^^^
+15 |     tab,
+   |     ^^^
+
+warning: unused import: `path::PathBuf`
+ --> /Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t10/crates/x402z-agent/../../audit/exec/agent-rotation-fixture.rs:5:5
+  |
+5 |     path::PathBuf,
+  |     ^^^^^^^^^^^^^
+
+warning: unused import: `spendguard::Policy`
+  --> /Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t10/crates/x402z-agent/../../audit/exec/agent-rotation-fixture.rs:11:5
+   |
+11 | use spendguard::Policy;
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `AgentConfig`, `PayError`, `now`, and `tab`
+  --> /Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t10/crates/x402z-agent/../../audit/exec/agent-rotation-fixture.rs:13:11
+   |
+13 |     pay::{now, AgentConfig, PayError},
+   |           ^^^  ^^^^^^^^^^^  ^^^^^^^^
+14 |     tab,
+   |     ^^^
+
+warning: unused imports: `AuditEntry` and `PaidFetch`
+  --> /Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t10/crates/x402z-agent/../../audit/exec/agent-concurrent.rs:16:14
+   |
+16 |     ledger::{AuditEntry, LedgerFile, LedgerKey},
+   |              ^^^^^^^^^^
+17 |     pay::{self, AgentConfig, PaidFetch},
+   |                              ^^^^^^^^^
+
+warning: unused imports: `SettlementResponse` and `encode_header`
+  --> /Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t10/crates/x402z-agent/../../audit/exec/agent-concurrent.rs:20:27
+   |
+20 | use x402z_protocol::{b64, encode_header, SettlementResponse, TabOffer};
+   |                           ^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^
+
+warning: `x402z-agent` (test "audit_exec") generated 9 warnings (run `cargo fix --test "audit_exec"` to apply 9 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.25s
+     Running unittests src/lib.rs (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t7/target/debug/deps/x402z_agent-fc76735ffe0d1d55)
+
+running 21 tests
+test ledger::tests::a_settled_payment_is_never_downgraded_by_a_later_refusal ... ok
+test ledger::tests::a_wrong_key_a_changed_byte_or_an_old_plaintext_ledger_is_refused_not_reset ... ok
+test ledger::tests::cap_survives_restarts_via_paid_audit_entries ... ok
+test ledger::tests::concurrent_runs_cannot_both_pass_the_cap ... ok
+test ledger::tests::invalid_ledger_is_an_error_not_a_reset ... ok
+test ledger::tests::replay_does_not_bypass_allowlist ... ok
+test ledger::tests::the_key_comes_from_the_env_or_the_seed ... ok
+test ledger::tests::the_ledger_is_sealed_at_rest_and_survives_a_restart ... ok
+test ledger::tests::unresolved_payments_are_found_per_url_until_settled_or_stale ... ok
+test ledger::tests::upsert_and_dashboard_shape ... ok
+test pay::tests::a_crash_between_broadcast_and_its_record_leaves_a_charged_resumable_entry ... spendguard: allowed 200000 zat (0 of 1000000 zat already spent today)
+spendguard: allowed 100000 zat (200000 of 1000000 zat already spent today)
+spendguard: allowed 100000 zat (300000 of 1000000 zat already spent today)
+ok
+test pay::tests::a_lost_answer_for_a_tx_lightwalletd_has_is_paid_and_a_rejection_is_not_charged ... spendguard: allowed 100000 zat (0 of 1000000 zat already spent today)
+spendguard: allowed 100000 zat (100000 of 1000000 zat already spent today)
+ok
+test pay::tests::an_unknown_broadcast_outcome_is_charged_and_audited_with_its_txid ... spendguard: allowed 300000 zat (0 of 1000000 zat already spent today)
+ok
+test pay::tests::exit_codes_are_stable ... ok
+test pay::tests::host_of_keeps_the_port_for_spendguard ... ok
+test pay::tests::picks_the_zcash_option_and_validates_it ... ok
+test tab::tests::invalid_token_file_is_an_error_not_a_reset ... ok
+test tab::tests::offer_parsing_and_tab_size_limits ... ok
+test tab::tests::token_file_takes_per_origin_drops_expired_and_survives_reopen ... ok
+test tab::tests::tokens_are_sealed_at_rest_and_refused_under_a_wrong_key_or_a_changed_byte ... ok
+test tab::tests::tokens_live_through_the_offer_grace_and_pins_hold_for_the_epoch ... ok
+
+test result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running unittests src/main.rs (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t7/target/debug/deps/x402z_agent-9630379af1ee9503)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/audit_exec.rs (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t7/target/debug/deps/audit_exec-144fed5faa8e639f)
+
+running 18 tests
+test audit_all_paying_entry_points_preflight_before_requests ... AUDIT B-278 PASS
+ok
+test audit_broadcast_outcome_accounting_fixture ... spendguard: allowed 100000 zat (0 of 500000 zat already spent today)
+AUDIT B-302 PASS
+spendguard: allowed 100000 zat (0 of 500000 zat already spent today)
+AUDIT B-304 PASS
+ok
+test audit_cli_config_and_sealing ... AUDIT B-265 PASS
+AUDIT B-266 PASS
+AUDIT B-267 PASS
+AUDIT B-268 PASS
+AUDIT B-269 PASS
+AUDIT B-277 PASS
+AUDIT B-318 PASS
+AUDIT B-327 PASS
+AUDIT B-328 PASS
+AUDIT B-270 PASS
+AUDIT B-261 PASS
+AUDIT B-271 PASS
+AUDIT B-272 PASS
+AUDIT B-273 PASS
+AUDIT B-274 PASS
+AUDIT B-275 PASS
+AUDIT B-276 PASS
+AUDIT B-311 PASS
+AUDIT B-313 PASS
+AUDIT B-314 PASS
+AUDIT B-310 PASS
+AUDIT B-309 PASS
+AUDIT B-315 PASS
+AUDIT B-342 PASS
+AUDIT B-336 PASS
+AUDIT B-345 PASS
+server PID 65650 killed and reaped
+ok
+test audit_cli_external_tab_real_blind_rsa_and_mcp_collection ... AUDIT B-316 PASS
+MCP PID 65942 exited and reaped
+MCP PID 65943 exited and reaped
+AUDIT B-380 PASS
+AUDIT B-381 PASS
+AUDIT B-335 PASS
+ok
+test audit_cli_http_failures_before_wallet ... AUDIT B-279 PASS
+AUDIT B-280 PASS
+AUDIT B-281 PASS
+AUDIT B-282 PASS
+AUDIT B-284 PASS
+AUDIT B-285 PASS
+AUDIT B-286 PASS
+AUDIT B-287 PASS
+AUDIT B-288 PASS
+AUDIT B-289 PASS
+ok
+test audit_cli_invalid_tab_offers_and_pins ... AUDIT B-319 PASS
+AUDIT B-320 PASS
+AUDIT B-321 PASS
+AUDIT B-322 PASS
+AUDIT B-323 PASS
+AUDIT B-324 PASS
+AUDIT B-329 PASS
+ok
+test audit_cli_resumed_payment_refusal_and_unread_body ... AUDIT B-292 PASS
+AUDIT B-293 PASS
+AUDIT B-294 PASS
+AUDIT B-295 PASS
+ok
+test audit_cli_tab_redeem_202_then_verified_tokens ... AUDIT B-326 PASS
+ok
+test audit_cli_tab_transport_failure_and_populated_status ... AUDIT B-339 PASS
+AUDIT B-340 PASS
+AUDIT B-341 PASS
+AUDIT B-343 PASS
+ok
+test audit_concurrent::audit_tab_purchase_race_preserves_one_charge ... tab offer: key k1 at 100000 zat a token; buying 2 for 200000 zat (memo x402z-callA)
+tab paid by tx b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7 for http://127.0.0.1:61341 meanwhile; collecting it instead of paying again
+tab issue: not yet (202 Accepted): {"status":"pending","reason":"settlement_pending","message":"0 of 1 confirmations"}
+AUDIT B-325 PASS
+ok
+test audit_default_and_explicit_pay_return_paid_json_without_broadcast ... AUDIT B-260 PASS
+ok
+test audit_fifteen_second_retry_cycle_keeps_one_payment ... resuming tx abababababababababababababababababababababababababababababababab (memo x402z-fixture) for http://127.0.0.1:61348/api/quote: broadcast earlier and not settled yet; not paying again
+not settled yet (402 Payment Required, settlement_pending): X-PAYMENT header is required
+not settled yet (429 Too Many Requests, ): {}
+not settled yet (502 Bad Gateway, ): {}
+not settled yet (503 Service Unavailable, ): {}
+GET http://127.0.0.1:61348/api/quote with X-PAYMENT failed: error sending request for url (http://127.0.0.1:61348/api/quote)
+http://127.0.0.1:61348/api/quote answered 200 OK: paid content delivered
+AUDIT B-296 PASS
+ok
+test audit_ledger_empty_and_changed_policy ... AUDIT B-306 PASS
+AUDIT B-308 PASS
+ok
+test audit_preparation_network_failure_records_no_payment ... spendguard: allowed 100000 zat (0 of 500000 zat already spent today)
+AUDIT B-291 PASS
+ok
+test audit_real_cache_ranges ... AUDIT B-465 PASS
+AUDIT B-466 PASS
+ok
+test audit_resume_and_short_confirmation_timeout ... resuming tx abababababababababababababababababababababababababababababababab (memo x402z-fixture) for http://127.0.0.1:61373/api/quote: broadcast earlier and not settled yet; not paying again
+not settled yet (402 Payment Required, settlement_pending): X-PAYMENT header is required
+AUDIT B-298 PASS
+AUDIT B-297 PASS
+ok
+test audit_tab_invalid_issue_replies_and_timeout ... AUDIT B-332 PASS
+AUDIT B-332 PASS
+AUDIT B-333 PASS
+AUDIT B-334 PASS
+ok
+test audit_tab_rotation_retains_purchase_and_refuses_moved_path ... AUDIT B-330 PASS
+AUDIT B-331 PASS
+ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 93.83s
+
+     Running tests/concurrent.rs (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t7/target/debug/deps/concurrent-3df6cc039d72e517)
+
+running 2 tests
+test a_paid_fetch_that_races_another_call_for_the_same_url_presents_that_payment_instead_of_paying ... 402 challenge: pay 100000 zat to utest1sampleaddressf… memo x402z-callA (expires in 2207024008s)
+resuming tx b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7 (memo x402z-callB) for http://127.0.0.1:61397/api/quote: another call paid for it meanwhile; not paying again
+http://127.0.0.1:61397/api/quote answered 200 OK: paid content delivered
+ok
+test a_tab_purchase_that_races_another_for_the_same_origin_collects_that_tab_instead_of_paying ... tab offer: key k1 at 100000 zat a token; buying 2 for 200000 zat (memo x402z-callA)
+tab paid by tx b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7 for http://127.0.0.1:61400 meanwhile; collecting it instead of paying again
+tab issue: not yet (202 Accepted): {"status":"pending","reason":"settlement_pending","message":"0 of 1 confirmations"}
+ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+     Running tests/lost_answer.rs (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t7/target/debug/deps/lost_answer-3917ee2a48a8755b)
+
+running 1 test
+test nonce_already_used_for_the_agents_own_payment_keeps_it_settled_and_says_do_not_pay_again ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/preflight.rs (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t7/target/debug/deps/preflight-4b31df8b9aeb3e27)
+
+running 3 tests
+test a_402_over_plain_http_from_a_non_loopback_host_is_refused_before_any_request ... ok
+test a_host_off_the_allowlist_or_on_another_port_never_sees_a_request ... ok
+test an_answer_body_over_the_limit_is_refused_not_read_into_memory ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/redirect.rs (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t7/target/debug/deps/redirect-17b3996d91245bca)
+
+running 1 test
+test a_redirect_from_an_allowlisted_host_is_refused_before_spendguard_and_never_reaches_the_target ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/tab_client.rs (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t7/target/debug/deps/tab_client-416a69b21829cfc1)
+
+running 1 test
+test one_external_payment_buys_n_tokens_each_spendable_once ... spendguard: allowed 300000 zat (0 of 1000000 zat already spent today)
+tab issue: not yet (202 Accepted): {"status":"pending","reason":"settlement_pending","message":"0 of 1 confirmations"}
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+     Running tests/tab_keys.rs (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t7/target/debug/deps/tab_keys-b3d7c9871363758c)
+
+running 3 tests
+test a_rotated_key_at_issue_is_answered_by_blinding_again_for_the_new_key ... spendguard: allowed 300000 zat (0 of 10000000 zat already spent today)
+tab issue: key k1 rotated to k2; blinding again for the new key
+ok
+test a_second_key_for_the_same_origin_inside_one_epoch_is_refused_before_spendguard ... spendguard: allowed 200000 zat (0 of 10000000 zat already spent today)
+ok
+test an_offer_that_stops_issuing_before_a_payment_can_confirm_is_refused ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.20s
+
+   Doc-tests x402z_agent
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

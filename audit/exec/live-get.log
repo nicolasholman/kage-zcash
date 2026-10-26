@@ -1,0 +1,3 @@
+B-470 GET https://kage-api.201-18-198-162.sslip.io/ status=404 curl_exit=0 body_note=empty body result=PASS
+B-470 GET https://kage-api.201-18-198-162.sslip.io/api/events status=404 curl_exit=0 body_note=empty body result=PASS
+B-470 GET https://kage-api.201-18-198-162.sslip.io/api/status status=404 curl_exit=0 body_note=empty body result=PASS

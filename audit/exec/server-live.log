@@ -1,0 +1,11 @@
+AUDIT B-016 PASS off diagnostic, exactly one public loopback listening socket, /api/status 404
+server PID 44814 killed/reaped
+AUDIT B-030 PASS CLI trailing slash normalization and resource independence from Host/proto
+server PID 44953 killed/reaped
+AUDIT B-018 PASS noncanonical bind spelling triggers warning while actual address remains loopback; foreign Host 403
+server PID 45044 killed/reaped
+AUDIT B-125 PASS exact startup warning and real signed zero-confirmation receipt returns 200; synthetic receipt, no chain send
+server PID 45180 killed/reaped
+AUDIT B-283 PASS real admin HTML free GET, stdout body preserved, exit 0, no payment-response log
+agent PID 45182 reaped
+server PID 45181 killed/reaped
