@@ -1,0 +1,56 @@
+[
+  {
+    "id": "U-066",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-067",
+    "viewport": 1280,
+    "status": "FAIL",
+    "detail": "Expected values to be strictly equal:\n\n'0TAZ' !== '0 TAZ'\n"
+  },
+  {
+    "id": "U-070",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-101",
+    "viewport": 1280,
+    "status": "PASS",
+    "detail": "audit/local/dashboard-empty-1280.jpg",
+    "errors": []
+  },
+  {
+    "id": "U-066",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-067",
+    "viewport": 375,
+    "status": "FAIL",
+    "detail": "Expected values to be strictly equal:\n\n'0TAZ' !== '0 TAZ'\n"
+  },
+  {
+    "id": "U-070",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "Assertions matched",
+    "errors": []
+  },
+  {
+    "id": "U-101",
+    "viewport": 375,
+    "status": "PASS",
+    "detail": "audit/local/dashboard-empty-375.jpg",
+    "errors": []
+  }
+]

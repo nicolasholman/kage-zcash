@@ -1,0 +1,21 @@
+Preflight lsof TCP 4020: exit 1
+Preflight lsof TCP 4029: exit 1
+Preflight lsof TCP 4021: exit 1
+Preflight lsof TCP 4020: exit 1
+Preflight lsof TCP 4029: exit 1
+Preflight lsof TCP 4021: exit 1
+Preflight lsof TCP 4020: exit 1
+Preflight lsof TCP 4029: exit 1
+Preflight lsof TCP 4021: exit 1
+Default server PID 50633; facilitator PID 50632
+Child environment: X402Z_BIND absent; X402Z_ADMIN_BIND absent.
+B-001: GET http://127.0.0.1:4020/api/quote
+HTTP/1.1 402 Payment Required
+Content-Type: application/json
+B-002: GET http://127.0.0.1:4029/ Host: localhost:4029
+HTTP/1.1 200 OK
+Content-Type: text/html; charset=utf-8
+Stopped both default-stack PIDs before server tests and E2E.
+Preflight lsof TCP 4020: exit 1
+Preflight lsof TCP 4029: exit 1
+Preflight lsof TCP 4021: exit 1

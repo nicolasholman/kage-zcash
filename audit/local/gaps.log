@@ -1,0 +1,9 @@
+{"id":"U-043","viewport":1280,"status":"PASS","detail":{"selections":[{"tab":1,"elapsedMs":4365},{"tab":2,"elapsedMs":8724},{"tab":3,"elapsedMs":12559},{"tab":4,"elapsedMs":16892}],"stoppedBy":["scroll","click","hover"]}}
+{"id":"U-033","viewport":1280,"status":"PASS","detail":"Assertions matched"}
+{"id":"U-064","viewport":1280,"status":"PASS","detail":"Assertions matched"}
+{"id":"U-089","viewport":1280,"status":"PASS","detail":{"pollIntervalsMs":[1499],"externalNonce":"x402z-d2f9464b4fce673e081c61c1","appearedWithinMs":1388}}
+{"id":"U-043","viewport":375,"status":"PASS","detail":{"selections":[{"tab":1,"elapsedMs":4371},{"tab":2,"elapsedMs":8708},{"tab":3,"elapsedMs":12563},{"tab":4,"elapsedMs":16912}],"stoppedBy":["scroll","click","hover"]}}
+{"id":"U-033","viewport":375,"status":"PASS","detail":"Assertions matched"}
+{"id":"U-064","viewport":375,"status":"PASS","detail":"Assertions matched"}
+{"id":"U-089","viewport":375,"status":"PASS","detail":{"pollIntervalsMs":[1501],"externalNonce":"x402z-bc5b0751aa59e04c0675185f","appearedWithinMs":1390}}
+Chrome PID 2534 stopped

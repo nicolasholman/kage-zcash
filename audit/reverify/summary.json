@@ -1,0 +1,76 @@
+{
+  "playwright": {
+    "status": "PASS",
+    "total": 64,
+    "passed": 63,
+    "failed": 0,
+    "skipped": 1,
+    "desktop_passed": 31,
+    "desktop_skipped": 1,
+    "mobile_passed": 32,
+    "log": "audit/reverify/playwright.log"
+  },
+  "live_read_only_gets": [
+    {
+      "name": "landing",
+      "url": "https://kage-landing.vercel.app",
+      "status": 200,
+      "result": "PASS"
+    },
+    {
+      "name": "evidence",
+      "https://kage-landing.vercel.app/evidence.html": 200,
+      "result": "PASS"
+    },
+    {
+      "name": "quote",
+      "url": "https://kage-api.201-18-198-162.sslip.io/api/quote",
+      "status": 402,
+      "result": "PASS"
+    },
+    {
+      "name": "facilitator_health",
+      "url": "https://kage-facilitator.201-18-198-162.sslip.io/health",
+      "status": 200,
+      "result": "PASS"
+    },
+    {
+      "name": "facilitator_supported",
+      "url": "https://kage-facilitator.201-18-198-162.sslip.io/supported",
+      "status": 200,
+      "result": "PASS"
+    }
+  ],
+  "txid_verification": {
+    "status": "PASS",
+    "readme_count": 10,
+    "test_covered_count": 10,
+    "live_testnet_cargo_test": "PASS (3 passed, 0 failed, 7.36s)",
+    "log": "audit/reverify/testnet.log"
+  },
+  "fast_crates_regression": {
+    "status": "PASS",
+    "spendguard": 16,
+    "x402z_protocol": 14,
+    "x402z_server": 42,
+    "x402z_agent": 32,
+    "x402z_mcp": 7,
+    "x402z_facilitator": 10,
+    "rust_total_passed": 121,
+    "typescript_unit_passed": 9,
+    "logs": [
+      "audit/reverify/tests-fast.log",
+      "audit/reverify/tests-agent.log",
+      "audit/reverify/tests-mcp.log",
+      "audit/reverify/tests-facilitator.log",
+      "audit/reverify/testnet.log",
+      "audit/reverify/tests-typescript.log"
+    ]
+  },
+  "audit_table_counts": {
+    "PASS": 222,
+    "FAIL": 6,
+    "UNTESTED": 356,
+    "total": 584
+  }
+}

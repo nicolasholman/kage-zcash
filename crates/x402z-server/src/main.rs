@@ -396,16 +396,16 @@ fn resource_url(cfg: &Config, peer: IpAddr, headers: &HeaderMap) -> String {
 
 /// `X402Z_PUBLIC_BASE_URL`: an `http(s)://host[:port]` origin, no path; a trailing `/` is dropped.
 fn parse_public_base_url(raw: &str) -> Result<String, String> {
-    let s = raw.trim().trim_end_matches('/');
+    let s = raw.trim();
     let lower = s.to_ascii_lowercase();
-    let rest = match ["https://", "http://"].iter().find(|p| lower.starts_with(**p)) {
-        Some(p) => &s[p.len()..],
+    let scheme_len = match ["https://", "http://"].iter().find(|p| lower.starts_with(**p)) {
+        Some(p) => p.len(),
         None => return Err(format!("'{raw}' must start with https:// or http://")),
     };
+    let rest = s[scheme_len..].trim_end_matches('/');
     if rest.is_empty() || rest.contains('/') || rest.contains('?') || rest.contains('#') || rest.chars().any(char::is_whitespace) {
         return Err(format!("'{raw}' must be an origin like https://api.example (no path)"));
     }
-    let scheme_len = s.len() - rest.len();
     Ok(format!("{}{rest}", &lower[..scheme_len]))
 }
 
@@ -921,7 +921,8 @@ async fn quote(State(app): State<Arc<App>>, ConnectInfo(peer): ConnectInfo<Socke
         }
         Err(e) => {
             app.book.lock().unwrap().push("rejected", None, None, None, e.reason());
-            mint(&app, client, Budget::Charge, &resource, "402 re-issued after rejection", Some(e.reason()), None)
+            let settlement = matches!(e, ReceiptError::Expired { .. }).then(|| SettlementResponse::failed(reason::EXPIRED));
+            mint(&app, client, Budget::Charge, &resource, "402 re-issued after rejection", Some(e.reason()), settlement)
         }
     }
 }
@@ -1635,6 +1636,22 @@ mod tests {
         let receipt = encode(&key(), &claims(&nonce, 100_000));
         // budget is spent, but redeeming a receipt mints no challenge
         assert_eq!(get_quote(app.clone(), [10, 0, 0, 1], Some(&receipt)).await.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn expired_direct_receipt_reports_payment_expired_without_burning_nonce() {
+        let app = test_app(0);
+        let ch = PaymentRequired {
+            scheme: SCHEME.into(), network: Network::Testnet, pay_to: UA.into(), amount_zat: 100_000,
+            memo_nonce: "x402z-expired-receipt".into(), expires_at: now() - GRACE - 2,
+        };
+        app.store.insert(&ch).unwrap();
+        let mut c = claims(&ch.memo_nonce, ch.amount_zat);
+        c.mined_at = Some(ch.expires_at + GRACE + 1);
+        let response = get_quote(app.clone(), [10, 0, 0, 1], Some(&encode(&key(), &c))).await;
+        assert_eq!(response.status(), StatusCode::PAYMENT_REQUIRED);
+        assert_eq!(settlement_of(&response).error_reason.as_deref(), Some(reason::EXPIRED));
+        assert!(app.store.get(&ch.memo_nonce).unwrap().unwrap().spent_txid.is_none());
     }
 
     #[tokio::test]
@@ -2490,6 +2507,14 @@ mod tests {
         assert!(parse_public_base_url("ftp://kage-api.example").is_err());
         assert!(parse_public_base_url("https://").is_err());
         assert!(parse_public_base_url("https://kage-api.example/api").is_err());
+    }
+
+    #[test]
+    fn empty_public_origin_reports_the_origin_requirement() {
+        for origin in ["https://", "http://", "https:///"] {
+            assert!(parse_public_base_url(origin).unwrap_err().contains("must be an origin like https://api.example (no path)"));
+        }
+        assert_eq!(parse_public_base_url("https://api.example/").unwrap(), "https://api.example");
     }
 
     #[test]

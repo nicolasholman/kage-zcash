@@ -1,0 +1,13 @@
+Preflight lsof TCP 4020: exit 1
+Preflight lsof TCP 4021: exit 1
+Preflight lsof TCP 4030: exit 1
+Preflight lsof TCP 4039: exit 1
+Preflight lsof TCP 4040: exit 1
+Preflight lsof TCP 4041: exit 1
+Preflight lsof TCP 4042: exit 1
+Preflight lsof TCP 4050: exit 1
+Preflight lsof TCP 4120: exit 1
+Preflight lsof TCP 4130: exit 1
+Preflight lsof TCP 4140: exit 1
+Preflight lsof TCP 4141: exit 1
+Preflight lsof TCP 4142: exit 1

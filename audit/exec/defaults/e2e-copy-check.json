@@ -1,0 +1,56 @@
+{
+  "files": [
+    {
+      "path": "e2e/.gitignore",
+      "sha256": "ac4f21f43db8c82dc992c35fb18e29d6f8257ca89c8892e21c08a1ce2b38639f",
+      "temporaryCopyIdentical": true
+    },
+    {
+      "path": "e2e/global-setup.ts",
+      "sha256": "60227bdeb236157a9466a09ecbe2e5971ab1f144112de227029267754aa629f5",
+      "temporaryCopyIdentical": true
+    },
+    {
+      "path": "e2e/package-lock.json",
+      "sha256": "96bb8cde4ece583e80d0e6032e0733178a524581255964f57f7a514a85843b2e",
+      "temporaryCopyIdentical": true
+    },
+    {
+      "path": "e2e/package.json",
+      "sha256": "3d150e242fc7a54017641a79f603cb9da4da920180e39ba310879b131d81ada2",
+      "temporaryCopyIdentical": true
+    },
+    {
+      "path": "e2e/playwright.config.ts",
+      "sha256": "e88d7891b050dca8bd58c5459ec88a60729372e1a82632df9624301bfee770ca",
+      "temporaryCopyIdentical": true
+    },
+    {
+      "path": "e2e/serve-landing.mjs",
+      "sha256": "872daa5f67d4470ed88f89c9075e26ae4d04948a7c262d29b4286916bbca8396",
+      "temporaryCopyIdentical": true
+    },
+    {
+      "path": "e2e/stack.sh",
+      "sha256": "282ae168bbd22f291f03023f1760e5c3008c41b15566eddc7f7df8501e34ec2e",
+      "temporaryCopyIdentical": true
+    },
+    {
+      "path": "e2e/tests/dashboard.spec.ts",
+      "sha256": "324320567a2a0f1f83d4e2e1b4a013816f1f1bf5eb0c85878f09c322de7b6dc1",
+      "temporaryCopyIdentical": true
+    },
+    {
+      "path": "e2e/tests/fixtures.ts",
+      "sha256": "255a5b022def8e6d946049e3006260722dda4c3306cb3118e0aed425b4889e80",
+      "temporaryCopyIdentical": true
+    },
+    {
+      "path": "e2e/tests/landing.spec.ts",
+      "sha256": "1ff9689c231d0578e006a329866715ade56882ca105a59fc971e0aa276b50bff",
+      "temporaryCopyIdentical": true
+    }
+  ],
+  "temporarySecretFileModes": "0600",
+  "temporaryRoot": "/tmp/kage-defaults-rjphmc8k/stack"
+}

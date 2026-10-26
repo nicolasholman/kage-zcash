@@ -188,6 +188,8 @@ fn check_offer_life(offer: &TabOffer, now_unix: u64, confirm_timeout_secs: u64) 
 /// Fetch `url`'s tab offer and accept it: same key as pinned for this origin, long enough to live.
 async fn accepted_offer(cfg: &AgentConfig, http: &reqwest::Client, url: &str) -> Result<(PaymentRequired, TabOffer), PayError> {
     let (ch, offer) = fetch_offer(http, url).await?;
+    // Refuse an uncollectable offer before authorising or preparing its payment.
+    issue_url(url, &offer)?;
     check_offer_life(&offer, now(), cfg.confirm_timeout_secs)?;
     let mut f = TabFile::open(&tab_path(cfg)?, cfg.key()?)?;
     f.pin_key(&origin_of(url)?, &offer, now())?;

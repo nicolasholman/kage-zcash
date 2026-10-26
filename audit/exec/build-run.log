@@ -1,0 +1,4 @@
+Command: cargo build -p x402z-server -p x402z-facilitator --bins --examples
+   Compiling x402z-server v0.1.0 (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t10/crates/x402z-server)
+   Compiling x402z-facilitator v0.1.0 (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t10/crates/x402z-facilitator)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 9.01s

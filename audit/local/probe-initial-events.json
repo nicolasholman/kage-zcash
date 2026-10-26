@@ -1,0 +1,110 @@
+[
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/events?since=0",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/status",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmhHkjko.woff2",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 1280,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFWNOITd.woff2",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/events?since=0",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "http://127.0.0.1:4120/api/status",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFWNOITd.woff2",
+    "status": 200,
+    "expected": false
+  },
+  {
+    "viewport": 375,
+    "page": "http://127.0.0.1:4120/",
+    "type": "response",
+    "method": "GET",
+    "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmhHkjko.woff2",
+    "status": 200,
+    "expected": false
+  }
+]

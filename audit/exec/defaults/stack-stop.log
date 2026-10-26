@@ -1,0 +1,9 @@
+Command: bash e2e/stack.sh stop
+CARGO_BUILD_JOBS=1
+killed facilitator (86268)
+killed server (86269)
+killed server-nofac (86270)
+killed server-ledger (86271)
+killed server-badledger (86272)
+killed server-ratelimit (86273)
+killed landing (86274)
