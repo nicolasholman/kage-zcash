@@ -1,0 +1,100 @@
+[
+  {
+    "label": "build",
+    "command": [
+      "cargo",
+      "build",
+      "-p",
+      "x402z-server",
+      "-p",
+      "x402z-facilitator",
+      "--bins",
+      "--examples"
+    ],
+    "pid": 27306,
+    "exitCode": 0
+  },
+  {
+    "label": "server-tests",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "x402z-server",
+      "--",
+      "--test-threads=1"
+    ],
+    "pid": 53169,
+    "exitCode": 0
+  },
+  {
+    "label": "agent-build",
+    "command": [
+      "cargo",
+      "build",
+      "-p",
+      "x402z-agent",
+      "--bin",
+      "x402z-agent"
+    ],
+    "pid": 62542,
+    "exitCode": 0
+  },
+  {
+    "label": "cap-race",
+    "command": [
+      "cargo",
+      "run",
+      "--offline",
+      "--manifest-path",
+      "/tmp/kage-defaults-rjphmc8k/probe/Cargo.toml",
+      "--bin",
+      "cap-race",
+      "--",
+      "/tmp/kage-defaults-rjphmc8k/ledger.json"
+    ],
+    "pid": 71446,
+    "exitCode": 0
+  },
+  {
+    "label": "npm-ci",
+    "command": [
+      "npm",
+      "ci",
+      "--ignore-scripts",
+      "--no-audit",
+      "--no-fund"
+    ],
+    "pid": 86137,
+    "exitCode": 0
+  },
+  {
+    "label": "stack-start",
+    "command": [
+      "bash",
+      "e2e/stack.sh"
+    ],
+    "pid": 86254,
+    "exitCode": 0
+  },
+  {
+    "label": "playwright",
+    "command": [
+      "npm",
+      "run",
+      "test:e2e"
+    ],
+    "pid": 87075,
+    "exitCode": 0
+  },
+  {
+    "label": "stack-stop",
+    "command": [
+      "bash",
+      "e2e/stack.sh",
+      "stop"
+    ],
+    "pid": 45697,
+    "exitCode": 0
+  }
+]

@@ -1,0 +1,55 @@
+Command: cargo test -p x402z-server -- --test-threads=1
+CARGO_BUILD_JOBS=1
+   Compiling x402z-protocol v0.1.0 (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t11/crates/x402z-protocol)
+   Compiling x402z-server v0.1.0 (/Volumes/Extreme SSD/Projects/.loom-worktrees/zec-shielded-x402-ba006d2f3c72/omvoesisj/t11/crates/x402z-server)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.22s
+     Running unittests src/main.rs (/Volumes/Extreme SSD/Projects/zec-shielded-x402/target/debug/deps/x402z_server-986299089fa125f4)
+
+running 44 tests
+test tests::a_facilitator_that_refuses_the_token_is_setup_required_and_burns_nothing ... ok
+test tests::a_lost_200_is_answered_again_for_the_same_payment_without_a_second_payment ... ok
+test tests::a_nonce_issues_once_and_underpaid_n_burns_nothing ... ok
+test tests::an_impossible_nonce_or_txid_is_a_400_with_no_feed_row_and_no_facilitator_call ... ok
+test tests::empty_public_origin_reports_the_origin_requirement ... ok
+test tests::expired_challenges_are_pruned_at_most_once_a_minute ... ok
+test tests::expired_direct_receipt_reports_payment_expired_without_burning_nonce ... ok
+test tests::facilitator_down_is_a_502_and_burns_nothing ... ok
+test tests::feed_rows_are_clipped ... ok
+test tests::foreign_key_is_rejected ... ok
+test tests::forged_and_tampered_tokens_are_refused ... ok
+test tests::limiter_allows_burst_then_refuses_with_retry_after ... ok
+test tests::limiter_key_trusts_forwarded_for_only_from_configured_proxies_and_groups_ipv6_by_64 ... ok
+test tests::limiter_refills_over_time_and_caps_at_burst ... ok
+test tests::limiter_zero_means_disabled ... ok
+test tests::one_payment_buys_n_unlinkable_tokens_each_spendable_once ... ok
+test tests::paid_before_expiry_redeemed_after_is_accepted_by_mined_time ... ok
+test tests::pending_and_rate_limited_feed_rows_carry_no_full_nonce_and_no_client_address ... ok
+test tests::pending_payment_keeps_the_same_challenge_and_burns_nothing ... ok
+test tests::prune_keeps_spent_rows_and_live_challenges ... ok
+test tests::pruning_and_the_open_count_use_the_open_challenges_index ... ok
+test tests::public_base_url_must_be_an_http_origin ... ok
+test tests::quote_returns_429_with_retry_after_once_the_ip_budget_is_spent ... ok
+test tests::redeem_api_settles_a_pasted_txid ... ok
+test tests::redeemed_nonce_stays_burned_across_restart ... ok
+test tests::rejected_forged_unknown_and_malformed_x_payments ... ok
+test tests::rejected_receipt_reissue_is_rate_limited_too ... ok
+test tests::restart_between_challenge_and_redeem_keeps_the_challenge ... ok
+test tests::tab_key_and_spent_tokens_survive_a_restart ... ok
+test tests::tampered_claims_are_rejected ... ok
+test tests::the_402_body_is_x402_v1_payment_required_response ... ok
+test tests::the_402_carries_a_zip321_uri_and_a_local_qr ... ok
+test tests::the_402_resource_is_https_behind_a_tls_proxy_or_the_configured_public_base_url ... ok
+test tests::the_admin_console_refuses_a_foreign_host_header ... ok
+test tests::the_demo_panel_opens_the_sealed_agent_ledger_only_with_its_key ... ok
+test tests::the_previous_key_issues_and_accepts_tokens_during_its_grace_period_only ... ok
+test tests::the_public_port_serves_no_dashboard_feed_or_status ... ok
+test tests::tokens_from_another_key_epoch_are_refused ... ok
+test tests::valid_receipt_is_not_rate_limited ... ok
+test tests::valid_receipt_settles_once ... ok
+test tests::with_the_resend_window_off_a_replayed_x_payment_is_refused ... ok
+test tests::wrong_amount_expired_and_unknown_are_rejected ... ok
+test tests::x_payment_attempts_that_stay_pending_share_the_client_budget ... ok
+test tests::x_payment_settles_once_and_returns_x_payment_response ... ok
+
+test result: ok. 44 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+

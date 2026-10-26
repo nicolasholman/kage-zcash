@@ -1,0 +1,3 @@
+Stopped only child PIDs (including E2E stack PIDs).
+Deleted /tmp scratch directory and throwaway secrets.
+Released heavy slot kage-defaults.

@@ -1,0 +1,4 @@
+Command: npm ci --ignore-scripts --no-audit --no-fund
+CARGO_BUILD_JOBS=1
+
+added 3 packages in 293ms

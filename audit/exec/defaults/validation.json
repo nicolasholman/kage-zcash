@@ -1,0 +1,95 @@
+{
+  "verifiedAt": "2026-10-26T01:08:54.003272+00:00",
+  "rowCount": 584,
+  "dispositions": {
+    "PASS": 576,
+    "FAIL": 6,
+    "UNTESTED": 2
+  },
+  "changedRows": [
+    "B-001",
+    "B-002",
+    "B-300"
+  ],
+  "allExpectedResultCellsUnchanged": true,
+  "protectedRowsUnchanged": [
+    "U-071",
+    "U-081",
+    "U-083",
+    "U-084",
+    "U-093",
+    "U-095",
+    "U-096",
+    "U-101"
+  ],
+  "modifiedTrackedFiles": [
+    "AUDIT.md",
+    "TESTING.md"
+  ],
+  "untrackedFilesOnlyIn": "audit/exec/defaults/",
+  "serverTestsPassed": 44,
+  "e2ePassed": 63,
+  "e2eSkipped": 1,
+  "e2eFailed": 0,
+  "temporaryScratchDeleted": true,
+  "noSecretAssignmentsInArtifacts": true,
+  "postCleanupPorts": {
+    "4020": {
+      "exitCode": 1,
+      "output": ""
+    },
+    "4029": {
+      "exitCode": 1,
+      "output": ""
+    },
+    "4021": {
+      "exitCode": 1,
+      "output": ""
+    },
+    "4030": {
+      "exitCode": 1,
+      "output": ""
+    },
+    "4039": {
+      "exitCode": 1,
+      "output": ""
+    },
+    "4040": {
+      "exitCode": 1,
+      "output": ""
+    },
+    "4041": {
+      "exitCode": 1,
+      "output": ""
+    },
+    "4042": {
+      "exitCode": 1,
+      "output": ""
+    },
+    "4050": {
+      "exitCode": 1,
+      "output": ""
+    },
+    "4120": {
+      "exitCode": 1,
+      "output": ""
+    },
+    "4130": {
+      "exitCode": 1,
+      "output": ""
+    },
+    "4140": {
+      "exitCode": 1,
+      "output": ""
+    },
+    "4141": {
+      "exitCode": 1,
+      "output": ""
+    },
+    "4142": {
+      "exitCode": 1,
+      "output": ""
+    }
+  },
+  "diffCheckPassed": true
+}
