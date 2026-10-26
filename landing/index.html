@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Kage — shielded x402 for AI agents</title>
     <meta name="description" content="Kage: AI agents pay for APIs with HTTP 402, settled in shielded Zcash testnet transactions. The merchant verifies with a viewing key alone and never learns who paid." />
-    <meta name="theme-color" content="#ffffff" />
+    <meta name="theme-color" content="#0c0c0d" />
+    <link rel="preload" as="image" href="assets/hero.webp" type="image/webp" />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230c0c0d'/%3E%3Cpath d='M8 23V9M8 16l9-7M11.5 13.3L18 23' fill='none' stroke='%23f4b728' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='23.5' cy='20.5' r='2.5' fill='%23f4b728'/%3E%3C/svg%3E" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -110,8 +111,43 @@
       footer a { text-decoration: none; }
       footer a:hover { color: var(--ink); }
 
+
+      /* cinematic hero: a lit gold coin whose shadow becomes the request trace (generated art, assets/hero.*) */
+      .topbar { position: absolute; inset: 0 0 auto; z-index: 3; color: #f4f2ea; }
+      .topbar .mark small { color: rgba(244, 242, 234, 0.55); }
+      .topbar .toplinks a { color: rgba(244, 242, 234, 0.72); }
+      .topbar .toplinks a:hover { color: #fff; }
+      .topbar .toplinks a.gh { color: #fff; border-color: rgba(244, 242, 234, 0.28); }
+      .topbar .toplinks a.gh:hover { border-color: var(--gold); }
+      .hero { position: relative; isolation: isolate; overflow: hidden; background: var(--ink); color: #f4f2ea; min-height: min(100svh, 940px); display: flex; align-items: center; }
+      .hero > .wrap { width: 100%; padding-top: 136px; padding-bottom: 96px; grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); align-items: end; }
+      .stage { position: absolute; inset: 0; z-index: -1; }
+      .stage img, .stage video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 72% 50%; }
+      .stage::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, #0c0c0d 0%, rgba(12, 12, 13, 0.9) 30%, rgba(12, 12, 13, 0.35) 58%, rgba(12, 12, 13, 0) 78%), linear-gradient(0deg, #0c0c0d 0%, rgba(12, 12, 13, 0) 34%); }
+      .hero .eyebrow { color: rgba(244, 242, 234, 0.6); }
+      .hero h1 { color: #fff; }
+      .hero h1 mark { background: linear-gradient(transparent 62%, rgba(244, 183, 40, 0.42) 62%, rgba(244, 183, 40, 0.42) 94%, transparent 94%); }
+      .hero .sub { color: rgba(244, 242, 234, 0.72); }
+      .hero .btn-ink { background: var(--gold); color: var(--ink); }
+      .hero .btn-ink:hover { background: #ffc94a; }
+      .hero .btn-line { color: #fff; border-color: rgba(244, 242, 234, 0.3); }
+      .hero .btn-line:hover { border-color: var(--gold); }
+      .hero :focus-visible { outline-color: var(--gold); }
+      .hero .shadow { margin-top: 240px; background: rgba(12, 12, 13, 0.62); -webkit-backdrop-filter: blur(18px) saturate(1.2); backdrop-filter: blur(18px) saturate(1.2); border: 1px solid rgba(244, 242, 234, 0.1); box-shadow: 0 40px 120px -40px rgba(0, 0, 0, 0.9); }
+      @media (prefers-reduced-motion: no-preference) {
+        .stage img, .stage video { animation: kage-settle 2.4s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+        @keyframes kage-settle { from { transform: scale(1.06); opacity: 0; } to { transform: none; opacity: 1; } }
+      }
       @media (max-width: 980px) {
-        .hero .wrap { grid-template-columns: minmax(0, 1fr); gap: 56px; padding-top: 40px; padding-bottom: 88px; }
+        .hero { min-height: 0; display: block; }
+        .hero > .wrap { padding-top: 112px; padding-bottom: 72px; align-items: start; }
+        .stage { bottom: auto; height: min(78vw, 620px); }
+        .stage img, .stage video { object-position: 78% 50%; }
+        .stage::after { background: linear-gradient(90deg, rgba(12, 12, 13, 0.92) 0%, rgba(12, 12, 13, 0.4) 70%, rgba(12, 12, 13, 0.2) 100%), linear-gradient(0deg, #0c0c0d 0%, rgba(12, 12, 13, 0) 45%); }
+        .hero .shadow { margin-top: 8px; }
+      }
+      @media (max-width: 980px) {
+        .hero .wrap { grid-template-columns: minmax(0, 1fr); gap: 40px; padding-top: 112px; padding-bottom: 72px; }
         .steps { grid-template-columns: minmax(0, 1fr); gap: 32px; }
       }
       @media (max-width: 640px) {
@@ -158,6 +194,7 @@
 
     <main>
       <section class="hero" id="top" aria-labelledby="h1">
+        <div class="stage" aria-hidden="true"><img src="assets/hero.webp" alt="" width="1600" height="900" fetchpriority="high" decoding="async" /></div>
         <div class="wrap">
           <div>
             <span class="eyebrow"><i></i>x402 v1 · zcash-testnet</span>
