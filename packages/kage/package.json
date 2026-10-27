@@ -4,24 +4,54 @@
   "description": "Private payments for AI agents: fetch that pays HTTP 402s with shielded Zcash inside a spend policy (daily cap, host allowlist, human approval), and a paywall that verifies payments with an incoming viewing key only.",
   "license": "MIT",
   "author": "Nivesh Gajengi",
-  "repository": { "type": "git", "url": "git+https://github.com/nickthelegend/zec-shielded-x402.git", "directory": "packages/kage" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nickthelegend/zec-shielded-x402.git",
+    "directory": "packages/kage"
+  },
   "homepage": "https://nickthelegend.github.io/zec-shielded-x402/",
-  "keywords": ["x402", "zcash", "shielded", "ai-agents", "payments", "http-402", "mcp", "viewing-key", "spend-policy"],
+  "keywords": [
+    "x402",
+    "zcash",
+    "shielded",
+    "ai-agents",
+    "payments",
+    "http-402",
+    "mcp",
+    "viewing-key",
+    "spend-policy"
+  ],
   "type": "module",
-  "engines": { "node": ">=22.18" },
+  "engines": {
+    "node": ">=22.18"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
-    "./agent": { "types": "./dist/agent.d.ts", "default": "./dist/agent.js" },
-    "./keys": { "types": "./dist/keys.d.ts", "default": "./dist/keys.js" },
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./agent": {
+      "types": "./dist/agent.d.ts",
+      "default": "./dist/agent.js"
+    },
+    "./keys": {
+      "types": "./dist/keys.d.ts",
+      "default": "./dist/keys.js"
+    },
     "./package.json": "./package.json"
   },
-  "bin": { "kage": "./dist/cli.js" },
-  "files": ["dist", "README.md", "LICENSE"],
+  "bin": {
+    "kage": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "optionalDependencies": {
-    "kage-x402-engine-darwin-arm64": "0.1.0",
-    "kage-x402-engine-linux-x64": "0.1.0"
+    "@nickthelegend69/kage-engine-darwin-arm64": "0.1.0"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

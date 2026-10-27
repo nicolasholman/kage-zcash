@@ -1,0 +1,23 @@
+{
+  "name": "@nickthelegend69/kage-engine-darwin-arm64",
+  "version": "0.1.0",
+  "description": "Kage engine binaries for macOS on Apple silicon (x402z-mcp, x402z-agent, x402z-facilitator). Installed automatically by kage-x402.",
+  "license": "MIT",
+  "author": "Nivesh Gajengi",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nickthelegend/zec-shielded-x402.git",
+    "directory": "packages/engine-darwin-arm64"
+  },
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "files": [
+    "bin",
+    "LICENSE",
+    "README.md"
+  ]
+}

@@ -5,7 +5,7 @@
  * policy check runs in JavaScript.
  *
  * Binaries are found, in order, at `enginePath`, `$KAGE_ENGINE_DIR`, or the platform package
- * `kage-x402-engine-<platform>-<arch>` (an optional dependency of `kage-x402`).
+ * `@nickthelegend69/kage-engine-<platform>-<arch>` (an optional dependency of `kage-x402`).
  */
 import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -27,7 +27,7 @@ export function engineDir(enginePath?: string): string {
     if (existsSync(join(d, 'x402z-mcp'))) return d;
     tried.push(d);
   }
-  const pkg = `kage-x402-engine-${process.platform}-${process.arch}`;
+  const pkg = `@nickthelegend69/kage-engine-${process.platform}-${process.arch}`;
   try {
     const req = createRequire(import.meta.url);
     const d = join(dirname(req.resolve(`${pkg}/package.json`)), 'bin');

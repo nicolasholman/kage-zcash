@@ -121,7 +121,7 @@ facilitator: fetch tx from lightwalletd, trial-decrypt with the merchant UIVK, c
 
 The engine is Rust (`crates/`): wallet and proving on librustzcash, spendguard, the facilitator and an
 x402 server. The npm package drives it; prebuilt engine binaries ship as
-`kage-x402-engine-<platform>-<arch>` (or point `KAGE_ENGINE_DIR` at your own build).
+`@nickthelegend69/kage-engine-<platform>-<arch>` (or point `KAGE_ENGINE_DIR` at your own build).
 
 ## Production checklist
 
