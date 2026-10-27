@@ -7,10 +7,11 @@
 **Commit to submit:** the tip of `main` on GitHub (`git log origin/main -1`, which must equal the local `git log main -1`). Do not submit `1e232bb` or any earlier hash named in older notes.
 
 ## Form fields still open (Nick decides)
-- **Demo video (3:21, ready; Nick uploads it and pastes the link):** the film is kept out of git
+- **Demo video (3:32, ready; Nick uploads it and pastes the link):** the film is kept out of git
   (`grokbot/videos/kage/kage-film-v5.mp4`, 1920x1080, HyperFrames, Kokoro narration, one-line captions). It opens
-  with the problem in plain words (public agent payments leak strategy; an unlimited wallet drains; both badged
-  Illustration), then shows, all recorded live on Oct 27-28: `npm install kage-x402` from the public registry; the
+  with the problem in plain words over a live capture of x402scan.com (real public x402 payment totals: 3.13M
+  payments and 34.87K buyers in 30 days, and one service's 591 buyers) and a kinetic-type line on runaway wallets
+  (no invented numbers anywhere), then shows, all recorded live on Oct 27-28: `npm install kage-x402` from the public registry; the
   10-line agent code with its policy; the merchant's `pay('0.001 ZEC')` routes; `kage wallet new --role merchant`
   (seed to a 0600 file, UIVK for the facilitator); and an LLM agent chat on Zcash testnet that pays 0.001 ZEC for the
   live price (`401cad2c…77fa`, shown on testnet.zecblock.com), asks a human before paying 0.005 ZEC for the weekly
