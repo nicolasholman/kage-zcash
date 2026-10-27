@@ -15,6 +15,9 @@
  */
 import { createPublicKey, randomBytes, verify as edVerify } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { toZat, type Zec } from './units.ts';
+
+export { toZat, formatZec, ZAT_PER_ZEC, type Zec } from './units.ts';
 
 export const X402_VERSION = 1;
 export const SCHEME = 'zcash-shielded';
@@ -401,5 +404,39 @@ export function paywall(opts: PaywallOptions) {
     } catch (e) {
       next(e);
     }
+  };
+}
+
+/** Everything {@link paywall} needs except the price, shared by all of a merchant's paid routes. */
+export type KagePaywallConfig = Omit<PaywallOptions, 'amountZat' | 'description' | 'mimeType'>;
+
+/**
+ * One merchant config, a price per route:
+ *
+ * ```ts
+ * const pay = kagePaywall(kagePaywallEnv());
+ * app.get('/v1/price', pay('0.001 ZEC', { description: 'Live ZEC price' }), handler);
+ * app.get('/v1/report', pay('0.005 ZEC'), handler);
+ * ```
+ */
+export function kagePaywall(config: KagePaywallConfig) {
+  return (price: Zec, route: { description?: string; mimeType?: string } = {}) => paywall({ ...config, amountZat: toZat(price), ...route });
+}
+
+/**
+ * The merchant config from the environment: `KAGE_PAY_TO` (shielded UA), `KAGE_FACILITATOR_URL`,
+ * `KAGE_FACILITATOR_TOKEN`, `KAGE_RECEIPT_PUBKEY`. A missing one throws "Setup required" naming it.
+ */
+export function kagePaywallEnv(env: NodeJS.ProcessEnv = process.env): KagePaywallConfig {
+  const need = (k: string) => {
+    const v = env[k]?.trim();
+    if (!v) throw new X402ZcashError(`Setup required: ${k} not configured`);
+    return v;
+  };
+  return {
+    payTo: need('KAGE_PAY_TO'),
+    facilitatorUrl: need('KAGE_FACILITATOR_URL'),
+    facilitatorToken: need('KAGE_FACILITATOR_TOKEN'),
+    receiptPubkeyHex: need('KAGE_RECEIPT_PUBKEY'),
   };
 }

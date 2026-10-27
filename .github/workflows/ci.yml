@@ -48,7 +48,7 @@ jobs:
       - run: cargo test --locked -p x402z-facilitator --test live_testnet
 
   ts-client:
-    name: TypeScript client and paywall (packages/x402-zcash) against the real binaries and testnet
+    name: TypeScript client and paywall (packages/kage) against the real binaries and testnet
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -60,4 +60,4 @@ jobs:
         with:
           node-version: 24
       - run: npm test
-        working-directory: packages/x402-zcash
+        working-directory: packages/kage
