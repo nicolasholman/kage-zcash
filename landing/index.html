@@ -68,15 +68,15 @@
       .frame { max-width: var(--wrap); margin: 0 auto; padding: 0 var(--gut); position: relative; }
       .frame::before, .frame::after { content: ""; position: absolute; top: 0; bottom: 0; width: 1px; background: var(--hair); }
       .frame::before { left: var(--gut); } .frame::after { right: var(--gut); }
-      .hero-copy { text-align: center; padding: 92px 24px 56px; display: grid; justify-items: center; }
+      .hero-copy { text-align: center; padding: 68px 24px 40px; display: grid; justify-items: center; }
       .badge { display: inline-flex; align-items: center; gap: 10px; height: 32px; padding: 0 6px 0 6px; border: 1px solid var(--hair-2); border-radius: 999px; font: 500 13px/1 var(--font); color: var(--dim); background: rgba(244, 242, 234, 0.03); text-decoration: none; max-width: 100%; }
       .badge b { font: 500 11.5px/1 var(--mono); color: var(--ink); background: var(--gold); border-radius: 999px; padding: 5px 8px; letter-spacing: 0; }
       .badge span { padding-right: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      .hero h1 { text-shadow: 0 0 40px rgba(244, 183, 40, 0.12); margin-top: 26px; font-size: clamp(44px, 7.4vw, 88px); line-height: 0.98; letter-spacing: -0.045em; max-width: 13ch; }
+      .hero h1 { text-shadow: 0 0 40px rgba(244, 183, 40, 0.12); margin-top: 22px; font-size: clamp(44px, 6.6vw, 82px); line-height: 0.98; letter-spacing: -0.045em; max-width: 13ch; }
       .hero h1 em { font-style: normal; color: var(--gold); }
-      .lede { margin-top: 24px; font-size: 19px; line-height: 1.55; color: var(--dim); max-width: 36em; }
+      .lede { margin-top: 20px; font-size: 19px; line-height: 1.55; color: var(--dim); max-width: 36em; }
       .lede b { color: var(--on-dark); font-weight: 500; }
-      .install { margin-top: 36px; display: inline-flex; align-items: center; gap: 4px; height: 52px; padding: 0 6px 0 18px; border-radius: 999px; background: var(--panel); border: 1px solid var(--hair-2); font: 500 15px/1 var(--mono); color: var(--on-dark); max-width: 100%; box-shadow: 0 0 0 6px rgba(244, 242, 234, 0.025); }
+      .install { margin-top: 30px; display: inline-flex; align-items: center; gap: 4px; height: 52px; padding: 0 6px 0 18px; border-radius: 999px; background: var(--panel); border: 1px solid var(--hair-2); font: 500 15px/1 var(--mono); color: var(--on-dark); max-width: 100%; box-shadow: 0 0 0 6px rgba(244, 242, 234, 0.025); }
       .install .ps { color: var(--gold); margin-right: 8px; user-select: none; }
       .install code { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
       .copy { flex: none; display: inline-grid; place-items: center; width: 40px; height: 40px; margin-left: 10px; border-radius: 999px; border: 0; background: transparent; color: var(--dim); cursor: pointer; transition: background 0.15s, color 0.15s; }
@@ -86,7 +86,7 @@
       .copy.done .ok { display: block; color: var(--gold); }
       .copy.done .cp { display: none; }
       .ctas { margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
-      .meta { margin-top: 30px; display: flex; flex-wrap: wrap; gap: 6px 18px; justify-content: center; font: 400 13px/1.4 var(--mono); color: var(--dimmer); }
+      .meta { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 6px 18px; justify-content: center; font: 400 13px/1.4 var(--mono); color: var(--dimmer); }
       .meta span { display: inline-flex; align-items: center; gap: 8px; }
       .meta span + span::before { content: ""; width: 3px; height: 3px; border-radius: 50%; background: var(--dimmer); margin-right: 10px; }
 
@@ -94,7 +94,7 @@
       .quick { padding: 0 0 96px; position: relative; }
       .quick-head { display: flex; justify-content: space-between; align-items: end; gap: 16px; flex-wrap: wrap; padding: 0 24px 18px; }
       .eyebrow { font: 500 12.5px/1 var(--mono); color: var(--gold); letter-spacing: 0.02em; text-transform: uppercase; }
-      .quick-head h2 { margin-top: 10px; font-size: 26px; letter-spacing: -0.03em; line-height: 1.15; color: var(--on-dark); }
+      .quick-head h2 { margin-top: 8px; font-size: 22px; letter-spacing: -0.03em; line-height: 1.15; color: var(--on-dark); }
       .quick-head p { color: var(--dim); font-size: 15px; max-width: 32em; }
       .editor { margin: 0 24px; border-radius: 16px; border: 1px solid var(--hair-2); border-top-color: rgba(244, 183, 40, 0.45); background: var(--ink-2); box-shadow: 0 -24px 80px -28px rgba(244, 183, 40, 0.45), 0 50px 120px -40px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(0, 0, 0, 0.4); overflow: hidden; display: grid; grid-template-columns: 208px minmax(0, 1fr); }
       .tree { border-right: 1px solid var(--hair); padding: 14px 10px; background: var(--ink); min-width: 0; }
