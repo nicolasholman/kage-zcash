@@ -146,7 +146,7 @@ fn handshake_and_tool_list() {
 
     let list = m.request("tools/list", json!({}));
     let names: Vec<&str> = list["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap()).collect();
-    assert_eq!(names, ["paid_fetch", "redeem_payment", "tab_fetch", "spend_status", "ledger_tail"]);
+    assert_eq!(names, ["paid_fetch", "redeem_payment", "tab_fetch", "spend_status", "wallet_status", "ledger_tail"]);
     for t in list["result"]["tools"].as_array().unwrap() {
         assert_eq!(t["inputSchema"]["type"], "object");
     }
@@ -297,13 +297,18 @@ fn spendguard_refusals_are_tool_errors_and_land_in_the_ledger() {
     assert!(v["message"].as_str().unwrap().contains("not on the allowlist"), "{v}");
     drop(m);
 
-    // 3. at the approval threshold: MCP can't approve, so it is declined
+    // 3. at the approval threshold with no approval: declined, naming what needs approval
     let mut env = base.clone();
     env.push(("X402Z_AGENT_APPROVAL_ZAT", "100000".into()));
     let mut m = Mcp::start(&env);
     let v = structured(&m.call("paid_fetch", json!({ "url": url })));
-    assert_eq!(v["error"], "spendguard_refused");
+    assert_eq!(v["error"], "approval_required");
     assert!(v["message"].as_str().unwrap().contains("approval required"), "{v}");
+    assert!(v["host"].as_str().unwrap().starts_with("127.0.0.1:"), "{v}");
+    assert_eq!((v["amountZat"].as_u64(), v["thresholdZat"].as_u64()), (Some(100_000), Some(100_000)), "{v}");
+    // an approval without X402Z_MCP_APPROVAL_SECRET on the server is refused before anything else
+    let v = structured(&m.call("paid_fetch", json!({ "url": url, "approval": { "secret": "x".repeat(40), "maxZat": 100_000 } })));
+    assert_eq!(v["error"], "approval_invalid", "{v}");
 
     // all three decisions are in the ledger, none with a txid
     let t = structured(&m.call("ledger_tail", json!({ "n": 5 })));
@@ -482,4 +487,38 @@ fn a_slow_call_does_not_block_the_next_request() {
     assert_eq!(ping["result"], json!({}));
     assert!(t0.elapsed() < Duration::from_secs(5), "ping waited {:?} behind a stuck call", t0.elapsed());
     let _ = std::fs::remove_file(&ledger);
+}
+
+#[test]
+fn only_the_host_with_the_secret_can_approve_and_only_up_to_the_grant() {
+    let url = format!("{}/api/quote", fixture_402());
+    let ledger = tmp_ledger("approval");
+    let wallet_dir = std::env::temp_dir().join(format!("x402z-mcp-{}-approval-wallet", std::process::id()));
+    let secret = "s3cret-".repeat(6);
+    let env = vec![
+        ("X402Z_AGENT_LEDGER", ledger.display().to_string()),
+        ("X402Z_AGENT_WALLET_DIR", wallet_dir.display().to_string()),
+        ("X402Z_AGENT_ALLOWED_HOSTS", "127.0.0.1".to_string()),
+        ("X402Z_AGENT_LEDGER_KEY", "11".repeat(32)),
+        ("X402Z_AGENT_APPROVAL_ZAT", "50000".into()),
+        ("X402Z_MCP_APPROVAL_SECRET", secret.clone()),
+    ];
+    let mut m = Mcp::start(&env);
+    // a wrong secret (what an LLM guessing would send) approves nothing and is not even tried
+    let v = structured(&m.call("paid_fetch", json!({ "url": url, "approval": { "secret": "y".repeat(42), "maxZat": 1_000_000 } })));
+    assert_eq!(v["error"], "approval_invalid", "{v}");
+    // the right secret but a grant below the price: still needs approval
+    let v = structured(&m.call("paid_fetch", json!({ "url": url, "approval": { "secret": secret, "maxZat": 99_999 } })));
+    assert_eq!(v["error"], "approval_required", "{v}");
+    // the right secret and enough: spendguard lets it through (it then stops at the empty wallet)
+    let v = structured(&m.call("paid_fetch", json!({ "url": url, "approval": { "secret": secret, "maxZat": 100_000 } })));
+    assert_eq!(v["error"], "wallet", "{v}");
+    let t = structured(&m.call("ledger_tail", json!({ "n": 5 })));
+    let entries = t["entries"].as_array().unwrap();
+    let got: Vec<&str> = entries.iter().map(|e| e["decision"].as_str().unwrap()).collect();
+    assert_eq!(got, ["needs_approval", "allowed"], "{t}");
+    assert!(entries[1]["reason"].as_str().unwrap().contains("approved by operator"), "{}", entries[1]);
+    assert!(entries.iter().all(|e| e.get("txid").is_none()));
+    let _ = std::fs::remove_file(&ledger);
+    let _ = std::fs::remove_file(ledger.with_extension("json.lock"));
 }

@@ -23,8 +23,12 @@
 //!
 //! Configuration is the agent's (`X402Z_AGENT_*`, `ZCASH_LWD_URL`; see `.env.example`), read on
 //! every call so a missing variable is reported as "Setup required" instead of a crash.
-//! Approval-threshold payments are always declined here: an MCP client cannot give the
-//! operator's approval, so raise `X402Z_AGENT_APPROVAL_ZAT` or pay those with the CLI.
+//! Approval-threshold payments are declined with an `approval_required` error naming the host and
+//! amount. Only the host application that started this server can approve one: it sets
+//! `X402Z_MCP_APPROVAL_SECRET` (32+ chars) and calls paid_fetch again with
+//! `{"approval": {"secret", "maxZat"}}` after its operator says yes. An LLM behind that host never
+//! sees the secret. Without the variable, approvals are impossible over MCP.
+//! - `wallet_status {}`: the agent wallet's address, UIVK and balance after a sync.
 //! stdout carries only JSON-RPC; logs go to stderr.
 
 use serde_json::{json, Value};
@@ -87,6 +91,12 @@ fn tools() -> Value {
             "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false }
         },
         {
+            "name": "wallet_status",
+            "title": "Agent wallet address, viewing key and balance",
+            "description": "Sync the agent's own Zcash testnet wallet and return its shielded address, its incoming viewing key (safe to share: it sees incoming payments only and can't spend) and its spendable, total and pending balance in zatoshi. Never builds a transaction.",
+            "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false }
+        },
+        {
             "name": "ledger_tail",
             "title": "Recent spendguard decisions",
             "description": "The last n spendguard decisions from the agent ledger (allowed, denied, needs_approval), newest last, with host, amount, reason, memo nonce and txid when broadcast.",
@@ -124,10 +134,43 @@ fn setup_required(e: &PayError) -> Value {
     tool_error(error_kind(e), e.message())
 }
 
-/// Approvals can't be given through MCP; decline and say why (it lands in the ledger too).
-fn decline(host: &str, amount: u64, threshold: u64) -> bool {
-    eprintln!("x402z-mcp: {amount} zat to {host} is at or above the approval threshold {threshold} zat; declined (no operator approval over MCP)");
-    false
+/// Constant-time string comparison for the approval secret.
+fn same_secret(a: &str, b: &str) -> bool {
+    a.len() == b.len() && a.bytes().zip(b.bytes()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+}
+
+/// The operator's approval for one paid_fetch, given by the host application (e.g. the Kage SDK)
+/// that started this server with `X402Z_MCP_APPROVAL_SECRET`: `{"approval": {"secret", "maxZat"}}`.
+/// An LLM talking to the host never sees the secret, so it can't approve its own payments.
+/// Without the variable, or with a wrong secret, nothing is approved.
+fn approval_grant(args: &Value) -> Result<Option<u64>, Value> {
+    let Some(a) = args.get("approval") else { return Ok(None) };
+    let expected = std::env::var("X402Z_MCP_APPROVAL_SECRET").ok().filter(|s| s.len() >= 32);
+    let given = a.get("secret").and_then(Value::as_str).unwrap_or_default();
+    let max = a.get("maxZat").and_then(Value::as_u64);
+    match (expected, max) {
+        (Some(e), Some(max)) if same_secret(&e, given) => Ok(Some(max)),
+        (None, _) => Err(tool_error("approval_invalid", "this server has no X402Z_MCP_APPROVAL_SECRET, so approvals can't be given over MCP")),
+        (_, None) => Err(tool_error("invalid_arguments", "approval needs {\"secret\", \"maxZat\"}")),
+        _ => Err(tool_error("approval_invalid", "approval secret does not match; nothing was paid")),
+    }
+}
+
+/// The payment that needed approval, kept so the refusal can name it.
+type Asked = std::sync::Mutex<Option<(String, u64, u64)>>;
+
+/// Approve only up to the granted amount; otherwise decline and remember what was asked
+/// (the decision lands in the ledger too).
+fn approver(grant: Option<u64>, asked: &Asked) -> impl Fn(&str, u64, u64) -> bool + Sync + '_ {
+    move |host: &str, amount: u64, threshold: u64| {
+        if grant.is_some_and(|max| amount <= max) {
+            eprintln!("x402z-mcp: {amount} zat to {host} approved by the operator (grant up to {} zat)", grant.unwrap_or(0));
+            return true;
+        }
+        eprintln!("x402z-mcp: {amount} zat to {host} is at or above the approval threshold {threshold} zat; declined (no operator approval)");
+        *asked.lock().unwrap_or_else(|p| p.into_inner()) = Some((host.to_string(), amount, threshold));
+        false
+    }
 }
 
 fn paid_result(r: Result<pay::PaidFetch, PayError>) -> Value {
@@ -157,11 +200,41 @@ async fn paid_fetch(args: &Value) -> Value {
     let Some(url) = args.get("url").and_then(Value::as_str) else {
         return tool_error("invalid_arguments", "paid_fetch needs {\"url\": \"http(s)://...\"}");
     };
+    let grant = match approval_grant(args) {
+        Ok(g) => g,
+        Err(e) => return e,
+    };
     let cfg = match AgentConfig::from_env() {
         Ok(c) => c,
         Err(e) => return setup_required(&e),
     };
-    paid_result(pay::paid_fetch_nowait(&cfg, url, &decline).await)
+    let asked = Asked::default();
+    let r = pay::paid_fetch_nowait(&cfg, url, &approver(grant, &asked)).await;
+    if let (Err(PayError::Refused(m)), Some((host, amount, threshold))) = (&r, asked.lock().unwrap_or_else(|p| p.into_inner()).take()) {
+        return text_result(
+            &json!({ "error": "approval_required", "message": m, "host": host.split_once("://").map_or(host.as_str(), |(_, h)| h), "amountZat": amount, "thresholdZat": threshold }),
+            true,
+        );
+    }
+    paid_result(r)
+}
+
+async fn wallet_status() -> Value {
+    let cfg = match AgentConfig::from_env() {
+        Ok(c) => c,
+        Err(e) => return setup_required(&e),
+    };
+    match pay::wallet_status(&cfg).await {
+        Ok(s) => text_result(
+            &json!({
+                "address": s.address, "uivk": s.uivk,
+                "spendableZat": s.balance.spendable_zat, "totalZat": s.balance.total_zat, "pendingZat": s.balance.pending_zat,
+                "scannedTo": s.balance.scanned_to, "chainTip": s.balance.chain_tip
+            }),
+            false,
+        ),
+        Err(e) => tool_error(error_kind(&e), e.message()),
+    }
 }
 
 async fn redeem_payment(args: &Value) -> Value {
@@ -204,11 +277,12 @@ async fn tab_fetch(args: &Value) -> Value {
         Err(e) => return setup_required(&e),
     };
     let mut bought = None;
+    let asked = Asked::default();
     let fetched = match tab::fetch(&cfg, url).await {
         Ok(Some(f)) => f,
         Ok(None) => {
             eprintln!("x402z-mcp: no tab token for {url}; collecting a paid tab or buying one of {size}");
-            let b = match tab::buy_or_resume(&cfg, url, size, &decline, false).await {
+            let b = match tab::buy_or_resume(&cfg, url, size, &approver(None, &asked), false).await {
                 Ok(tab::BuyOutcome::Bought(b)) => b,
                 Ok(tab::BuyOutcome::Pending { purchase: p, message }) => {
                     let txid = p.txid.unwrap_or_default();
@@ -332,6 +406,7 @@ async fn handle(msg: Value) -> Option<Value> {
                 "redeem_payment" => Ok(redeem_payment(&args).await),
                 "tab_fetch" => Ok(tab_fetch(&args).await),
                 "spend_status" => Ok(spend_status()),
+                "wallet_status" => Ok(wallet_status().await),
                 "ledger_tail" => Ok(ledger_tail(&args)),
                 other => Err((-32602, format!("unknown tool '{other}'"))),
             }

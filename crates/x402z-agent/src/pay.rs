@@ -372,6 +372,27 @@ pub async fn open_wallet(
     Ok((db, id))
 }
 
+/// The agent wallet's shielded address, incoming viewing key and balance after a sync.
+pub struct WalletStatus {
+    pub address: String,
+    pub uivk: String,
+    pub balance: wallet::Balance,
+}
+
+/// Sync the agent wallet and report its address, UIVK and balance. Never builds a transaction.
+pub async fn wallet_status(cfg: &AgentConfig) -> Result<WalletStatus, PayError> {
+    let (mut client, tip) = connect_lwd(&cfg.lwd_url).await?;
+    let (mut db, id) = open_wallet(cfg, &mut client, tip).await?;
+    wallet::sync(&mut db, &mut client).await.map_err(PayError::Runtime)?;
+    let balance = wallet::balance(&db, id).map_err(PayError::Runtime)?;
+    let ufvk = wallet::ufvk(&db, id).map_err(PayError::Runtime)?;
+    Ok(WalletStatus {
+        address: wallet::address(&ufvk).map_err(PayError::Runtime)?,
+        uivk: wallet::encode_uivk(&ufvk).map_err(PayError::Runtime)?,
+        balance,
+    })
+}
+
 /// A payment spendguard has allowed, holding the ledger lock until the outcome is recorded (so
 /// concurrent runs can't both pass the cap).
 pub struct Gate {
@@ -402,7 +423,11 @@ impl Gate {
     pub fn record_failure(mut self, why: &str) {
         let mut a = self.audit.clone();
         a.txid = None;
-        a.reason = Some(format!("allowed, but not paid: {why}"));
+        // keep an operator approval on the record
+        a.reason = Some(match a.reason.take() {
+            Some(r) if r.starts_with("approved by operator") => format!("allowed, but not paid: {why} ({r})"),
+            _ => format!("allowed, but not paid: {why}"),
+        });
         self.ledger.upsert_agent(&self.agent, &self.policy, self.spent_before);
         self.put(a);
         let _ = self.ledger.save();
