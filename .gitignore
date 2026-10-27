@@ -22,3 +22,6 @@ node_modules/
 *.webm
 test-results/
 playwright-report/
+
+# local wallets, ledgers and seeds (never commit)
+.kage/

@@ -1,0 +1,8 @@
+{
+  "name": "kage-example-agent-chat",
+  "private": true,
+  "type": "module",
+  "description": "An LLM research agent that buys market data with shielded ZEC through kage-x402, inside a spend policy",
+  "scripts": { "start": "node --env-file=.env chat.ts" },
+  "dependencies": { "kage-x402": "file:../../packages/kage" }
+}

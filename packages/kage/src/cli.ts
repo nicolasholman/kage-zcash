@@ -13,7 +13,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createKage, KageError } from './agent.ts';
 import { enginePath, KageSetupError } from './engine.ts';
-import { assertIncomingOnly, createWallet, keyKind } from './keys.ts';
+import { assertIncomingOnly, createWallet, keyKind, readSeedFile } from './keys.ts';
 import { formatZec } from './units.ts';
 
 const args = process.argv.slice(2);
@@ -21,15 +21,6 @@ const flag = (name: string, dflt: string) => {
   const i = args.indexOf(`--${name}`);
   return i >= 0 && args[i + 1] ? args[i + 1] : dflt;
 };
-
-/** Read KAGE_SEED / KAGE_BIRTHDAY from a seed file without echoing them. */
-export function readSeedFile(path: string): { seed: string; birthday?: number } {
-  const text = readFileSync(path, 'utf8');
-  const seed = /^KAGE_SEED="?([^"\n]+)"?$/m.exec(text)?.[1];
-  const b = /^KAGE_BIRTHDAY=(\d+)$/m.exec(text)?.[1];
-  if (!seed) throw new KageSetupError(`Setup required: no KAGE_SEED in ${path}`);
-  return { seed, birthday: b ? Number(b) : undefined };
-}
 
 async function main() {
   const [cmd, sub] = args;

@@ -1,0 +1,12 @@
+{
+  "name": "kage-example-market-api",
+  "private": true,
+  "type": "module",
+  "description": "A paid market-data API: live ZEC data per call, paid in shielded ZEC with kage-x402",
+  "scripts": { "start": "node --env-file=.env server.ts" },
+  "dependencies": {
+    "express": "^5.1.0",
+    "kage-x402": "file:../../packages/kage"
+  },
+  "devDependencies": { "@types/express": "^5.0.0" }
+}
