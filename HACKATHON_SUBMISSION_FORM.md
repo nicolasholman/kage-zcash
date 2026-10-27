@@ -71,7 +71,7 @@ Anyone can check the first ten with the published demo merchant UIVK; the five a
 150 tests, listed in TESTING.md:
 - 131 Rust (8 MCP stdio tests, one proving a wrong or missing approval secret approves nothing): 6 build in-process transactions with real keys, real note encryption and real Halo2 proofs for the Orchard/Ironwood parts (Sapling outputs use sapling-crypto's mock proof bytes; not broadcast); 3 verify the ten real payments live against testnet.zec.rocks; 8 drive the MCP binary over stdio; 6 attack the Kage Tab on the server; 11 run the agent's Tab client, key rules, redirect refusal, racing calls, lost answers and the pre-request allowlist against localhost servers.
 - 19 TypeScript: 8 drive the kage-x402 SDK against the real engine and testnet lightwalletd (policy refusals, human approval, wallet sync); 2 run the client and middleware against the real binaries and testnet; 9 need no chain.
-- Separately, 32 Playwright specs drive the dashboard and the landing page in Google Chrome at 1280 px and 375 px.
+- Separately, 35 Playwright specs drive the dashboard, the landing page and the spec page in Google Chrome at 1280 px and 375 px (69 passed, 1 mobile-only spec skipped on desktop, Oct 28).
 
 ## Honest limits
 - Testnet only. Pre-release librustzcash crates, because NU7 is live on testnet.

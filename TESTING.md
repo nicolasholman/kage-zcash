@@ -18,7 +18,7 @@ Re-verification audit on 2026-10-26 (task t7): **121 Rust tests and 9 TypeScript
 
 The [unfiltered Chrome re-run](audit/local/fix-summary.md) at 1280 px and 375 px confirms the three UI fixes. Six strict audit rows remain FAIL because Chrome reports the required 402/422/429/502 responses and real connection refusal as resource/network errors. The existing browser suite's expected-status filtering does not override those FAILs.
 
-The browser E2E suite (Playwright in headless Google Chrome, `e2e/`) is separate: `e2e/stack.sh` starts the real stack on 127.0.0.1 and `npm run test:e2e` runs 32 specs at 1280 px and at 375 px (64 runs, one mobile-only spec skipped on desktop). Re-verification run 2026-10-26: **63 passed, 0 failed, 1 skipped**, with no retries ([log](audit/reverify/playwright.log)). The stack and Chrome ran under the shared heavy slot; the stack was stopped and the slot released afterward ([cleanup](audit/reverify/stack-stop.log)).
+The browser E2E suite (Playwright in headless Google Chrome, `e2e/`) is separate: `e2e/stack.sh` starts the real stack on 127.0.0.1 and `npm run test:e2e` runs 35 specs at 1280 px and at 375 px (70 runs, one mobile-only spec skipped on desktop). Run on 2026-10-28 after the landing, evidence and dashboard redesign: **69 passed, 0 failed, 1 skipped**, against the real stack (`cargo test -p x402z-server`: 44 passed the same day). Re-verification run 2026-10-26: **63 passed, 0 failed, 1 skipped**, with no retries ([log](audit/reverify/playwright.log)). The stack and Chrome ran under the shared heavy slot; the stack was stopped and the slot released afterward ([cleanup](audit/reverify/stack-stop.log)).
 
 | Browser project | Viewport width | Passed | Failed | Skipped |
 |---|---|---|---|---|
