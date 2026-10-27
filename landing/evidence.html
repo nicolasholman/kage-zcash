@@ -5,101 +5,112 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Kage — spec and evidence</title>
     <meta name="description" content="Kage: HTTP 402 payments for AI agents in the x402 v1 wire format, settled as Zcash shielded testnet transactions. A spend guard checks every payment first; the merchant verifies with an incoming viewing key alone." />
-    <meta name="theme-color" content="#ffffff" />
+    <meta name="theme-color" content="#0c0c0d" />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230c0c0d'/%3E%3Cpath d='M8 23V9M8 16l9-7M11.5 13.3L18 23' fill='none' stroke='%23f4b728' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='23.5' cy='20.5' r='2.5' fill='%23f4b728'/%3E%3C/svg%3E" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <style>
       :root {
-        --ink: #0c0c0d; --gold: #f4b728; --butter: #fdf3d3;
-        --paper: #ffffff; --rail: #fafaf7; --line: #ebe9e2; --line-2: #dcd9cf;
-        --text: #0c0c0d; --muted: #5d5c55; --faint: #8b897f;
-        --code-bg: #0c0c0d; --code-line: #232326; --code-text: #e9e8e2; --code-dim: #8b897f; --code-key: #fdf3d3; --code-str: #f4b728; --code-num: #9fd4b0;
+        --ink: #0c0c0d; --ink-2: #111113; --panel: #161618;
+        --hair: rgba(244, 242, 234, 0.08); --hair-2: rgba(244, 242, 234, 0.14);
+        --on-dark: #f4f2ea; --dim: #a19f96; --dimmer: #6f6d66;
+        --gold: #f4b728; --gold-2: #ffc94a; --butter: #fdf3d3;
+        --paper: #ffffff; --rail: #f7f6f1; --line: #e9e7df; --line-2: #d9d6cb;
+        --text: #0c0c0d; --body: #34332f; --muted: #5d5c55; --faint: #8b897f;
+        --code-bg: #111113; --code-line: rgba(244, 242, 234, 0.09); --code-text: #e9e8e2; --code-dim: #8b897f; --code-key: #e9d9a6; --code-str: #f4b728; --code-num: #9fd4b0;
         --ok: #1d7a45; --ok-bg: #e5f4ea; --bad: #b42318; --bad-bg: #fde8e6;
         --font: 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
         --mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-        --top: 60px;
+        --top: 64px;
         color-scheme: light;
       }
       * { box-sizing: border-box; }
       html { -webkit-text-size-adjust: 100%; scroll-padding-top: calc(var(--top) + 20px); }
-      body { margin: 0; background: var(--paper); color: var(--text); font: 400 16px/1.6 var(--font); letter-spacing: -0.006em; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+      body { margin: 0; background: var(--ink); color: var(--text); font: 400 16px/1.6 var(--font); letter-spacing: -0.006em; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
       a { color: inherit; }
-      :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 4px; }
+      :focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; border-radius: 4px; }
       code, pre, .mono { font-family: var(--mono); letter-spacing: 0; }
-      p code, li code, td code, dd code { font-size: 0.86em; background: var(--rail); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; overflow-wrap: anywhere; }
-      h1, h2, h3 { font-weight: 600; margin: 0; }
+      p code, li code, td code, dd code { font-size: 0.84em; background: var(--rail); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; overflow-wrap: anywhere; }
+      h1, h2, h3 { font-weight: 500; margin: 0; }
       .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-      .skip { position: absolute; left: 12px; top: -60px; z-index: 50; background: var(--ink); color: #fff; padding: 8px 12px; border-radius: 6px; text-decoration: none; }
+      .skip { position: absolute; left: 12px; top: -60px; z-index: 50; background: var(--gold); color: var(--ink); padding: 8px 12px; border-radius: 8px; text-decoration: none; font-weight: 500; }
       .skip:focus { top: 10px; }
 
-      /* top bar */
-      .topbar { position: sticky; top: 0; z-index: 40; height: var(--top); background: rgba(255, 255, 255, 0.94); border-bottom: 1px solid var(--line); backdrop-filter: saturate(1.4) blur(8px); }
-      .topbar .in { max-width: 1320px; margin: 0 auto; height: 100%; padding: 0 24px; display: flex; align-items: center; gap: 22px; }
-      .mark { display: inline-flex; align-items: center; gap: 9px; text-decoration: none; font-weight: 600; font-size: 17px; letter-spacing: -0.03em; }
-      .mark svg { width: 26px; height: 26px; flex: none; }
-      .mark small { font-weight: 400; color: var(--faint); font-size: 14px; }
-      .ver { font: 500 12px/1 var(--mono); color: var(--muted); border: 1px solid var(--line-2); border-radius: 999px; padding: 5px 9px; white-space: nowrap; }
+      /* top bar: the landing's dark nav */
+      .topbar { position: sticky; top: 0; z-index: 40; height: var(--top); background: rgba(12, 12, 13, 0.95); border-bottom: 1px solid var(--hair); -webkit-backdrop-filter: saturate(1.3) blur(10px); backdrop-filter: saturate(1.3) blur(10px); color: var(--on-dark); }
+      .topbar .in { max-width: 1320px; margin: 0 auto; height: 100%; padding: 0 24px; display: flex; align-items: center; gap: 18px; }
+      .mark { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 600; font-size: 18px; letter-spacing: -0.03em; }
+      .mark svg { width: 28px; height: 28px; flex: none; }
+      .mark small { font-weight: 400; color: var(--dim); font-size: 15px; }
+      .ver { font: 500 12px/1 var(--mono); color: var(--dim); border: 1px solid var(--hair-2); border-radius: 999px; padding: 6px 10px; white-space: nowrap; }
       .toplinks { display: flex; gap: 2px; margin-left: auto; align-items: center; }
-      .toplinks a { text-decoration: none; font-size: 14px; color: var(--muted); padding: 7px 11px; border-radius: 6px; white-space: nowrap; }
-      .toplinks a:hover { color: var(--ink); background: var(--rail); }
-      .toplinks a.gh { color: #fff; background: var(--ink); font-weight: 500; display: inline-flex; gap: 7px; align-items: center; margin-left: 6px; }
-      .toplinks a.gh:hover { background: #2a2a2d; }
-      .toplinks a.gh svg { width: 15px; height: 15px; }
+      .toplinks a { text-decoration: none; font-size: 14.5px; color: var(--dim); padding: 8px 12px; border-radius: 8px; white-space: nowrap; }
+      .toplinks a:hover { color: var(--on-dark); background: rgba(244, 242, 234, 0.06); }
+      .toplinks a.gh { color: var(--ink); background: var(--gold); font-weight: 500; display: inline-flex; gap: 8px; align-items: center; margin-left: 8px; border-radius: 999px; height: 40px; padding: 0 16px; }
+      .toplinks a.gh:hover { background: var(--gold-2); }
+      .toplinks a.gh svg { width: 16px; height: 16px; }
 
-      /* hero */
-      .hero { border-bottom: 1px solid var(--line); background: linear-gradient(var(--paper), var(--paper)) padding-box, var(--paper); }
-      .hero .in { max-width: 1320px; margin: 0 auto; padding: 64px 24px 56px; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 56px; align-items: start; }
-      .eyebrow { display: inline-flex; gap: 8px; align-items: center; font: 500 12.5px/1 var(--mono); color: var(--muted); }
+      /* hero: dark, a faint grid and a gold glow under the recorded run */
+      .hero { position: relative; isolation: isolate; overflow: hidden; background: var(--ink); color: var(--on-dark); }
+      .hero::before { content: ""; position: absolute; inset: 0; z-index: -2; background-image: linear-gradient(var(--hair) 1px, transparent 1px), linear-gradient(90deg, var(--hair) 1px, transparent 1px); background-size: 64px 64px; -webkit-mask-image: radial-gradient(ellipse 80% 70% at 30% 10%, #000 15%, transparent 70%); mask-image: radial-gradient(ellipse 80% 70% at 30% 10%, #000 15%, transparent 70%); opacity: 0.5; }
+      .hero::after { content: ""; position: absolute; right: -10%; top: 30%; width: 900px; height: 600px; z-index: -1; background: radial-gradient(ellipse at center, rgba(244, 183, 40, 0.16), transparent 65%); pointer-events: none; }
+      .hero .in { max-width: 1320px; margin: 0 auto; padding: 80px 24px 96px; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 56px; align-items: start; }
+      .eyebrow { display: inline-flex; gap: 10px; align-items: center; font: 500 12.5px/1 var(--mono); color: var(--gold); text-transform: uppercase; letter-spacing: 0.02em; }
       .eyebrow i { width: 8px; height: 8px; border-radius: 2px; background: var(--gold); display: inline-block; }
-      .hero h1 { font-size: clamp(38px, 4.6vw, 60px); line-height: 1.02; letter-spacing: -0.045em; margin: 18px 0 0; }
-      .hero h1 mark { background: linear-gradient(transparent 62%, var(--butter) 62%, var(--butter) 94%, transparent 94%); color: inherit; padding: 0 2px; }
-      .hero .lead { font-size: 18px; line-height: 1.55; color: var(--muted); margin: 20px 0 0; max-width: 46ch; }
-      .hero .lead b { color: var(--ink); font-weight: 500; }
-      .ctas { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 28px; }
-      .btn { display: inline-flex; align-items: center; gap: 8px; height: 42px; padding: 0 16px; border-radius: 8px; font: 500 15px/1 var(--font); text-decoration: none; border: 1px solid transparent; white-space: nowrap; transition: background 0.15s, border-color 0.15s; }
+      .hero h1 { font-size: clamp(40px, 5vw, 66px); line-height: 1; letter-spacing: -0.045em; margin: 20px 0 0; color: #fff; }
+      .hero h1 mark { background: none; color: var(--gold); padding: 0; }
+      .hero .lead { font-size: 18px; line-height: 1.55; color: var(--dim); margin: 22px 0 0; max-width: 46ch; }
+      .hero .lead b { color: var(--on-dark); font-weight: 500; }
+      .ctas { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 30px; }
+      .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 46px; padding: 0 20px; border-radius: 999px; font: 500 15px/1 var(--font); text-decoration: none; border: 1px solid transparent; white-space: nowrap; transition: background 0.15s, border-color 0.15s; }
       .btn svg { width: 15px; height: 15px; }
-      .btn-ink { background: var(--ink); color: #fff; }
-      .btn-ink:hover { background: #2a2a2d; }
-      .btn-line { border-color: var(--line-2); color: var(--ink); background: var(--paper); }
-      .btn-line:hover { border-color: var(--ink); }
-      .install { margin-top: 28px; display: flex; align-items: center; gap: 10px; border: 1px solid var(--line); background: var(--rail); border-radius: 8px; padding: 10px 12px; font: 13px/1.4 var(--mono); max-width: 470px; min-width: 0; }
-      .install span { color: var(--faint); user-select: none; }
-      .install-note { margin: 8px 0 0; max-width: 470px; font-size: 13px; line-height: 1.5; color: var(--muted); }
+      .btn-ink { background: var(--gold); color: var(--ink); }
+      .btn-ink:hover { background: var(--gold-2); }
+      .btn-line { border-color: var(--hair-2); color: var(--on-dark); }
+      .btn-line:hover { border-color: rgba(244, 242, 234, 0.4); }
+      .install { margin-top: 30px; display: flex; align-items: center; gap: 10px; border: 1px solid var(--hair-2); background: var(--panel); border-radius: 12px; padding: 8px 8px 8px 14px; font: 13px/1.4 var(--mono); max-width: 480px; min-width: 0; color: var(--on-dark); }
+      .install span { color: var(--gold); user-select: none; }
+      .install-note { margin: 10px 0 0; max-width: 480px; font-size: 13.5px; line-height: 1.55; color: var(--dim); }
+      .install-note a { color: var(--on-dark); text-underline-offset: 3px; text-decoration-color: var(--hair-2); }
       .install code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
       .install code::-webkit-scrollbar { display: none; }
-      .copy { font: 500 12px/1 var(--font); border: 1px solid var(--line-2); background: var(--paper); border-radius: 6px; padding: 6px 9px; cursor: pointer; color: var(--muted); flex: none; }
+      .copy { font: 500 12px/1 var(--font); border: 1px solid var(--line-2); background: var(--paper); border-radius: 999px; padding: 7px 11px; cursor: pointer; color: var(--muted); flex: none; }
       .copy:hover { color: var(--ink); border-color: var(--ink); }
-      .facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin-top: 34px; border-top: 1px solid var(--line); max-width: 470px; }
-      .facts div { padding: 14px 14px 0 0; }
-      .facts b { display: block; font: 600 22px/1.1 var(--font); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
-      .facts span { font-size: 13px; color: var(--muted); line-height: 1.35; display: block; margin-top: 4px; }
+      .install .copy { background: rgba(244, 242, 234, 0.06); border-color: var(--hair-2); color: var(--dim); }
+      .install .copy:hover { color: var(--on-dark); border-color: rgba(244, 242, 234, 0.4); }
+      .facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin-top: 36px; border-top: 1px solid var(--hair); max-width: 480px; }
+      .facts div { padding: 16px 14px 0 0; }
+      .facts b { display: block; font: 500 30px/1.05 var(--font); letter-spacing: -0.04em; font-variant-numeric: tabular-nums; color: #fff; }
+      .facts span { font-size: 13px; color: var(--dim); line-height: 1.4; display: block; margin-top: 6px; }
 
       /* the wire: a recorded exchange */
-      .wire { background: var(--code-bg); color: var(--code-text); border-radius: 12px; overflow: hidden; box-shadow: 0 1px 0 rgba(12, 12, 13, 0.04), 0 24px 48px -32px rgba(12, 12, 13, 0.45); min-width: 0; }
-      .wire-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--code-line); font: 12px/1.3 var(--mono); color: var(--code-dim); }
+      .wire { background: var(--code-bg); color: var(--code-text); border: 1px solid var(--hair-2); border-radius: 18px; overflow: hidden; box-shadow: 0 50px 120px -40px rgba(0, 0, 0, 0.85); min-width: 0; }
+      .wire-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 18px; border-bottom: 1px solid var(--code-line); font: 12px/1.3 var(--mono); color: var(--code-dim); background: var(--ink); }
       .wire-head b { color: var(--code-text); font-weight: 500; }
-      .rec { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
-      .rec::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--gold); }
-      .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--code-line); overflow-x: auto; scrollbar-width: none; }
+      .rec { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+      .rec::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 3px rgba(244, 183, 40, 0.18); }
+      .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--code-line); overflow-x: auto; scrollbar-width: none; background: var(--ink); }
       .tabs::-webkit-scrollbar { display: none; }
-      .tab { flex: none; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--code-dim); font: 500 12.5px/1 var(--mono); padding: 13px 14px 11px; cursor: pointer; white-space: nowrap; display: inline-flex; gap: 8px; align-items: center; }
-      .tab .n { width: 18px; height: 18px; border-radius: 4px; border: 1px solid var(--code-line); display: grid; place-items: center; font-size: 11px; }
-      .tab[aria-selected="true"] { color: var(--code-text); border-bottom-color: var(--gold); }
+      .tab { flex: none; background: none; border: 0; border-right: 1px solid var(--code-line); color: var(--code-dim); font: 500 12.5px/1 var(--mono); padding: 0 16px; height: 44px; cursor: pointer; white-space: nowrap; display: inline-flex; gap: 8px; align-items: center; position: relative; }
+      .tab:hover { color: var(--code-text); }
+      .tab .n { min-width: 18px; height: 18px; padding: 0 3px; border-radius: 5px; border: 1px solid var(--code-line); display: grid; place-items: center; font-size: 10.5px; }
+      .tab[aria-selected="true"] { color: var(--code-text); background: var(--code-bg); }
+      .tab[aria-selected="true"]::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: var(--gold); }
       .tab[aria-selected="true"] .n { background: var(--gold); color: var(--ink); border-color: var(--gold); }
-      .tab:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
-      .pane { padding: 16px 18px 18px; min-height: 392px; }
+      .tab:focus-visible { outline: 2px solid var(--gold); outline-offset: -3px; }
+      .pane { padding: 18px 20px 20px; min-height: 392px; }
       .pane[hidden] { display: none; }
-      .pane pre { margin: 0; font: 12.5px/1.6 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--code-text); }
+      .pane pre { margin: 0; font: 12.5px/1.65 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--code-text); }
       .pane .req { color: var(--code-dim); }
       .pane .req b { color: var(--code-text); font-weight: 500; }
+      .pane a { color: var(--code-text); text-underline-offset: 3px; text-decoration-color: rgba(244, 242, 234, 0.25); }
       .k { color: var(--code-key); } .s { color: var(--code-str); } .nu { color: var(--code-num); } .d { color: var(--code-dim); }
       .st402 { color: var(--gold); font-weight: 500; } .st200 { color: var(--code-num); font-weight: 500; }
-      .label { font: 500 11px/1 var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--code-dim); margin: 16px 0 8px; }
+      .label { font: 500 11px/1.5 var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--code-dim); margin: 16px 0 8px; }
       .label:first-child { margin-top: 0; }
       .tape { list-style: none; margin: 0; padding: 0; font: 12.5px/1.5 var(--mono); }
-      .tape li { display: grid; grid-template-columns: 74px 44px minmax(0, 1fr); gap: 10px; padding: 6px 0; border-bottom: 1px dashed var(--code-line); }
+      .tape li { display: grid; grid-template-columns: 74px 44px minmax(0, 1fr); gap: 10px; padding: 7px 0; border-bottom: 1px dashed var(--code-line); }
       .tape li:last-child { border-bottom: 0; }
       .tape .t { color: var(--code-dim); font-variant-numeric: tabular-nums; }
       .tape .c { color: var(--gold); }
@@ -109,109 +120,131 @@
       .clock { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font: 12px/1 var(--mono); color: var(--code-dim); }
       .clock .bar { flex: 1; height: 4px; background: var(--code-line); border-radius: 2px; overflow: hidden; }
       .clock .bar i { display: block; height: 100%; width: 100%; background: var(--gold); transform-origin: left; }
-      .wire-foot { display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 12px 18px; border-top: 1px solid var(--code-line); font: 12px/1.4 var(--mono); color: var(--code-dim); }
+      .wire-foot { display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 13px 20px; border-top: 1px solid var(--code-line); font: 12px/1.4 var(--mono); color: var(--code-dim); background: var(--ink); }
       .wire-foot[hidden] { display: none; }
       .wire-foot a { color: var(--code-text); text-decoration: none; border-bottom: 1px solid #3a3a3e; }
       .wire-foot a:hover { border-bottom-color: var(--gold); }
 
-      /* docs layout */
-      .docs { max-width: 1320px; margin: 0 auto; padding: 0 24px; display: grid; grid-template-columns: 236px minmax(0, 1fr); gap: 56px; }
-      .side { position: sticky; top: var(--top); align-self: start; max-height: calc(100vh - var(--top)); overflow: auto; padding: 32px 0 40px; border-right: 1px solid var(--line); }
+      /* docs layout: light, rounded into the dark page like the landing's reference */
+      .docs-band { background: var(--paper); border-radius: 28px 28px 0 0; }
+      .docs { max-width: 1320px; margin: 0 auto; padding: 0 24px; display: grid; grid-template-columns: 236px minmax(0, 1fr); gap: 64px; }
+      .side { position: sticky; top: var(--top); align-self: start; max-height: calc(100vh - var(--top)); overflow: auto; padding: 48px 0 40px; }
       .toc summary { display: none; }
-      .toc .grp { font: 500 11.5px/1 var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--faint); margin: 22px 0 8px; }
+      .toc .grp { font: 500 11.5px/1 var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--faint); margin: 24px 0 8px 12px; }
       .toc .grp:first-of-type { margin-top: 0; }
       .toc ul { list-style: none; margin: 0; padding: 0; }
-      .toc a { display: block; text-decoration: none; font-size: 14px; color: var(--muted); padding: 5px 12px 5px 12px; margin-right: 16px; border-left: 2px solid transparent; border-radius: 0 6px 6px 0; }
+      .toc a { display: block; text-decoration: none; font-size: 14.5px; color: var(--muted); padding: 6px 12px; margin-right: 12px; border-radius: 8px; }
       .toc a:hover { color: var(--ink); background: var(--rail); }
-      .toc a.on { color: var(--ink); font-weight: 500; border-left-color: var(--gold); background: var(--rail); }
-      .content { padding: 40px 0 80px; min-width: 0; max-width: 820px; }
-      .doc { padding: 36px 0; border-bottom: 1px solid var(--line); }
+      .toc a.on { color: var(--ink); font-weight: 500; background: var(--rail); box-shadow: inset 2px 0 0 var(--gold); }
+      .content { padding: 40px 0 96px; min-width: 0; max-width: 860px; }
+      .doc { padding: 44px 0; border-bottom: 1px solid var(--line); }
       .doc:first-child { padding-top: 8px; }
       .doc:last-child { border-bottom: 0; }
-      .doc .path { font: 500 12px/1 var(--mono); color: var(--faint); }
-      .doc h2 { font-size: 28px; letter-spacing: -0.035em; line-height: 1.15; margin: 10px 0 0; }
-      .doc h3 { font-size: 17px; letter-spacing: -0.02em; margin: 26px 0 0; }
-      .doc p { margin: 14px 0 0; color: #2c2c2a; }
-      .doc ul, .doc ol { margin: 14px 0 0; padding-left: 22px; color: #2c2c2a; }
-      .doc li { margin: 6px 0; }
+      .doc .path { font: 500 12.5px/1 var(--mono); color: var(--faint); }
+      .doc h2 { font-size: clamp(28px, 3vw, 36px); letter-spacing: -0.035em; line-height: 1.1; margin: 12px 0 0; }
+      .doc h3 { font-size: 18px; letter-spacing: -0.02em; margin: 26px 0 0; }
+      .doc p { margin: 14px 0 0; color: var(--body); }
+      .doc ul, .doc ol { margin: 14px 0 0; padding-left: 22px; color: var(--body); }
+      .doc li { margin: 7px 0; }
       .doc li::marker { color: var(--faint); }
-      .anchor { text-decoration: none; color: var(--line-2); margin-left: 8px; font-weight: 400; }
+      .doc a { text-underline-offset: 3px; text-decoration-color: var(--line-2); }
+      .doc a:hover { text-decoration-color: var(--ink); }
+      .anchor { text-decoration: none; color: var(--line-2); margin-left: 10px; font-weight: 400; font-size: 0.7em; vertical-align: middle; }
       .anchor:hover, .doc h2:hover .anchor { color: var(--faint); }
 
       /* tables */
-      .tbl { margin-top: 18px; border: 1px solid var(--line); border-radius: 10px; overflow-x: auto; }
-      table { border-collapse: collapse; width: 100%; font-size: 14px; }
-      th { text-align: left; font: 500 12px/1.2 var(--mono); color: var(--muted); background: var(--rail); padding: 10px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; }
-      td { padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.5; }
+      .tbl { margin-top: 20px; border: 1px solid var(--line); border-radius: 14px; overflow-x: auto; }
+      table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+      th { text-align: left; font: 500 12px/1.2 var(--mono); color: var(--muted); background: var(--rail); padding: 11px 16px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+      td { padding: 12px 16px; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.5; color: var(--body); }
       tr:last-child td { border-bottom: 0; }
       td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
       td .m { font: 12.5px/1.45 var(--mono); }
-      .pill { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 5px; font: 500 12px/1 var(--mono); white-space: nowrap; }
+      td a.m { text-decoration: none; color: var(--ink); border-bottom: 1px solid var(--line-2); }
+      td a.m:hover { border-bottom-color: var(--gold); }
+      .pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px; border-radius: 999px; font: 500 12px/1 var(--mono); white-space: nowrap; }
       .p-ok { background: var(--ok-bg); color: var(--ok); }
       .p-wait { background: var(--butter); color: #6b4e00; }
       .p-bad { background: var(--bad-bg); color: var(--bad); }
       .p-ink { background: var(--ink); color: var(--gold); }
 
       /* code blocks and terminal */
-      .code { margin-top: 18px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--rail); }
-      .code .bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--line); font: 12px/1 var(--mono); color: var(--muted); }
-      .code pre { margin: 0; padding: 14px 16px; font: 13px/1.6 var(--mono); overflow-x: auto; color: var(--ink); }
-      .code pre .c { color: var(--faint); }
-      .term { margin-top: 18px; background: var(--code-bg); color: var(--code-text); border-radius: 10px; overflow: hidden; }
-      .term .bar { display: flex; justify-content: space-between; gap: 10px; padding: 9px 14px; border-bottom: 1px solid var(--code-line); font: 12px/1.3 var(--mono); color: var(--code-dim); }
-      .term pre { margin: 0; padding: 14px 16px 16px; font: 12.5px/1.65 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+      .code { margin-top: 20px; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--code-bg); }
+      .code .bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 42px; padding: 6px 8px 6px 16px; border-bottom: 1px solid var(--code-line); font: 12px/1 var(--mono); color: var(--code-dim); background: var(--ink); }
+      .code .copy { background: rgba(244, 242, 234, 0.06); border-color: var(--hair-2); color: var(--dim); }
+      .code .copy:hover { color: var(--on-dark); border-color: rgba(244, 242, 234, 0.4); }
+      .code pre { margin: 0; padding: 16px 18px; font: 13px/1.7 var(--mono); overflow-x: auto; color: var(--code-text); }
+      .code pre .c { color: var(--code-dim); }
+      .term { margin-top: 20px; background: var(--code-bg); color: var(--code-text); border-radius: 14px; overflow: hidden; border: 1px solid var(--line); }
+      .term .bar { display: flex; justify-content: space-between; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--code-line); font: 12px/1.3 var(--mono); color: var(--code-dim); background: var(--ink); }
+      .term pre { margin: 0; padding: 16px 18px 18px; font: 12.5px/1.7 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
       .term .ps { color: var(--gold); user-select: none; }
       .term .o { color: var(--code-dim); }
       .term .ok { color: var(--code-num); }
       .term .no { color: #ff9b93; }
-      .callout { margin-top: 18px; background: var(--butter); border-radius: 10px; padding: 14px 16px; font-size: 14.5px; line-height: 1.55; color: #3b3220; }
+      .callout { margin-top: 20px; background: var(--butter); border-radius: 12px; padding: 14px 16px; font-size: 15px; line-height: 1.55; color: #3b3220; }
       .callout b { color: var(--ink); font-weight: 600; }
-      .callout.plain { background: var(--rail); border: 1px solid var(--line); color: #2c2c2a; }
+      .callout.plain { background: var(--rail); border: 1px solid var(--line); color: var(--body); }
 
-      .roles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 18px; }
-      .role { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; min-width: 0; }
-      .role h3 { margin: 0; font-size: 15px; display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
-      .role dl { margin: 10px 0 0; display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 6px 10px; font-size: 13.5px; }
+      .roles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 20px; }
+      .role { border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; min-width: 0; }
+      .role h3 { margin: 0; font-size: 15.5px; display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+      .role dl { margin: 12px 0 0; display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 6px 10px; font-size: 14px; }
       .role dt { color: var(--faint); font: 500 12px/1.6 var(--mono); }
-      .role dd { margin: 0; color: #2c2c2a; }
+      .role dd { margin: 0; color: var(--body); }
 
-      footer { border-top: 1px solid var(--line); background: var(--rail); }
-      footer .in { max-width: 1320px; margin: 0 auto; padding: 26px 24px 30px; display: flex; flex-wrap: wrap; gap: 12px 28px; align-items: center; justify-content: space-between; font-size: 13.5px; color: var(--muted); }
-      footer nav { display: flex; gap: 18px; flex-wrap: wrap; }
+      footer { border-top: 1px solid var(--hair); background: var(--ink); color: var(--dim); }
+      footer .in { max-width: 1320px; margin: 0 auto; padding: 32px 24px 36px; display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: center; justify-content: space-between; font-size: 14px; }
+      footer nav { display: flex; gap: 20px; flex-wrap: wrap; }
       footer a { text-decoration: none; }
-      footer a:hover { color: var(--ink); }
+      footer a:hover { color: var(--on-dark); }
 
       @media (max-width: 1080px) {
-        .hero .in { grid-template-columns: minmax(0, 1fr); gap: 40px; padding-top: 48px; }
-        .hero .lead, .install, .facts { max-width: 640px; }
+        .hero .in { grid-template-columns: minmax(0, 1fr); gap: 44px; padding-top: 56px; }
+        .hero .lead, .install, .install-note, .facts { max-width: 640px; }
       }
       @media (max-width: 920px) {
         .docs { grid-template-columns: minmax(0, 1fr); gap: 0; }
-        .side { position: sticky; top: var(--top); z-index: 30; max-height: none; overflow: visible; border-right: 0; padding: 0; margin: 0 -24px; background: rgba(255, 255, 255, 0.96); border-bottom: 1px solid var(--line); backdrop-filter: blur(8px); }
-        .toc summary { display: flex; align-items: center; justify-content: space-between; padding: 12px 24px; cursor: pointer; font: 500 14px/1 var(--font); list-style: none; }
+        .side { position: sticky; top: var(--top); z-index: 30; max-height: none; overflow: visible; padding: 0; margin: 0 -24px; background: rgba(255, 255, 255, 0.97); border-bottom: 1px solid var(--line); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); border-radius: 28px 28px 0 0; }
+        .toc summary { display: flex; align-items: center; justify-content: space-between; padding: 14px 24px; cursor: pointer; font: 500 14.5px/1 var(--font); list-style: none; }
         .toc summary::-webkit-details-marker { display: none; }
-        .toc summary span { font: 12px/1 var(--mono); color: var(--faint); }
+        .toc summary span { font: 12px/1 var(--mono); color: var(--faint); display: inline-flex; align-items: center; gap: 8px; }
+        .toc summary span::after { content: ""; width: 7px; height: 7px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-2px); }
         .toc[open] .toc-body { max-height: 60vh; overflow: auto; padding: 4px 24px 16px; border-top: 1px solid var(--line); }
+        .toc a { margin-right: 0; }
         .content { padding-top: 24px; }
         .toplinks a.hide-sm { display: none; }
       }
       @media (max-width: 640px) {
+        :root { --top: 58px; }
         .topbar .in { padding: 0 16px; gap: 10px; }
         .ver { display: none; }
-        .hero .in { padding: 36px 16px 40px; }
+        .toplinks a.gh { height: 38px; padding: 0 14px; }
+        .hero .in { padding: 44px 16px 56px; }
+        .hero h1 { font-size: 40px; }
         .hero .lead { font-size: 16.5px; }
+        .ctas .btn { flex: 1 1 150px; }
+        .docs-band { border-radius: 20px 20px 0 0; }
         .docs { padding: 0 16px; }
-        .side { margin: 0 -16px; }
-        .toc summary { padding: 12px 16px; }
+        .side { margin: 0 -16px; border-radius: 20px 20px 0 0; }
+        .toc summary { padding: 14px 16px; }
         .toc[open] .toc-body { padding: 4px 16px 16px; }
-        .doc h2 { font-size: 24px; }
+        .doc h2 { font-size: 26px; }
         .roles { grid-template-columns: minmax(0, 1fr); }
         .pane { padding: 14px 14px 16px; min-height: 0; }
         .pane pre, .tape { font-size: 11.5px; }
         .tape li { grid-template-columns: 64px 34px minmax(0, 1fr); gap: 8px; }
+        .wire { border-radius: 14px; }
         .wire-head .hide-xs { display: none; }
-        .facts b { font-size: 19px; }
-        footer .in { padding: 22px 16px 26px; }
+        .facts b { font-size: 24px; }
+        th, td { padding: 10px 12px; }
+        footer .in { padding: 26px 16px 30px; }
+        .tbl { overflow: visible; }
+        .tbl thead { display: none; }
+        .tbl tr { display: block; padding: 8px 0; border-bottom: 1px solid var(--line); }
+        .tbl tr:last-child { border-bottom: 0; }
+        .tbl td { display: block; position: relative; border: 0; padding: 6px 12px 6px 104px; min-height: 32px; white-space: normal; }
+        .tbl td::before { content: attr(data-label); position: absolute; left: 12px; top: 9px; width: 84px; font: 500 11px/1.4 var(--mono); color: var(--faint); }
       }
       @media (prefers-reduced-motion: reduce) {
         html { scroll-behavior: auto; }
@@ -229,7 +262,7 @@
     <header class="topbar">
       <div class="in">
         <a class="mark" href="./" aria-label="Kage home">
-          <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#0c0c0d" /><path d="M8 23V9M8 16l9-7M11.5 13.3L18 23" fill="none" stroke="#f4b728" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /><circle cx="23.5" cy="20.5" r="2.5" fill="#f4b728" /></svg>
+          <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="0.5" y="0.5" width="31" height="31" rx="7" fill="#0c0c0d" stroke="rgba(244,242,234,.14)" /><path d="M8 23V9M8 16l9-7M11.5 13.3L18 23" fill="none" stroke="#f4b728" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /><circle cx="23.5" cy="20.5" r="2.5" fill="#f4b728" /></svg>
           Kage <small lang="ja">影</small>
         </a>
         <span class="ver">x402 v1 · zcash-testnet</span>
@@ -256,10 +289,10 @@
             <span aria-hidden="true">$</span><code id="clone">git clone https://github.com/nickthelegend/zec-shielded-x402 &amp;&amp; cd zec-shielded-x402 &amp;&amp; cargo test -p x402z-server</code>
             <button class="copy" type="button" data-copy="#clone">Copy</button>
           </div>
-          <p class="install-note">42 server tests, including the Kage Tab attacks, the public/admin port split and the admin port's Host check. A first build took about 2 minutes on a laptop at 2 build jobs, with no Zcash crates involved. The agent and MCP crates compile librustzcash, which took about 4 more minutes. This page is docs and recorded output. A live testnet 402 answers at <a href="https://kage-api.201-18-198-162.sslip.io/api/quote">kage-api…/api/quote</a> (not paid yet; any testnet wallet can pay its ZIP 321 URI), and the <a href="#quickstart">Quickstart</a> runs the whole stack on your machine.</p>
+          <p class="install-note">44 server tests, including the Kage Tab attacks, the public/admin port split and the admin port's Host check. A first build took about 2 minutes on a laptop at 2 build jobs, with no Zcash crates involved. The agent and MCP crates compile librustzcash, which took about 4 more minutes. This page is docs and recorded output. A live testnet 402 answers at <a href="https://kage-api.201-18-198-162.sslip.io/api/quote">kage-api…/api/quote</a> (not paid yet; any testnet wallet can pay its ZIP 321 URI), and the <a href="#quickstart">Quickstart</a> runs the whole stack on your machine.</p>
           <div class="facts">
             <div><b>10</b><span>paid testnet txs, verifiable with a published UIVK; 2 paid by an LLM</span></div>
-            <div><b>139</b><span>tests, 5 against live testnet</span></div>
+            <div><b>150</b><span>tests, 13 against live testnet</span></div>
             <div><b>0</b><span>spend keys on the merchant side</span></div>
           </div>
         </div>
@@ -377,6 +410,7 @@
       </div>
     </section>
 
+    <div class="docs-band">
     <div class="docs">
       <aside class="side" aria-label="Spec contents">
         <details class="toc" id="toc" open>
@@ -411,13 +445,13 @@
         <section class="doc" id="quickstart" aria-labelledby="h-quick">
           <span class="path">docs / quickstart</span>
           <h2 id="h-quick">Quickstart<a class="anchor" href="#quickstart" aria-label="Link to Quickstart">#</a></h2>
-          <p>A Rust workspace pinned to toolchain 1.89.0. Run the tests one crate at a time; the Zcash crates are large.</p>
+          <p>Building on Kage? <code>npm install kage-x402</code> and the 10-line agent are on the <a href="./#quickstart">landing page</a>. This page is the protocol underneath: a Rust workspace pinned to toolchain 1.89.0. Run the tests one crate at a time; the Zcash crates are large.</p>
           <div class="code"><div class="bar"><span>shell</span><button class="copy" type="button" data-copy="#qs">Copy</button></div>
-<pre id="qs">cargo test -p spendguard -p x402z-protocol -p x402z-server   <span class="c"># 16 + 14 + 42</span>
+<pre id="qs">cargo test -p spendguard -p x402z-protocol -p x402z-server   <span class="c"># 16 + 14 + 44</span>
 cargo test -p x402z-agent                                      <span class="c"># 32</span>
-cargo test -p x402z-mcp                                        <span class="c"># 7, drives the binary over stdio</span>
+cargo test -p x402z-mcp                                        <span class="c"># 8, drives the binary over stdio</span>
 cargo test -p x402z-facilitator                                <span class="c"># 17: 6 build Halo2 proofs, 3 hit testnet</span>
-cd packages/x402-zcash &amp;&amp; npm test                             <span class="c"># 11: TypeScript, 2 hit the binaries and testnet</span></pre></div>
+cd packages/kage &amp;&amp; npm run build &amp;&amp; npm test                  <span class="c"># 19: TypeScript, 10 hit the engine and testnet</span></pre></div>
           <p>Nothing is mocked. Without a key, a wallet or funds, each binary stops with a readable error and a non-zero exit code:</p>
           <div class="term" role="group" aria-label="Terminal output"><div class="bar"><span>zsh · 2026-10-21</span><span>no .env, then cap below the price</span></div>
 <pre><span class="ps">$ </span>target/debug/x402z-facilitator
@@ -595,7 +629,8 @@ cd packages/x402-zcash &amp;&amp; npm test                             <span cla
               <tr><td><a class="m" href="https://testnet.zecblock.com/tx/b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91">b75b2415…4b91 ↗</a></td><td class="num">4,529,427</td><td class="num">Oct 22</td><td>Kage Tab, LLM over MCP, agent's own wallet: 300,000 zat → 3 tokens → 3 calls</td></tr>
             </tbody>
           </table></div>
-          <p>Anyone can check them with the demo merchant's published incoming viewing key (in the README). It shows incoming payments to that demo wallet only; it can't spend and shows nothing about the payer.</p>
+          <p>On Oct 27 the <code>kage-x402</code> SDK paid five more from <code>examples/agent-chat</code>, an LLM agent with its own wallet, to a new merchant made with <code>kage wallet new --role merchant</code> (so the demo key below doesn't see them). The two in the landing's <a href="./#run">See it run</a>: <a href="https://testnet.zecblock.com/tx/401cad2c15c26dd26b2d3f17400318bbe73c39c35e04032037ed8ae33c1a77fa"><code>401cad2c…77fa</code></a>, 0.001 ZEC for a live price, and <a href="https://testnet.zecblock.com/tx/6c1229d115b82acbd0af4be834e6d5ba1c36703009758136713d0d50eb81d0d2"><code>6c1229d1…d0d2</code></a>, 0.005 ZEC for a report a human approved first.</p>
+          <p>Anyone can check the ten in the table with the demo merchant's published incoming viewing key (in the README). It shows incoming payments to that demo wallet only; it can't spend and shows nothing about the payer.</p>
           <div class="term" role="group" aria-label="check_uivk output"><div class="bar"><span>check_uivk · 2026-10-20</span><span>UIVK only</span></div>
 <pre><span class="ps">$ </span>cargo run --release -p x402z-facilitator --example check_uivk -- "$uivk" 030c3cbf…8351 x402z-f19a63da20cbc0749ea800b3
 <span class="o">tx 030c3cbf…8351: mined at 4521112, 20 confirmation(s) (tip 4521131)</span>
@@ -606,26 +641,27 @@ cd packages/x402-zcash &amp;&amp; npm test                             <span cla
         <section class="doc" id="tests" aria-labelledby="h-tests">
           <span class="path">trust / tests</span>
           <h2 id="h-tests">Tests<a class="anchor" href="#tests" aria-label="Link to Tests">#</a></h2>
-          <p>139 tests: 128 in Rust, 11 in TypeScript. Six build in-process transactions with real keys, real note encryption and real Halo2 proofs for the Orchard/Ironwood parts (Sapling outputs use sapling-crypto's mock proof bytes); those are not broadcast. Five reach live testnet: three verify the ten real payments with only the UIVK, and two run the TypeScript client and middleware against the real binaries and testnet. A Playwright suite drives the dashboard and this page in Google Chrome. The full list is in <a href="https://github.com/nickthelegend/zec-shielded-x402/blob/main/TESTING.md">TESTING.md</a>.</p>
+          <p>150 tests: 131 in Rust, 19 in TypeScript. Six build in-process transactions with real keys, real note encryption and real Halo2 proofs for the Orchard/Ironwood parts (Sapling outputs use sapling-crypto's mock proof bytes); those are not broadcast. Thirteen reach live testnet: three verify the ten real payments with only the UIVK, eight drive the kage-x402 SDK against the real engine with wallets synced through lightwalletd, and two run the TypeScript client and middleware against the real binaries and testnet. A Playwright suite drives the dashboard and this page in Google Chrome. The full list is in <a href="https://github.com/nickthelegend/zec-shielded-x402/blob/main/TESTING.md">TESTING.md</a>.</p>
           <div class="tbl"><table>
             <thead><tr><th>Crate</th><th>Tests</th><th>Runs against</th></tr></thead>
             <tbody>
               <tr><td><code>spendguard</code></td><td class="num">16</td><td>pure logic (allowlist ports and schemes), sealed ledger format</td></tr>
               <tr><td><code>x402z-protocol</code></td><td class="num">14</td><td>the x402 spec's own examples, ZIP 321's memo example</td></tr>
-              <tr><td><code>x402z-server</code></td><td class="num">42</td><td>in-process, incl. 6 Kage Tab attack tests, the X-PAYMENT budget, a lost 200 served again, the admin Host check, an https <code>resource</code> behind a TLS proxy</td></tr>
+              <tr><td><code>x402z-server</code></td><td class="num">44</td><td>in-process, incl. 6 Kage Tab attack tests, the X-PAYMENT budget, a lost 200 served again, the admin Host check, an https <code>resource</code> behind a TLS proxy</td></tr>
               <tr><td><code>x402z-agent</code></td><td class="num">32</td><td>file-locked sealed ledger, six concurrent runs, racing calls for one URL or tab, a crash mid-broadcast, lost answers, the allowlist before any request, redirects, Tab client and key rules against a localhost RFC 9474 issuer</td></tr>
-              <tr><td><code>x402z-mcp</code></td><td class="num">7</td><td>the real binary over stdio, incl. resume instead of a second payment</td></tr>
+              <tr><td><code>x402z-mcp</code></td><td class="num">8</td><td>the real binary over stdio, incl. resume instead of a second payment, and a wrong or missing approval secret approving nothing</td></tr>
               <tr><td><code>x402z-facilitator</code></td><td class="num">17</td><td>6 Halo2 transactions in-process, <b>3 live on Zcash testnet</b>, bearer auth, cached health</td></tr>
-              <tr><td><code>x402-zcash</code></td><td class="num">11</td><td>TypeScript; <b>2 against the real binaries and testnet</b>; paywall limits in-process</td></tr>
+              <tr><td><code>kage-x402</code></td><td class="num">19</td><td>TypeScript; <b>8 SDK tests against the real engine and testnet lightwalletd</b> (policy refusals, human approval, wallet sync), <b>2 against the real binaries and testnet</b>, 9 without a chain</td></tr>
             </tbody>
           </table></div>
         </section>
       </main>
     </div>
+    </div>
 
     <footer>
       <div class="in">
-        <span><b style="color: var(--ink); font-weight: 600">Kage</b> <span lang="ja">影</span>, "shadow" · MIT, Copyright (c) 2026 Nivesh Gajengi · Zcash testnet · not audited</span>
+        <span><b style="color: var(--on-dark); font-weight: 600">Kage</b> <span lang="ja">影</span>, "shadow" · MIT, Copyright (c) 2026 Nivesh Gajengi · Zcash testnet · not audited</span>
         <nav aria-label="Footer"><a href="https://github.com/nickthelegend/zec-shielded-x402">GitHub</a><a href="https://github.com/nickthelegend/zec-shielded-x402/blob/main/docs/spec-shielded-x402-agents.md">Spec</a><a href="https://github.com/nickthelegend/zec-shielded-x402/blob/main/TESTING.md">Testing</a><a href="#evidence">Evidence</a></nav>
       </div>
     </footer>
@@ -678,6 +714,9 @@ cd packages/x402-zcash &amp;&amp; npm test                             <span cla
         addEventListener('pointerdown', stop, { once: true });
         addEventListener('keydown', stop, { once: true });
       }
+
+      // Phones stack each table row; every cell carries its column name.
+      document.querySelectorAll('.tbl table').forEach(t => { const h = [...t.querySelectorAll('thead th')].map(th => th.textContent.trim()); t.querySelectorAll('tbody tr').forEach(tr => [...tr.cells].forEach((td, i) => { td.dataset.label = h[i] || ''; })); });
 
       // Copy buttons.
       document.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', () => {

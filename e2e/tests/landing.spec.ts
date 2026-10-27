@@ -122,16 +122,16 @@ test.describe('landing', () => {
       'cargo test -p x402z-agent',
       'cargo test -p x402z-mcp',
       'cargo test -p x402z-facilitator',
-      'cd packages/x402-zcash && npm test',
+      'cd packages/kage && npm run build && npm test',
     ]);
   });
 
-  test('quickstart test counts agree with the Tests table and the 139 headline', async ({ page }) => {
+  test('quickstart test counts agree with the Tests table and the 150 headline', async ({ page }) => {
     await page.goto(EVID);
     const table = Object.fromEntries(await page.locator('#tests tbody tr').evaluateAll(rows =>
       rows.map(r => [r.querySelector('code')!.textContent, Number(r.querySelector('.num')!.textContent)])));
     const total = Object.values(table).reduce((a, b) => a + b, 0);
-    expect(total).toBe(139);
+    expect(total).toBe(150);
     await expect(page.locator('.facts b').nth(1)).toHaveText(String(total));
     const qs = await page.locator('#qs').innerText();
     const nums = (crate: string) => (new RegExp(`-p ${crate}\\s+# ([\\d +]+)`).exec(qs)?.[1] || '').split('+').map(s => Number(s.trim()));
@@ -139,7 +139,7 @@ test.describe('landing', () => {
     expect(nums('x402z-agent')[0]).toBe(table['x402z-agent']);
     expect(nums('x402z-mcp')[0]).toBe(table['x402z-mcp']);
     expect(nums('x402z-facilitator')[0]).toBe(table['x402z-facilitator']);
-    expect(Number(/npm test\s+# (\d+)/.exec(qs)?.[1])).toBe(table['x402-zcash']);
+    expect(Number(/npm test\s+# (\d+)/.exec(qs)?.[1])).toBe(table['kage-x402']);
   });
 
   test('evidence CTAs and top links jump to their sections', async ({ page }, info) => {
@@ -225,13 +225,15 @@ test.describe('landing', () => {
       await expect(a).toHaveText(`${txid.slice(0, 8)}…${txid.slice(-4)} ↗`);
       await expect(rows.nth(i).locator('td.num').first()).toHaveText(Number(README_TXIDS[i].block).toLocaleString('en-US'));
     }
-    // Every other explorer link on the page is well-formed and names a txid from the table.
+    // Every other explorer link on the page is well-formed and names a txid from the table, or one of
+    // the two Oct 27 SDK payments the page names next to it.
     const all = await page.locator('a[href*="zecblock"]').evaluateAll(as => as.map(a => a.getAttribute('href')!));
     for (const h of all) {
       const m = /^https:\/\/testnet\.zecblock\.com\/tx\/([0-9a-f]{64})$/.exec(h);
       expect(m, h).not.toBeNull();
-      expect(README_TXIDS.map(t => t.txid)).toContain(m![1]);
+      expect([...README_TXIDS.map(t => t.txid), ...CHAT_TXIDS]).toContain(m![1]);
     }
+    for (const id of CHAT_TXIDS) await expect(page.locator(`#evidence a[href="${tx(id)}"]`)).toHaveCount(1);
     await page.screenshot({ path: test.info().outputPath('landing-evidence.png') });
   });
 
