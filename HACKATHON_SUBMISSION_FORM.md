@@ -7,13 +7,16 @@
 **Commit to submit:** the tip of `main` on GitHub (`git log origin/main -1`, which must equal the local `git log main -1`). Do not submit `1e232bb` or any earlier hash named in older notes.
 
 ## Form fields still open (Nick decides)
-- **Demo video, about 2 minutes: NICK RECORDS IT on the submitted commit. Do NOT submit `x402-demo-v2.mp4`:** it is 44 s, recorded Oct 20 before x402 v1, the UIVK-only facilitator, ZIP 321, MCP and Kage Tab, and shows the old `X-PAYMENT-RECEIPT` header. Suggested order, with captions and no text-edited output:
-  1. dashboard (admin port): Send request → 402 card with QR and ZIP 321 URI;
-  2. pay it from a small zingo-cli testnet wallet, paste the txid → `settlement_pending` → `paid`;
-  3. `X-PAYMENT` → `200` + `X-PAYMENT-RESPONSE` with `payer: ""`;
-  4. `tab-buy 5 --external` → 5 instant `tab-fetch` calls → a replayed token refused;
-  5. an MCP spendguard refusal, then the LLM-paid run (docs/mcp-paid-run.txt);
-  6. `check_uivk` with the published UIVK on the new txid.
+- **Demo video (2:43, ready; Nick uploads it and pastes the link):** the film is kept out of git
+  (`grokbot/videos/kage/kage-film-v4.mp4`, 1920x1080, Chatterbox narration, one-line captions, a LIVE or REPLAY
+  badge on every scene). It shows, in order: the live testnet server answering 402 with a zcash-shielded offer;
+  the merchant console issuing a challenge with a ZIP 321 QR and refusing a real payment made for a different
+  challenge; the console's Spendguard panel; a replay of the Oct 22 LLM run over MCP (paid_fetch, redeem,
+  a 3-token Kage Tab), one line per tool call; that payment on testnet.zecblock.com (fully shielded, fee only);
+  `check_uivk` opening it with the published UIVK; spendguard and MCP refusals over the daily cap; the evidence
+  page. **Not in it:** a payment made live on camera. Every paid step is a replay of a real testnet txid, badged
+  REPLAY. If Nick records one live paid call from his wallet, it goes in after the console scene.
+  Do NOT submit `x402-demo-v2.mp4`: it is 44 s and predates x402 v1.
 - **Working demo URL:** https://nickthelegend.github.io/zec-shielded-x402/ (GitHub Pages; `.github/workflows/pages.yml` publishes `landing/` on every push to `main`). It is **docs and recorded output, not a hosted paywall**; the page says so. A judge can run the whole stack locally with four commands (a cargo build, then `cd e2e && npm ci && npm run stack`, and `npm run test:e2e` in Google Chrome). Hosted now: the same page at https://kage-landing.vercel.app, and a live testnet 402 at https://kage-api.201-18-198-162.sslip.io/api/quote (facilitator health: https://kage-facilitator.201-18-198-162.sslip.io/health), on a small VPS behind TLS.
 
 ## Description (paste-ready, 1,810 of 2,000 characters)
