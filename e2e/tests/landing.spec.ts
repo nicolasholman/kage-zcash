@@ -7,18 +7,23 @@ const EVID = URL_ + 'evidence.html';
 const README = readFileSync(new URL('../../README.md', import.meta.url), 'utf8');
 // The ten verified txids, as the README's "Verified testnet runs" table lists them.
 const README_TXIDS = [...README.matchAll(/^\| \[`([0-9a-f]{64})`\]\(https:\/\/testnet\.zecblock\.com\/tx\/\1\) \| (\d+) \|/gm)].map(m => ({ txid: m[1], block: m[2] }));
+// The two payments examples/agent-chat made with the kage-x402 SDK on Oct 27 (to a merchant made with
+// `kage wallet new`, so the demo UIVK of the table above doesn't see them).
+const CHAT_TXIDS = ['401cad2c15c26dd26b2d3f17400318bbe73c39c35e04032037ed8ae33c1a77fa', '6c1229d115b82acbd0af4be834e6d5ba1c36703009758136713d0d50eb81d0d2'];
+const tx = (id: string) => `https://testnet.zecblock.com/tx/${id}`;
 
 test.describe('landing', () => {
-  test('loads under the Pages path: one headline, the recorded exchange, the proof numbers, no horizontal scroll', async ({ page }) => {
+  test('landing loads under the Pages path: the SDK headline, npm install with copy, npm and GitHub links, no horizontal scroll', async ({ page }) => {
     await page.goto(URL_);
     await expect(page).toHaveTitle(/Kage/);
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Agents pay per call. Nobody learns who paid.');
-    await expect(page.locator('.shadow li')).toHaveCount(5);
-    await expect(page.locator('.shadow li').last()).toContainText('"payer": ""');
-    await expect(page.locator('.facts b').first()).toHaveText(String(README_TXIDS.length));
-    expect(README_TXIDS).toHaveLength(10);
-    await expect(page.locator('a.more')).toHaveAttribute('href', 'evidence.html#evidence');
-    await expect(page.locator('a[href="https://kage-api.201-18-198-162.sslip.io/api/quote"]').first()).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Private payments for AI agents.');
+    await expect(page.locator('#npmi')).toHaveText('npm install kage-x402');
+    const copy = page.locator('button[data-copy="#npmi"]');
+    await copy.click();
+    await expect(copy).toHaveClass(/\bdone\b/);
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('npm install kage-x402');
+    await expect(page.locator('a[href="https://www.npmjs.com/package/kage-x402"]').first()).toBeVisible();
+    await expect(page.locator('.nav a[href="https://github.com/nickthelegend/zec-shielded-x402"]')).toBeVisible();
     await expectNoHorizontalScroll(page);
     await page.screenshot({ path: test.info().outputPath('landing-hero.png') });
     await page.goto(EVID);
@@ -137,16 +142,8 @@ test.describe('landing', () => {
     expect(Number(/npm test\s+# (\d+)/.exec(qs)?.[1])).toBe(table['x402-zcash']);
   });
 
-  test('hero CTAs and top links jump to their sections', async ({ page }, info) => {
-    await page.goto(URL_);
-    await page.getByRole('link', { name: /^Quickstart/ }).click();
-    await expect(page).toHaveURL(/evidence\.html#quickstart$/);
-    await expect(page.locator('#h-quick')).toBeInViewport();
-    await page.goto(URL_);
-    await expect(page.getByRole('link', { name: 'Try the live 402' })).toHaveAttribute('href', 'https://kage-api.201-18-198-162.sslip.io/api/quote');
-    await page.locator('a.more').click();
-    await expect(page).toHaveURL(/evidence\.html#evidence$/);
-    await expect(page.locator('#h-ev')).toBeInViewport();
+  test('evidence CTAs and top links jump to their sections', async ({ page }, info) => {
+    await page.goto(EVID);
     await page.getByRole('link', { name: 'Live testnet evidence' }).click();
     await expect(page.locator('#h-ev')).toBeInViewport();
     await page.getByRole('link', { name: /^Quickstart/ }).first().click();
@@ -267,5 +264,80 @@ test.describe('landing', () => {
     const live = page.locator('.install-note a[href*="kage-api"]');
     await expect(live).toHaveCount(1);
     await expect(live).toHaveAttribute('href', 'https://kage-api.201-18-198-162.sslip.io/api/quote');
+  });
+
+  test('landing quickstart: agent.ts / server.ts / keys.sh tabs, arrow keys, the file tree, copy the open file', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto(URL_);
+    await page.getByRole('link', { name: /^Read the quickstart/ }).click();
+    await expect(page).toHaveURL(/#quickstart$/);
+    await expect(page.locator('#h-quick')).toBeInViewport();
+    const tabs = page.getByRole('tab');
+    await expect(tabs).toHaveText([/agent\.ts/, /server\.ts/, /keys\.sh/]);
+    await expect(tabs.nth(0)).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('#pn-agent')).toContainText("dailyCap: '0.008 ZEC'");
+    await expect(page.locator('#pn-agent .out')).toContainText('tx 401cad2c…77fa');
+    await tabs.nth(1).click();
+    await expect(page.locator('#pn-server')).toBeVisible();
+    await expect(page.locator('#pn-agent')).toBeHidden();
+    await expect(page.locator('#pn-server')).toContainText("pay('0.001 ZEC')");
+    await page.keyboard.press('ArrowRight');
+    await expect(tabs.nth(2)).toHaveAttribute('aria-selected', 'true');
+    await expect(tabs.nth(2)).toBeFocused();
+    await expect(page.locator('#pn-keys')).toContainText('kage wallet new --role merchant');
+    await page.keyboard.press('ArrowRight'); // wraps to agent.ts
+    await expect(tabs.nth(0)).toHaveAttribute('aria-selected', 'true');
+    const copy = page.locator('button[data-copy-panel]');
+    await copy.click();
+    await expect(copy).toHaveClass(/\bdone\b/);
+    const code = (await page.evaluate(() => navigator.clipboard.readText())).split('\n');
+    expect(code).toHaveLength(13);
+    expect(code[0]).toBe("import { createKage } from 'kage-x402/agent';");
+    expect(code[12]).toBe("const res = await kage.fetch('https://api.example.com/v1/zec/price'); // 402 → policy → pay → 200");
+    await expectNoHorizontalScroll(page);
+    await page.locator('.editor').screenshot({ path: test.info().outputPath('landing-editor.png') });
+  });
+
+  test('landing reference: keys, policy, the seven error codes, facilitator endpoints, and a side nav that lands each one', async ({ page }) => {
+    await page.goto(URL_);
+    await expect(page.locator('#keys tbody tr')).toHaveCount(4);
+    await expect(page.locator('#policy tbody tr td:first-child code')).toHaveText(['dailyCap', 'allowedHosts', 'approvalThreshold', 'allowInsecureHttp']);
+    const codes = await page.locator('#errors tbody tr td:first-child').allInnerTexts();
+    expect(codes.map(c => c.replace(/\s+/g, ' ').trim())).toEqual(['CAP_EXCEEDED', 'HOST_NOT_ALLOWED', 'APPROVAL_REQUIRED / APPROVAL_DENIED', 'INSUFFICIENT_FUNDS', 'PAYMENT_REJECTED', 'SETTLEMENT_TIMEOUT', 'SETUP_REQUIRED']);
+    await expect(page.locator('#facilitator .ep-top code')).toHaveText(['/supported', '/verify', '/settle', '/health']);
+    const side = page.locator('.side a');
+    for (const id of ['keys', 'policy', 'errors', 'events', 'facilitator', 'production', 'more']) {
+      const link = side.and(page.locator(`[href="#${id}"]`));
+      await link.click();
+      await expect(page).toHaveURL(new RegExp(`#${id}$`));
+      await expect.poll(async () => page.evaluate(sec => {
+        const h = document.querySelector(`#${sec} h2`)!.getBoundingClientRect();
+        const bars = [document.querySelector('.nav')!, ...(innerWidth <= 860 ? [document.querySelector('.side')!] : [])];
+        return h.top >= Math.max(...bars.map(b => b.getBoundingClientRect().bottom)) - 1 && h.top < innerHeight;
+      }, id), { message: `#${id} heading not covered` }).toBe(true);
+      await expect(link).toHaveClass(/\bon\b/);
+    }
+    await expectNoHorizontalScroll(page);
+  });
+
+  test('landing "See it run": the two Oct 27 txids on the explorer, the unedited session, the hosted 402', async ({ page }) => {
+    await page.goto(URL_ + '#run');
+    await expect(page.locator('#h-run')).toBeInViewport();
+    for (const id of CHAT_TXIDS) await expect(page.locator(`a.tx[href="${tx(id)}"]`)).toContainText(id);
+    const term = page.locator('#run .term pre');
+    await expect(term).toContainText('paid 0.001 ZEC, shielded · tx 401cad2c…77fa');
+    await expect(term).toContainText('Approve 0.005 ZEC to 127.0.0.1:4300?');
+    await expect(term).toContainText("HOST_NOT_ALLOWED: spendguard refused the payment: host 'api.other-data.io' is not on the allowlist.");
+    await expect(term).toContainText('CAP_EXCEEDED: spendguard refused the payment: daily cap exceeded: spent 600000 + requested 500000 > cap 800000 zat.');
+    await expect(page.locator('#run a[href="https://kage-api.201-18-198-162.sslip.io/api/quote"]')).toHaveCount(1);
+    // Every explorer link on the landing is well-formed and names a real Kage payment.
+    for (const h of await page.locator('a[href*="zecblock"]').evaluateAll(as => as.map(a => a.getAttribute('href')!))) {
+      const m = /^https:\/\/testnet\.zecblock\.com\/tx\/([0-9a-f]{64})$/.exec(h);
+      expect(m, h).not.toBeNull();
+      expect(CHAT_TXIDS).toContain(m![1]);
+    }
+    await expect(page.locator('.nav').getByRole('link', { name: 'Spec' }).or(page.locator('footer a[href="evidence.html"]')).first()).toHaveAttribute('href', 'evidence.html');
+    await expectNoHorizontalScroll(page);
+    await page.locator('#run').screenshot({ path: test.info().outputPath('landing-run.png') });
   });
 });

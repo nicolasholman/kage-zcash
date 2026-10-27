@@ -3,304 +3,779 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Kage — shielded x402 for AI agents</title>
-    <meta name="description" content="Kage: AI agents pay for APIs with HTTP 402, settled in shielded Zcash testnet transactions. The merchant verifies with a viewing key alone and never learns who paid." />
+    <title>Kage — private payments for AI agents</title>
+    <meta name="description" content="Kage (npm kage-x402): AI agents pay HTTP 402s in shielded Zcash, inside a spend policy you write in code. Merchants verify each payment with an incoming viewing key that can't spend." />
     <meta name="theme-color" content="#0c0c0d" />
-    <link rel="preload" as="image" href="assets/hero.webp" type="image/webp" />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230c0c0d'/%3E%3Cpath d='M8 23V9M8 16l9-7M11.5 13.3L18 23' fill='none' stroke='%23f4b728' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='23.5' cy='20.5' r='2.5' fill='%23f4b728'/%3E%3C/svg%3E" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <style>
       :root {
-        --ink: #0c0c0d; --gold: #f4b728; --butter: #fdf3d3;
-        --paper: #ffffff; --rail: #fafaf7; --line: #ebe9e2; --line-2: #dcd9cf;
-        --muted: #5d5c55; --faint: #8b897f;
-        --code-bg: #0c0c0d; --code-line: #232326; --code-text: #e9e8e2; --code-dim: #8b897f; --code-num: #9fd4b0;
-        --ok: #1d7a45; --ok-bg: #e5f4ea;
+        --ink: #0c0c0d; --ink-2: #111113; --panel: #161618; --panel-2: #1c1c1f;
+        --hair: rgba(244, 242, 234, 0.08); --hair-2: rgba(244, 242, 234, 0.14);
+        --on-dark: #f4f2ea; --dim: #a19f96; --dimmer: #6f6d66;
+        --gold: #f4b728; --gold-2: #ffc94a; --butter: #fdf3d3;
+        --paper: #ffffff; --rail: #f7f6f1; --line: #e9e7df; --line-2: #d9d6cb;
+        --text: #0c0c0d; --body: #34332f; --muted: #5d5c55; --faint: #8b897f;
+        --ok: #1d7a45; --ok-bg: #e5f4ea; --bad: #b42318; --bad-bg: #fde8e6; --wait: #6b4e00;
+        --c-kw: #f4b728; --c-str: #9fd4b0; --c-cm: #75736b; --c-fn: #ffffff; --c-pn: #a19f96; --c-num: #f0b38a; --c-prop: #e9d9a6;
         --font: 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
         --mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+        --wrap: 1200px; --gut: 32px; --nav: 64px;
         color-scheme: light;
       }
       * { box-sizing: border-box; }
-      html { -webkit-text-size-adjust: 100%; }
-      body { margin: 0; background: var(--paper); color: var(--ink); font: 400 17px/1.6 var(--font); letter-spacing: -0.006em; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+      html { -webkit-text-size-adjust: 100%; scroll-padding-top: calc(var(--nav) + 16px); }
+      body { margin: 0; background: var(--ink); color: var(--text); font: 400 16px/1.6 var(--font); letter-spacing: -0.006em; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
       a { color: inherit; }
-      :focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 4px; }
-      h1, h2, h3, p { margin: 0; }
-      h1, h2, h3 { font-weight: 600; }
-      .wrap { max-width: 1200px; margin: 0 auto; padding: 0 32px; }
-      .mono { font-family: var(--mono); letter-spacing: 0; }
+      h1, h2, h3, h4, p { margin: 0; }
+      h1, h2, h3 { font-weight: 500; }
+      code, pre, kbd { font-family: var(--mono); letter-spacing: 0; }
+      :focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; border-radius: 6px; }
+      .wrap { max-width: var(--wrap); margin: 0 auto; padding: 0 var(--gut); }
+      .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+      .skip { position: absolute; left: 12px; top: -60px; z-index: 80; background: var(--gold); color: var(--ink); padding: 8px 12px; border-radius: 8px; text-decoration: none; font-weight: 500; }
+      .skip:focus { top: 10px; }
 
-      /* top bar */
-      .topbar .wrap { height: 72px; display: flex; align-items: center; gap: 16px; }
-      .mark { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 600; font-size: 18px; letter-spacing: -0.03em; }
+      /* announcement + nav */
+      .announce { background: var(--gold); color: var(--ink); font: 500 13px/1 var(--font); text-align: center; padding: 9px 16px; }
+      .announce a { text-decoration: none; display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }
+      .announce code { font-size: 12.5px; background: rgba(12, 12, 13, 0.1); border-radius: 5px; padding: 2px 6px; }
+      .announce b { font-weight: 600; }
+      .nav { position: sticky; top: 0; z-index: 60; height: var(--nav); background: rgba(12, 12, 13, 0.95); -webkit-backdrop-filter: saturate(1.3) blur(10px); backdrop-filter: saturate(1.3) blur(10px); border-bottom: 1px solid var(--hair); color: var(--on-dark); }
+      .nav .wrap { height: 100%; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; }
+      .mark { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 600; font-size: 18px; letter-spacing: -0.03em; justify-self: start; }
       .mark svg { width: 28px; height: 28px; flex: none; }
-      .mark small { font-weight: 400; color: var(--faint); font-size: 15px; }
-      .toplinks { margin-left: auto; display: flex; align-items: center; gap: 4px; }
-      .toplinks a { text-decoration: none; font-size: 15px; color: var(--muted); padding: 8px 12px; border-radius: 8px; white-space: nowrap; }
-      .toplinks a:hover { color: var(--ink); }
-      .toplinks a.gh { color: var(--ink); border: 1px solid var(--line-2); }
-      .toplinks a.gh:hover { border-color: var(--ink); }
+      .mark svg rect { stroke: var(--hair-2); }
+      .mark small { font-weight: 400; color: var(--dim); font-size: 15px; }
+      .links { display: flex; gap: 2px; }
+      .links a { text-decoration: none; font-size: 14.5px; color: var(--dim); padding: 8px 12px; border-radius: 8px; white-space: nowrap; }
+      .links a:hover { color: var(--on-dark); background: rgba(244, 242, 234, 0.06); }
+      .acts { justify-self: end; display: flex; gap: 8px; align-items: center; }
+      .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 999px; font: 500 14.5px/1 var(--font); text-decoration: none; border: 1px solid transparent; white-space: nowrap; transition: background 0.15s, border-color 0.15s, color 0.15s; cursor: pointer; }
+      .btn svg { width: 16px; height: 16px; flex: none; }
+      .btn-gold { background: var(--gold); color: var(--ink); }
+      .btn-gold:hover { background: var(--gold-2); }
+      .btn-ghost { color: var(--on-dark); border-color: var(--hair-2); }
+      .btn-ghost:hover { border-color: rgba(244, 242, 234, 0.4); }
+      .btn-lg { height: 48px; padding: 0 22px; font-size: 15.5px; }
 
-      /* hero */
-      .hero .wrap { padding-top: 72px; padding-bottom: 112px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 72px; align-items: center; }
-      .eyebrow { font: 500 13px/1 var(--mono); color: var(--muted); display: inline-flex; gap: 9px; align-items: center; }
-      .eyebrow i { width: 8px; height: 8px; border-radius: 2px; background: var(--gold); }
-      h1 { font-size: clamp(42px, 5.4vw, 72px); line-height: 1; letter-spacing: -0.05em; margin-top: 22px; }
-      h1 mark { background: linear-gradient(transparent 60%, var(--butter) 60%, var(--butter) 94%, transparent 94%); color: inherit; padding: 0 2px; }
-      .sub { font-size: 20px; line-height: 1.5; color: var(--muted); margin-top: 24px; max-width: 30em; }
-      .ctas { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 36px; }
-      .btn { display: inline-flex; align-items: center; gap: 8px; height: 48px; padding: 0 22px; border-radius: 10px; font: 500 16px/1 var(--font); text-decoration: none; border: 1px solid transparent; white-space: nowrap; transition: background 0.15s, border-color 0.15s; }
-      .btn svg { width: 16px; height: 16px; }
-      .btn-ink { background: var(--ink); color: #fff; }
-      .btn-ink:hover { background: #2a2a2d; }
-      .btn-line { border-color: var(--line-2); }
-      .btn-line:hover { border-color: var(--ink); }
+      /* hero: a framed column with hairline guides, centered type */
+      .hero { position: relative; color: var(--on-dark); overflow: hidden; isolation: isolate; }
+      .hero::before { content: ""; position: absolute; inset: 0; z-index: -2; background-image: linear-gradient(var(--hair) 1px, transparent 1px), linear-gradient(90deg, var(--hair) 1px, transparent 1px); background-size: 64px 64px; background-position: center -1px; -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 20%, #000 20%, transparent 75%); mask-image: radial-gradient(ellipse 70% 60% at 50% 20%, #000 20%, transparent 75%); opacity: 0.55; }
+      .hero::after { content: ""; position: absolute; left: 50%; top: 560px; width: 1100px; height: 520px; transform: translateX(-50%); z-index: -1; background: radial-gradient(ellipse at center, rgba(244, 183, 40, 0.22), rgba(244, 183, 40, 0.06) 45%, transparent 70%); pointer-events: none; }
+      .frame { max-width: var(--wrap); margin: 0 auto; padding: 0 var(--gut); position: relative; }
+      .frame::before, .frame::after { content: ""; position: absolute; top: 0; bottom: 0; width: 1px; background: var(--hair); }
+      .frame::before { left: var(--gut); } .frame::after { right: var(--gut); }
+      .hero-copy { text-align: center; padding: 92px 24px 56px; display: grid; justify-items: center; }
+      .badge { display: inline-flex; align-items: center; gap: 10px; height: 32px; padding: 0 6px 0 6px; border: 1px solid var(--hair-2); border-radius: 999px; font: 500 13px/1 var(--font); color: var(--dim); background: rgba(244, 242, 234, 0.03); text-decoration: none; max-width: 100%; }
+      .badge b { font: 500 11.5px/1 var(--mono); color: var(--ink); background: var(--gold); border-radius: 999px; padding: 5px 8px; letter-spacing: 0; }
+      .badge span { padding-right: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .hero h1 { text-shadow: 0 0 40px rgba(244, 183, 40, 0.12); margin-top: 26px; font-size: clamp(44px, 7.4vw, 88px); line-height: 0.98; letter-spacing: -0.045em; max-width: 13ch; }
+      .hero h1 em { font-style: normal; color: var(--gold); }
+      .lede { margin-top: 24px; font-size: 19px; line-height: 1.55; color: var(--dim); max-width: 36em; }
+      .lede b { color: var(--on-dark); font-weight: 500; }
+      .install { margin-top: 36px; display: inline-flex; align-items: center; gap: 4px; height: 52px; padding: 0 6px 0 18px; border-radius: 999px; background: var(--panel); border: 1px solid var(--hair-2); font: 500 15px/1 var(--mono); color: var(--on-dark); max-width: 100%; box-shadow: 0 0 0 6px rgba(244, 242, 234, 0.025); }
+      .install .ps { color: var(--gold); margin-right: 8px; user-select: none; }
+      .install code { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+      .copy { flex: none; display: inline-grid; place-items: center; width: 40px; height: 40px; margin-left: 10px; border-radius: 999px; border: 0; background: transparent; color: var(--dim); cursor: pointer; transition: background 0.15s, color 0.15s; }
+      .copy:hover { background: rgba(244, 242, 234, 0.08); color: var(--on-dark); }
+      .copy svg { width: 17px; height: 17px; }
+      .copy .ok { display: none; }
+      .copy.done .ok { display: block; color: var(--gold); }
+      .copy.done .cp { display: none; }
+      .ctas { margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+      .meta { margin-top: 30px; display: flex; flex-wrap: wrap; gap: 6px 18px; justify-content: center; font: 400 13px/1.4 var(--mono); color: var(--dimmer); }
+      .meta span { display: inline-flex; align-items: center; gap: 8px; }
+      .meta span + span::before { content: ""; width: 3px; height: 3px; border-radius: 50%; background: var(--dimmer); margin-right: 10px; }
 
-      /* centrepiece: the exchange, with the payment itself in shadow */
-      .shadow { margin: 0; background: var(--code-bg); color: var(--code-text); border-radius: 16px; padding: 34px 34px 26px; font: 15.5px/1.5 var(--mono); box-shadow: 0 40px 80px -48px rgba(12, 12, 13, 0.55); min-width: 0; }
-      .shadow ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 22px; }
-      .shadow li { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 14px; align-items: baseline; }
-      .shadow .c { color: var(--code-dim); }
-      .shadow .c.g { color: var(--gold); }
-      .shadow .c.ok { color: var(--code-num); }
-      .shadow .r { overflow-wrap: anywhere; }
-      .shadow .r small { display: block; color: var(--code-dim); font-size: 13px; margin-top: 3px; }
-      .veil { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 10px; font-size: 13px; color: var(--code-dim); }
-      .veil span { display: inline-flex; align-items: center; gap: 7px; }
-      .veil i { display: inline-block; height: 10px; border-radius: 2px; background: repeating-linear-gradient(135deg, #4a4a50 0 4px, #26262a 4px 8px); }
-      .payer { color: #fff; }
-      .payer b { color: var(--gold); font-weight: 500; }
-      .shadow figcaption { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--code-line); font-size: 12px; color: var(--code-dim); }
+      /* the editor: quickstart files as tabs, with a sidebar and an output panel */
+      .quick { padding: 0 0 96px; position: relative; }
+      .quick-head { display: flex; justify-content: space-between; align-items: end; gap: 16px; flex-wrap: wrap; padding: 0 24px 18px; }
+      .eyebrow { font: 500 12.5px/1 var(--mono); color: var(--gold); letter-spacing: 0.02em; text-transform: uppercase; }
+      .quick-head h2 { margin-top: 10px; font-size: 26px; letter-spacing: -0.03em; line-height: 1.15; color: var(--on-dark); }
+      .quick-head p { color: var(--dim); font-size: 15px; max-width: 32em; }
+      .editor { margin: 0 24px; border-radius: 16px; border: 1px solid var(--hair-2); border-top-color: rgba(244, 183, 40, 0.45); background: var(--ink-2); box-shadow: 0 -24px 80px -28px rgba(244, 183, 40, 0.45), 0 50px 120px -40px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(0, 0, 0, 0.4); overflow: hidden; display: grid; grid-template-columns: 208px minmax(0, 1fr); }
+      .tree { border-right: 1px solid var(--hair); padding: 14px 10px; background: var(--ink); min-width: 0; }
+      .dots { display: flex; gap: 7px; padding: 4px 8px 16px; }
+      .dots i { width: 11px; height: 11px; border-radius: 50%; background: #2a2a2e; }
+      .tree p { font: 500 11px/1 var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--dimmer); padding: 0 8px 10px; }
+      .tree button { display: flex; width: 100%; align-items: center; gap: 9px; border: 0; background: none; color: var(--dim); font: 400 13px/1 var(--mono); padding: 8px; border-radius: 7px; cursor: pointer; text-align: left; }
+      .tree button svg { width: 15px; height: 15px; flex: none; opacity: 0.7; }
+      .tree button:hover { color: var(--on-dark); background: rgba(244, 242, 234, 0.04); }
+      .tree button.on { color: var(--on-dark); background: rgba(244, 183, 40, 0.1); }
+      .tree button.on svg { color: var(--gold); opacity: 1; }
+      .tree .pkg { margin-top: 18px; border-top: 1px solid var(--hair); padding: 14px 8px 0; font: 400 12px/1.6 var(--mono); color: var(--dimmer); }
+      .tree .pkg b { color: var(--dim); font-weight: 400; }
+      .pane-wrap { min-width: 0; display: flex; flex-direction: column; }
+      .tabbar { display: flex; align-items: stretch; border-bottom: 1px solid var(--hair); background: var(--ink); min-width: 0; }
+      .tabs { display: flex; overflow-x: auto; scrollbar-width: none; min-width: 0; flex: 1; }
+      .tabs::-webkit-scrollbar { display: none; }
+      .tab { flex: none; display: inline-flex; align-items: center; gap: 8px; border: 0; border-right: 1px solid var(--hair); background: none; color: var(--dimmer); font: 500 13px/1 var(--mono); padding: 0 18px; height: 46px; cursor: pointer; position: relative; white-space: nowrap; }
+      .tab:hover { color: var(--dim); }
+      .tab[aria-selected="true"] { color: var(--on-dark); background: var(--ink-2); }
+      .tab[aria-selected="true"]::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: var(--gold); }
+      .tab .lang { font-size: 10.5px; color: var(--dimmer); border: 1px solid var(--hair-2); border-radius: 4px; padding: 3px 4px; }
+      .tab:focus-visible { outline-offset: -3px; }
+      .tabbar .copy { margin: 3px 4px 3px 0; }
+      .panel[hidden] { display: none; }
+      .code { margin: 0; padding: 20px 0 22px; overflow-x: auto; font: 13.5px/1.75 var(--mono); color: var(--on-dark); counter-reset: ln; tab-size: 2; }
+      .code code { display: block; min-width: max-content; }
+      .code .l { display: block; padding: 0 24px 0 0; white-space: pre; }
+      .code .l::before { counter-increment: ln; content: counter(ln); display: inline-block; width: 52px; padding-right: 20px; text-align: right; color: #3f3e3a; user-select: none; }
+      .code .l.hl { background: rgba(244, 183, 40, 0.07); box-shadow: inset 2px 0 0 var(--gold); }
+      .kw { color: var(--c-kw); } .st { color: var(--c-str); } .cm { color: var(--c-cm); } .fn { color: var(--c-fn); } .pn { color: var(--c-pn); } .nu { color: var(--c-num); } .pr { color: var(--c-prop); } .ps { color: var(--gold); }
+      .out { border-top: 1px solid var(--hair); background: var(--ink); padding: 14px 20px 16px; min-width: 0; }
+      .out-head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font: 500 11.5px/1.3 var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--dimmer); }
+      .out-head a { color: var(--dim); text-transform: none; letter-spacing: 0; text-decoration: none; border-bottom: 1px solid var(--hair-2); }
+      .out-head a:hover { color: var(--on-dark); }
+      .out pre { margin: 10px 0 0; font: 12.5px/1.75 var(--mono); color: var(--dim); white-space: pre-wrap; overflow-wrap: anywhere; }
+      .out .g { color: var(--c-str); } .out .y { color: var(--gold); } .out .w { color: var(--on-dark); }
+      .out p { margin-top: 10px; color: var(--dim); font-size: 14px; line-height: 1.55; max-width: 62em; }
+      .out p code { color: var(--on-dark); font-size: 12.5px; }
 
-      /* below the fold */
-      section.band { padding: 112px 0; }
-      section.band + section.band { padding-top: 0; }
-      .band h2 { font-size: clamp(30px, 3.4vw, 44px); letter-spacing: -0.04em; line-height: 1.08; max-width: 18em; }
-      .band .lede { font-size: 18px; color: var(--muted); margin-top: 14px; max-width: 36em; }
-      .steps { list-style: none; margin: 56px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 48px; counter-reset: s; }
-      .steps li { counter-increment: s; border-top: 2px solid var(--ink); padding-top: 22px; }
-      .steps li::before { content: "0" counter(s); font: 500 13px/1 var(--mono); color: var(--faint); }
-      .steps h3 { font-size: 22px; letter-spacing: -0.03em; margin-top: 14px; }
-      .steps p { color: var(--muted); margin-top: 8px; }
+      /* how it works: four dark cards, each with a small piece of the real thing */
+      .how { color: var(--on-dark); padding: 24px 0 120px; }
+      .sec-head { max-width: 760px; }
+      .sec-head h2 { margin-top: 14px; font-size: clamp(32px, 4.2vw, 52px); line-height: 1.04; letter-spacing: -0.04em; }
+      .sec-head p { margin-top: 16px; font-size: 18px; color: var(--dim); max-width: 34em; }
+      .cards { margin-top: 56px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+      .card { background: var(--panel); border: 1px solid var(--hair); border-radius: 20px; padding: 28px; min-width: 0; display: flex; flex-direction: column; gap: 22px; }
+      .card h3 { font-size: 21px; letter-spacing: -0.025em; line-height: 1.25; }
+      .card p { margin-top: 8px; color: var(--dim); font-size: 15px; line-height: 1.55; }
+      .card p code { color: var(--on-dark); font-size: 13px; }
+      .mini { margin-top: auto; background: var(--ink); border: 1px solid var(--hair); border-radius: 14px; padding: 16px; font: 12.5px/1.6 var(--mono); color: var(--dim); min-width: 0; overflow-wrap: anywhere; }
+      .mini .row { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px dashed var(--hair); }
+      .mini .row:last-child { border-bottom: 0; }
+      .mini .row b { font-weight: 500; color: var(--on-dark); }
+      .tag { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; font: 500 11.5px/1 var(--mono); white-space: nowrap; flex: none; }
+      .t-ok { background: rgba(159, 212, 176, 0.12); color: var(--c-str); }
+      .t-ask { background: rgba(244, 183, 40, 0.14); color: var(--gold); }
+      .t-no { background: rgba(255, 140, 128, 0.12); color: #ff9b93; }
+      .veil { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 9px 14px; align-items: center; }
+      .veil i { display: block; height: 10px; border-radius: 3px; background: repeating-linear-gradient(135deg, #3a3a3f 0 4px, #222225 4px 8px); }
+      .veil span { color: var(--dimmer); }
+      .mini .txl { color: var(--on-dark); text-decoration: none; border-bottom: 1px solid var(--hair-2); }
+      .mini .txl:hover { border-bottom-color: var(--gold); }
+      .mini .pr { color: var(--c-prop); }
 
-      .facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 48px; margin-top: 56px; }
-      .facts b { display: block; font: 600 clamp(64px, 8vw, 112px)/0.95 var(--font); letter-spacing: -0.06em; font-variant-numeric: tabular-nums; }
-      .facts span { display: block; margin-top: 12px; font: 500 14px/1 var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
-      .more { display: inline-flex; gap: 8px; align-items: center; margin-top: 48px; font-weight: 500; text-decoration: none; border-bottom: 2px solid var(--gold); padding-bottom: 2px; }
+      /* docs: light, a sticky side nav and reference content */
+      .docs-band { background: var(--paper); color: var(--text); border-radius: 28px 28px 0 0; }
+      .docs { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 64px; padding-top: 24px; padding-bottom: 112px; }
+      .side { position: sticky; top: var(--nav); align-self: start; max-height: calc(100vh - var(--nav)); overflow: auto; padding: 56px 0 24px; }
+      .side p { font: 500 11.5px/1 var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--faint); margin: 24px 0 8px 12px; }
+      .side p:first-child { margin-top: 0; }
+      .side a { display: block; text-decoration: none; font-size: 14.5px; color: var(--muted); padding: 6px 12px; border-radius: 8px; }
+      .side a:hover { color: var(--ink); background: var(--rail); }
+      .side a.on { color: var(--ink); background: var(--rail); font-weight: 500; box-shadow: inset 2px 0 0 var(--gold); }
+      .doc { padding: 56px 0 8px; min-width: 0; max-width: 860px; }
+      .doc + .doc { border-top: 1px solid var(--line); margin-top: 48px; }
+      .crumb { font: 500 12.5px/1 var(--mono); color: var(--faint); }
+      .doc h2 { margin-top: 12px; font-size: clamp(28px, 3.2vw, 38px); line-height: 1.1; letter-spacing: -0.035em; }
+      .doc h2 a { text-decoration: none; color: var(--line-2); margin-left: 10px; font-weight: 400; font-size: 0.7em; vertical-align: middle; }
+      .doc h2 a:hover { color: var(--faint); }
+      .doc > p { margin-top: 14px; color: var(--body); font-size: 16.5px; max-width: 44em; }
+      .doc p code, .doc td code, .doc li code { font-size: 0.84em; background: var(--rail); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; overflow-wrap: anywhere; }
+      .tbl { margin-top: 22px; border: 1px solid var(--line); border-radius: 14px; overflow-x: auto; }
+      table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+      th { text-align: left; font: 500 12px/1.2 var(--mono); color: var(--muted); background: var(--rail); padding: 11px 16px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+      td { padding: 13px 16px; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.5; color: var(--body); }
+      tr:last-child td { border-bottom: 0; }
+      td:first-child { color: var(--ink); }
+      .pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px; border-radius: 999px; font: 500 12px/1 var(--mono); white-space: nowrap; }
+      .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+      .p-ok { background: var(--ok-bg); color: var(--ok); }
+      .p-bad { background: var(--bad-bg); color: var(--bad); }
+      .p-wait { background: var(--butter); color: var(--wait); }
+      .lightcode { margin-top: 22px; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--ink-2); }
+      .lightcode .bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; height: 44px; padding: 0 6px 0 16px; border-bottom: 1px solid var(--hair); font: 500 12.5px/1 var(--mono); color: var(--dim); background: var(--ink); }
+      .lightcode .code { padding: 16px 0 18px; font-size: 13px; }
+      .note { margin-top: 18px; display: flex; gap: 12px; align-items: flex-start; background: var(--butter); border-radius: 12px; padding: 14px 16px; font-size: 15px; line-height: 1.55; color: #3b3220; }
+      .note b { color: var(--ink); font-weight: 600; }
+      .note svg { width: 18px; height: 18px; flex: none; margin-top: 2px; color: var(--wait); }
+      .eps { margin-top: 22px; display: grid; gap: 10px; }
+      .ep { border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; background: #fcfcfa; }
+      .ep-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+      .ep-top code { font: 500 14.5px/1 var(--mono); }
+      .ep-top .auth { margin-left: auto; font: 12.5px/1 var(--mono); color: var(--faint); }
+      .verb { font: 600 11.5px/1 var(--mono); padding: 5px 8px; border-radius: 6px; letter-spacing: 0.02em; }
+      .v-get { background: var(--ok-bg); color: var(--ok); }
+      .v-post { background: var(--butter); color: var(--wait); }
+      .ep p { margin-top: 8px; color: var(--muted); font-size: 14.5px; line-height: 1.55; }
+      .chips { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 8px; }
+      .chips code { font: 500 13px/1 var(--mono); background: var(--rail); border: 1px solid var(--line); border-radius: 999px; padding: 8px 12px; }
+      .checklist { margin: 18px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+      .checklist li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; color: var(--body); }
+      .checklist li::before { content: ""; width: 16px; height: 16px; margin-top: 4px; border-radius: 5px; border: 1.5px solid var(--line-2); background: var(--paper) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8.5l2.5 2.5L12 5.5' fill='none' stroke='%230c0c0d' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 12px no-repeat; }
+      .more { margin-top: 22px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+      .more a { display: block; text-decoration: none; border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; transition: border-color 0.15s, background 0.15s; }
+      .more a:hover { border-color: var(--ink); }
+      .more b { display: flex; justify-content: space-between; gap: 8px; font-weight: 500; letter-spacing: -0.01em; }
+      .more span { display: block; margin-top: 6px; color: var(--muted); font-size: 14px; line-height: 1.5; }
 
-      .strip { margin-top: 48px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); border-top: 1px solid var(--line); }
-      .strip div { padding: 22px 32px 0 0; }
-      .strip h3 { font: 500 13px/1 var(--mono); text-transform: uppercase; letter-spacing: 0.06em; display: flex; align-items: center; gap: 8px; }
-      .strip h3::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
-      .strip .setup h3::before { background: var(--gold); }
-      .strip p { margin-top: 12px; color: var(--muted); }
-      .strip a { color: var(--ink); text-underline-offset: 3px; }
+      /* see it run: dark, the two Oct 27 payments and the unedited session */
+      .run { background: var(--ink); color: var(--on-dark); padding: 112px 0; }
+      .run-grid { margin-top: 56px; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 16px; align-items: start; }
+      .txs { display: grid; gap: 16px; }
+      .tx { display: block; text-decoration: none; background: var(--panel); border: 1px solid var(--hair); border-radius: 20px; padding: 24px; transition: border-color 0.15s; min-width: 0; }
+      .tx:hover { border-color: rgba(244, 183, 40, 0.5); }
+      .tx-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; font: 500 12.5px/1 var(--mono); color: var(--dim); }
+      .amt { margin-top: 22px; font-size: 44px; line-height: 1; letter-spacing: -0.04em; font-weight: 500; font-variant-numeric: tabular-nums; }
+      .amt .z { color: #4a4945; }
+      .amt small { font: 500 15px/1 var(--mono); color: var(--dim); letter-spacing: 0; margin-left: 6px; }
+      .tx h3 { margin-top: 12px; font-size: 17px; letter-spacing: -0.015em; }
+      .tx .id { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--hair); font: 12px/1.55 var(--mono); color: var(--dim); overflow-wrap: anywhere; display: flex; justify-content: space-between; gap: 12px; align-items: end; }
+      .tx .id span { min-width: 0; }
+      .tx .id b { color: var(--gold); font-weight: 500; white-space: nowrap; }
+      .live { background: var(--panel); border: 1px solid var(--hair); border-radius: 20px; padding: 20px 24px; font-size: 14.5px; color: var(--dim); line-height: 1.55; }
+      .live b { color: var(--on-dark); font-weight: 500; }
+      .live a { color: var(--on-dark); text-underline-offset: 3px; text-decoration-color: var(--hair-2); overflow-wrap: anywhere; }
+      .term { background: var(--ink-2); border: 1px solid var(--hair-2); border-radius: 20px; overflow: hidden; min-width: 0; }
+      .term .bar { display: flex; justify-content: space-between; gap: 12px; align-items: center; height: 46px; padding: 0 18px; border-bottom: 1px solid var(--hair); font: 500 12.5px/1 var(--mono); color: var(--dim); background: var(--ink); }
+      .term .bar .dots { padding: 0; }
+      .term pre { margin: 0; padding: 18px 20px 22px; max-height: 620px; overflow: auto; font: 12.5px/1.7 var(--mono); color: var(--dim); white-space: pre-wrap; overflow-wrap: anywhere; overscroll-behavior: contain; }
+      .term .you { color: var(--on-dark); }
+      .term .you::before { content: ""; display: block; height: 10px; }
+      .term .ag { color: var(--on-dark); }
+      .term .ag b { color: var(--gold); font-weight: 500; }
+      .term .ok { color: var(--c-str); }
+      .term .no { color: #ff9b93; }
+      .term .y { color: var(--gold); }
+      .term .lk { color: var(--dim); }
+      .term-foot { padding: 12px 20px; border-top: 1px solid var(--hair); font: 12px/1.5 var(--mono); color: var(--dimmer); }
 
-      .end { background: var(--rail); border-top: 1px solid var(--line); }
-      .end .wrap { padding-top: 112px; padding-bottom: 112px; }
-      .install { margin-top: 32px; display: flex; align-items: center; gap: 12px; max-width: 640px; border: 1px solid var(--line-2); background: var(--paper); border-radius: 10px; padding: 12px 14px; font: 14px/1.4 var(--mono); }
-      .install span { color: var(--faint); user-select: none; }
-      .install code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
-      .install code::-webkit-scrollbar { display: none; }
-      .copy { font: 500 13px/1 var(--font); border: 1px solid var(--line-2); background: var(--paper); border-radius: 7px; padding: 7px 10px; cursor: pointer; color: var(--muted); flex: none; }
-      .copy:hover { color: var(--ink); border-color: var(--ink); }
-      footer .wrap { padding-top: 28px; padding-bottom: 32px; display: flex; flex-wrap: wrap; gap: 10px 24px; justify-content: space-between; font-size: 14px; color: var(--muted); }
-      footer nav { display: flex; flex-wrap: wrap; gap: 18px; }
+      /* closing CTA + footer */
+      .end { background: var(--ink); color: var(--on-dark); padding: 0 0 112px; }
+      .end-card { position: relative; overflow: hidden; isolation: isolate; border-radius: 28px; border: 1px solid var(--hair); background: var(--panel); padding: 72px 32px; text-align: center; display: grid; justify-items: center; }
+      .end-card::before { content: ""; position: absolute; inset: auto 0 -60% 0; height: 120%; z-index: -1; background: radial-gradient(ellipse at 50% 100%, rgba(244, 183, 40, 0.25), transparent 60%); }
+      .end-card h2 { font-size: clamp(32px, 4.6vw, 56px); line-height: 1.04; letter-spacing: -0.04em; max-width: 16ch; }
+      .end-card p { margin-top: 16px; color: var(--dim); font-size: 18px; max-width: 32em; }
+      footer { background: var(--ink); color: var(--dim); border-top: 1px solid var(--hair); }
+      footer .wrap { padding-top: 48px; padding-bottom: 48px; display: grid; grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr)); gap: 32px; }
+      footer h4 { font: 500 12px/1 var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--dimmer); margin-bottom: 14px; }
+      footer ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; font-size: 14.5px; }
       footer a { text-decoration: none; }
-      footer a:hover { color: var(--ink); }
+      footer a:hover { color: var(--on-dark); }
+      footer .about { font-size: 14px; line-height: 1.6; max-width: 30em; }
+      footer .about .mark { color: var(--on-dark); margin-bottom: 14px; }
+      .legal { border-top: 1px solid var(--hair); }
+      .legal .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; padding-top: 18px; padding-bottom: 24px; font: 12.5px/1.5 var(--mono); color: var(--dimmer); }
 
-
-      /* cinematic hero: a lit gold coin whose shadow becomes the request trace (generated art, assets/hero.*) */
-      .topbar { position: absolute; inset: 0 0 auto; z-index: 3; color: #f4f2ea; }
-      .topbar .mark small { color: rgba(244, 242, 234, 0.55); }
-      .topbar .toplinks a { color: rgba(244, 242, 234, 0.72); }
-      .topbar .toplinks a:hover { color: #fff; }
-      .topbar .toplinks a.gh { color: #fff; border-color: rgba(244, 242, 234, 0.28); }
-      .topbar .toplinks a.gh:hover { border-color: var(--gold); }
-      .hero { position: relative; isolation: isolate; overflow: hidden; background: var(--ink); color: #f4f2ea; min-height: min(100svh, 940px); display: flex; align-items: center; }
-      .hero > .wrap { width: 100%; padding-top: 136px; padding-bottom: 96px; grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); align-items: end; }
-      .stage { position: absolute; inset: 0; z-index: -1; }
-      .stage img, .stage video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 72% 50%; }
-      .stage::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, #0c0c0d 0%, rgba(12, 12, 13, 0.9) 30%, rgba(12, 12, 13, 0.35) 58%, rgba(12, 12, 13, 0) 78%), linear-gradient(0deg, #0c0c0d 0%, rgba(12, 12, 13, 0) 34%); }
-      .hero .eyebrow { color: rgba(244, 242, 234, 0.6); }
-      .hero h1 { color: #fff; }
-      .hero h1 mark { background: linear-gradient(transparent 62%, rgba(244, 183, 40, 0.42) 62%, rgba(244, 183, 40, 0.42) 94%, transparent 94%); }
-      .hero .sub { color: rgba(244, 242, 234, 0.72); }
-      .hero .btn-ink { background: var(--gold); color: var(--ink); }
-      .hero .btn-ink:hover { background: #ffc94a; }
-      .hero .btn-line { color: #fff; border-color: rgba(244, 242, 234, 0.3); }
-      .hero .btn-line:hover { border-color: var(--gold); }
-      .hero :focus-visible { outline-color: var(--gold); }
-      .hero .shadow { margin-top: 240px; background: rgba(12, 12, 13, 0.62); -webkit-backdrop-filter: blur(18px) saturate(1.2); backdrop-filter: blur(18px) saturate(1.2); border: 1px solid rgba(244, 242, 234, 0.1); box-shadow: 0 40px 120px -40px rgba(0, 0, 0, 0.9); }
-      @media (prefers-reduced-motion: no-preference) {
-        .stage img, .stage video { animation: kage-settle 2.4s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-        @keyframes kage-settle { from { transform: scale(1.06); opacity: 0; } to { transform: none; opacity: 1; } }
+      @media (max-width: 1040px) {
+        .links { display: none; }
+        .nav .wrap { grid-template-columns: 1fr auto; }
+        .editor { grid-template-columns: minmax(0, 1fr); }
+        .tree { display: none; }
+        .run-grid { grid-template-columns: minmax(0, 1fr); }
+        .txs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .txs .live { grid-column: 1 / -1; }
       }
-      @media (max-width: 980px) {
-        .hero { min-height: 0; display: block; }
-        .hero > .wrap { padding-top: 112px; padding-bottom: 72px; align-items: start; }
-        .stage { bottom: auto; height: min(78vw, 620px); }
-        .stage img, .stage video { object-position: 78% 50%; }
-        .stage::after { background: linear-gradient(90deg, rgba(12, 12, 13, 0.92) 0%, rgba(12, 12, 13, 0.4) 70%, rgba(12, 12, 13, 0.2) 100%), linear-gradient(0deg, #0c0c0d 0%, rgba(12, 12, 13, 0) 45%); }
-        .hero .shadow { margin-top: 8px; }
-      }
-      @media (max-width: 980px) {
-        .hero .wrap { grid-template-columns: minmax(0, 1fr); gap: 40px; padding-top: 112px; padding-bottom: 72px; }
-        .steps { grid-template-columns: minmax(0, 1fr); gap: 32px; }
+      @media (max-width: 860px) {
+        html { scroll-padding-top: calc(var(--nav) + 72px); }
+        .cards { grid-template-columns: minmax(0, 1fr); }
+        .docs { grid-template-columns: minmax(0, 1fr); gap: 0; padding-top: 0; }
+        .side { position: sticky; top: var(--nav); z-index: 30; max-height: none; overflow: visible; padding: 0; margin: 0 calc(-1 * var(--gut)); background: rgba(255, 255, 255, 0.95); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; padding: 10px var(--gut); border-radius: 28px 28px 0 0; }
+        .side::-webkit-scrollbar { display: none; }
+        .side p { display: none; }
+        .side a { flex: none; white-space: nowrap; font-size: 14px; padding: 7px 12px; border-radius: 999px; }
+        .side a.on { box-shadow: none; background: var(--ink); color: var(--paper); }
+        .doc { padding-top: 40px; }
+        .more { grid-template-columns: minmax(0, 1fr); }
+        footer .wrap { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        footer .about { grid-column: 1 / -1; }
       }
       @media (max-width: 640px) {
-        .wrap { padding: 0 16px; }
-        .topbar .wrap { height: 60px; }
-        .toplinks a.hide-sm { display: none; }
-        .sub { font-size: 18px; }
-        .btn { flex: 1 1 auto; justify-content: center; }
-        .shadow { padding: 20px 16px 16px; font-size: 13px; border-radius: 12px; }
-        .shadow li { grid-template-columns: 40px minmax(0, 1fr); gap: 10px; }
-        section.band { padding: 80px 0; }
-        .facts { gap: 16px; }
-        .facts b { font-size: 48px; }
-        .facts span { font-size: 12px; }
-        .strip { grid-template-columns: minmax(0, 1fr); }
-        .strip div { padding-right: 0; }
-        .end .wrap { padding-top: 80px; padding-bottom: 80px; }
+        :root { --gut: 16px; --nav: 58px; }
+        .frame::before, .frame::after { display: none; }
+        .hero-copy { padding: 64px 0 40px; }
+        .hero h1 { font-size: 44px; letter-spacing: -0.04em; }
+        .lede { font-size: 17px; }
+        .install { width: 100%; padding-left: 14px; font-size: 14px; }
+        .install code { flex: 1; text-align: left; }
+        .ctas { width: 100%; }
+        .ctas .btn { flex: 1 1 140px; }
+        .acts .btn-ghost .lbl { display: none; }
+        .acts .btn-ghost { width: 40px; padding: 0; }
+        .acts .btn { height: 38px; }
+        .quick-head, .editor { margin-left: 0; margin-right: 0; }
+        .quick-head { padding: 0 0 16px; }
+        .editor { border-radius: 14px; }
+        .tab { padding: 0 14px; }
+        .tab .lang { display: none; }
+        .code { font-size: 12.5px; }
+        .code .l::before { width: 36px; padding-right: 12px; }
+        .card { padding: 22px 18px; border-radius: 18px; }
+        .how { padding-bottom: 88px; }
+        .docs-band { border-radius: 20px 20px 0 0; }
+        .side { border-radius: 20px 20px 0 0; }
+        th, td { padding: 11px 12px; }
+        .run { padding: 88px 0; }
+        .txs { grid-template-columns: minmax(0, 1fr); }
+        .amt { font-size: 38px; }
+        .term pre { padding: 16px 14px 18px; font-size: 12px; max-height: 520px; }
+        .end-card { padding: 56px 18px; border-radius: 20px; }
+        footer .wrap { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .announce { font-size: 12.5px; }
+        .announce code { display: none; }
+        .meta { gap: 6px 14px; }
+        .meta span + span::before { display: none; }
+        table { font-size: 14px; }
+        .tbl { overflow: visible; }
+        .stack thead { display: none; }
+        .stack tr { display: block; padding: 8px 0; border-bottom: 1px solid var(--line); }
+        .stack tr:last-child { border-bottom: 0; }
+        .stack td { display: block; position: relative; border: 0; padding: 6px 14px 6px 112px; min-height: 34px; }
+        .stack td::before { content: attr(data-label); position: absolute; left: 14px; top: 9px; width: 90px; font: 500 11px/1.4 var(--mono); color: var(--faint); }
       }
-      /* the one animation: the exchange plays in once */
-            /* motion: a slow camera drift and one soft light sweep across the art (off with reduced motion) */
-      .stage::before { content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none; mix-blend-mode: screen; background: linear-gradient(105deg, transparent 38%, rgba(255, 214, 120, 0.22) 50%, transparent 62%) no-repeat; background-size: 260% 100%; background-position: 150% 0; }
-      @media (prefers-reduced-motion: no-preference) { .stage { animation: kg-drift 24s ease-in-out infinite alternate; } .stage::before { animation: kg-sweep 9s cubic-bezier(0.45, 0, 0.25, 1) 2.6s infinite; } @keyframes kg-drift { from { transform: scale(1) translate3d(0, 0, 0); } to { transform: scale(1.05) translate3d(-1.2%, -0.8%, 0); } } @keyframes kg-sweep { 0% { background-position: 150% 0; } 55%, 100% { background-position: -50% 0; } } }
-@media (prefers-reduced-motion: reduce) {
+      @media (prefers-reduced-motion: reduce) {
         html { scroll-behavior: auto; }
         *, *::before, *::after { transition: none !important; animation: none !important; }
       }
       @media (prefers-reduced-motion: no-preference) {
-        .js .shadow li { opacity: 0; transform: translateY(4px); transition: opacity 0.4s ease-out, transform 0.4s ease-out; }
-        .js .shadow li.in { opacity: 1; transform: none; }
+        html { scroll-behavior: smooth; }
+        .js .rise { opacity: 0; transform: translateY(10px); transition: opacity 0.6s ease-out, transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1); }
+        .js .rise.in { opacity: 1; transform: none; }
       }
     </style>
   </head>
   <body>
     <script>document.documentElement.classList.add('js');</script>
-    <header class="topbar">
+    <a class="skip" href="#docs">Skip to the docs</a>
+    <div class="announce"><a href="https://www.npmjs.com/package/kage-x402"><b>kage-x402 0.1.1</b> is on npm <code>npm install kage-x402</code> <span aria-hidden="true">→</span></a></div>
+
+    <header class="nav">
       <div class="wrap">
         <a class="mark" href="#top" aria-label="Kage home">
-          <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#0c0c0d" /><path d="M8 23V9M8 16l9-7M11.5 13.3L18 23" fill="none" stroke="#f4b728" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /><circle cx="23.5" cy="20.5" r="2.5" fill="#f4b728" /></svg>
+          <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="0.5" y="0.5" width="31" height="31" rx="7" fill="#0c0c0d" /><path d="M8 23V9M8 16l9-7M11.5 13.3L18 23" fill="none" stroke="#f4b728" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /><circle cx="23.5" cy="20.5" r="2.5" fill="#f4b728" /></svg>
           Kage <small lang="ja">影</small>
         </a>
-        <nav class="toplinks" aria-label="Main">
-          <a class="hide-sm" href="evidence.html">Spec</a>
-          <a class="gh" href="https://github.com/nickthelegend/zec-shielded-x402">GitHub</a>
+        <nav class="links" aria-label="Main">
+          <a href="#quickstart">Quickstart</a>
+          <a href="#keys">Keys</a>
+          <a href="#policy">Policy</a>
+          <a href="#errors">Errors</a>
+          <a href="#run">See it run</a>
+          <a href="evidence.html">Spec</a>
         </nav>
+        <div class="acts">
+          <a class="btn btn-ghost" href="https://github.com/nickthelegend/zec-shielded-x402" aria-label="GitHub"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.56-.29-5.25-1.28-5.25-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.41-2.7 5.38-5.26 5.67.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5z"/></svg><span class="lbl">GitHub</span></a>
+          <a class="btn btn-gold" href="https://www.npmjs.com/package/kage-x402">npm</a>
+        </div>
       </div>
     </header>
 
     <main>
       <section class="hero" id="top" aria-labelledby="h1">
-        <div class="stage" aria-hidden="true"><img src="assets/hero.webp" alt="" width="1600" height="900" fetchpriority="high" decoding="async" /></div>
-        <div class="wrap">
-          <div>
-            <span class="eyebrow"><i></i>x402 v1 · zcash-testnet</span>
-            <h1 id="h1">Agents pay per call. Nobody learns <mark>who paid</mark>.</h1>
-            <p class="sub">HTTP 402 settled in shielded Zcash: spendguard checks each payment, the merchant verifies with a viewing key alone.</p>
-            <div class="ctas">
-              <a class="btn btn-ink" href="evidence.html#quickstart">Quickstart <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg></a>
-              <a class="btn btn-line" href="https://kage-api.201-18-198-162.sslip.io/api/quote">Try the live 402</a>
+        <div class="frame">
+          <div class="hero-copy">
+            <a class="badge" href="#run"><b>x402</b><span>Paid on Zcash testnet by an LLM agent, Oct 27</span></a>
+            <h1 id="h1">Private payments for <em>AI agents</em>.</h1>
+            <p class="lede">Your agent pays for APIs in <b>shielded Zcash</b>, inside a <b>spend policy you write in code</b>. Merchants check each payment with a viewing key that can't spend a coin. Nobody on chain learns who paid whom, or how much.</p>
+            <div class="install" role="group" aria-label="Install command">
+              <span class="ps" aria-hidden="true">$</span><code id="npmi">npm install kage-x402</code>
+              <button class="copy" type="button" data-copy="#npmi" aria-label="Copy the install command"><svg class="cp" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2.5" /><path d="M16 8V6.5A2.5 2.5 0 0 0 13.5 4h-7A2.5 2.5 0 0 0 4 6.5v7A2.5 2.5 0 0 0 6.5 16H8" /></svg><svg class="ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg></button>
             </div>
+            <div class="ctas">
+              <a class="btn btn-gold btn-lg" href="#quickstart">Read the quickstart <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg></a>
+              <a class="btn btn-ghost btn-lg" href="https://github.com/nickthelegend/zec-shielded-x402">View on GitHub</a>
+            </div>
+            <p class="meta"><span>TypeScript SDK</span><span>Rust engine</span><span>x402 v1 wire format</span><span>MIT</span></p>
           </div>
 
-          <figure class="shadow" aria-label="One recorded x402 exchange on Zcash testnet">
-            <ol>
-              <li><span class="c">GET</span><span class="r">/api/quote</span></li>
-              <li><span class="c g">402</span><span class="r">Payment Required<small>scheme zcash-shielded · 0.001 ZEC · one-time nonce</small></span></li>
-              <li><span class="c g">pay</span><span class="r">shielded transaction, nonce in the encrypted memo
-                <span class="veil" aria-label="On the public chain the amount, memo, sender and receiver are hidden"><span>amount <i style="width: 34px"></i></span><span>memo <i style="width: 46px"></i></span><span>from <i style="width: 28px"></i></span><span>to <i style="width: 28px"></i></span></span></span></li>
-              <li><span class="c">GET</span><span class="r">/api/quote + X-PAYMENT</span></li>
-              <li><span class="c ok">200</span><span class="r payer">OK · <b>"payer": ""</b></span></li>
-            </ol>
-            <figcaption>Recorded on Zcash testnet, 2026-10-21. Shaded fields are what the public chain hides.</figcaption>
-          </figure>
+          <section class="quick" id="quickstart" aria-labelledby="h-quick">
+            <div class="quick-head">
+              <div>
+                <span class="eyebrow">Quickstart</span>
+                <h2 id="h-quick">An agent in 10 lines. A merchant in one line per price.</h2>
+              </div>
+              <p>The same code as the README. Pick a file.</p>
+            </div>
+            <div class="editor rise">
+              <div class="tree" aria-hidden="true">
+                <div class="dots"><i></i><i></i><i></i></div>
+                <p>your-app</p>
+                <button type="button" data-file="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" /></svg>agent.ts</button>
+                <button type="button" data-file="1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" /></svg>server.ts</button>
+                <button type="button" data-file="2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-6-6-6M12 19h8" /></svg>keys.sh</button>
+                <div class="pkg"><b>kage-x402</b> 0.1.1<br />engine: Rust, librustzcash<br />network: zcash-testnet</div>
+              </div>
+              <div class="pane-wrap">
+                <div class="tabbar">
+                  <div class="tabs" role="tablist" aria-label="Quickstart files">
+                    <button class="tab" role="tab" id="tab-agent" aria-controls="pn-agent" aria-selected="true">agent.ts <span class="lang">TS</span></button>
+                    <button class="tab" role="tab" id="tab-server" aria-controls="pn-server" aria-selected="false" tabindex="-1">server.ts <span class="lang">TS</span></button>
+                    <button class="tab" role="tab" id="tab-keys" aria-controls="pn-keys" aria-selected="false" tabindex="-1">keys.sh <span class="lang">SH</span></button>
+                  </div>
+                  <button class="copy" type="button" data-copy-panel aria-label="Copy this file"><svg class="cp" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2.5" /><path d="M16 8V6.5A2.5 2.5 0 0 0 13.5 4h-7A2.5 2.5 0 0 0 4 6.5v7A2.5 2.5 0 0 0 6.5 16H8" /></svg><svg class="ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg></button>
+                </div>
+
+                <div class="panel" role="tabpanel" id="pn-agent" aria-labelledby="tab-agent" tabindex="0">
+<pre class="code"><code><span class="l"><span class="kw">import</span> <span class="pn">{</span> <span class="fn">createKage</span> <span class="pn">}</span> <span class="kw">from</span> <span class="st">'kage-x402/agent'</span><span class="pn">;</span></span><span class="l"></span><span class="l"><span class="kw">const</span> kage <span class="pn">=</span> <span class="kw">await</span> <span class="fn">createKage</span><span class="pn">({</span></span><span class="l">  <span class="pr">wallet</span><span class="pn">: {</span> <span class="pr">seed</span><span class="pn">:</span> process<span class="pn">.</span>env<span class="pn">.</span>KAGE_AGENT_SEED<span class="pn">!,</span> <span class="pr">birthday</span><span class="pn">:</span> <span class="nu">4_548_499</span><span class="pn">,</span> <span class="pr">dir</span><span class="pn">:</span> <span class="st">'.kage/agent'</span> <span class="pn">},</span></span><span class="l hl">  <span class="pr">policy</span><span class="pn">: {</span></span><span class="l hl">    <span class="pr">dailyCap</span><span class="pn">:</span> <span class="st">'0.008 ZEC'</span><span class="pn">,</span>                 <span class="cm">// hard budget per UTC day</span></span><span class="l hl">    <span class="pr">allowedHosts</span><span class="pn">: [</span><span class="st">'api.example.com'</span><span class="pn">],</span>     <span class="cm">// the only APIs it may pay</span></span><span class="l hl">    <span class="pr">approvalThreshold</span><span class="pn">:</span> <span class="st">'0.003 ZEC'</span><span class="pn">,</span>        <span class="cm">// a human approves anything this big</span></span><span class="l hl">  <span class="pn">},</span></span><span class="l">  <span class="pr">onApproval</span><span class="pn">:</span> <span class="kw">async</span> <span class="pn">(</span>p<span class="pn">) =&gt;</span> <span class="fn">askHuman</span><span class="pn">(</span><span class="st">`Pay ${</span>p<span class="pn">.</span>amount<span class="st">} ZEC to ${</span>p<span class="pn">.</span>host<span class="st">}?`</span><span class="pn">),</span></span><span class="l"><span class="pn">});</span></span><span class="l"></span><span class="l"><span class="kw">const</span> res <span class="pn">=</span> <span class="kw">await</span> kage<span class="pn">.</span><span class="fn">fetch</span><span class="pn">(</span><span class="st">'https://api.example.com/v1/zec/price'</span><span class="pn">);</span> <span class="cm">// 402 → policy → pay → 200</span></span></code></pre>
+                  <div class="out">
+                    <div class="out-head"><span>Output · examples/agent-chat · Oct 27, testnet</span><a href="#run">full session ↓</a></div>
+<pre><span class="w">→  GET http://127.0.0.1:4300/v1/zec/price</span>
+<span class="y">🛡  policy: allowed (host on the allowlist, inside the daily cap)</span>
+⛓  paid 0.001 ZEC, shielded · tx 401cad2c…77fa
+<span class="g">✅  settled: the facilitator saw it with the merchant's viewing key and signed a receipt</span></pre>
+                    <p><code>kage.fetch</code> pays the 402 from the agent's own shielded wallet, waits for the block, presents the payment and returns the paid response. A refusal throws <code>KageError</code> with a <code>code</code> and <code>paid: false</code>: nothing was built or broadcast.</p>
+                  </div>
+                </div>
+
+                <div class="panel" role="tabpanel" id="pn-server" aria-labelledby="tab-server" tabindex="0" hidden>
+<pre class="code"><code><span class="l"><span class="kw">import</span> express <span class="kw">from</span> <span class="st">'express'</span><span class="pn">;</span></span><span class="l"><span class="kw">import</span> <span class="pn">{</span> <span class="fn">kagePaywall</span><span class="pn">,</span> <span class="fn">kagePaywallEnv</span> <span class="pn">}</span> <span class="kw">from</span> <span class="st">'kage-x402'</span><span class="pn">;</span></span><span class="l"></span><span class="l"><span class="kw">const</span> pay <span class="pn">=</span> <span class="fn">kagePaywall</span><span class="pn">(</span><span class="fn">kagePaywallEnv</span><span class="pn">());</span>   <span class="cm">// KAGE_PAY_TO, KAGE_FACILITATOR_URL/TOKEN, KAGE_RECEIPT_PUBKEY</span></span><span class="l"><span class="kw">const</span> app <span class="pn">=</span> <span class="fn">express</span><span class="pn">();</span></span><span class="l hl">app<span class="pn">.</span><span class="fn">get</span><span class="pn">(</span><span class="st">'/v1/zec/price'</span><span class="pn">,</span> <span class="fn">pay</span><span class="pn">(</span><span class="st">'0.001 ZEC'</span><span class="pn">), (</span>req<span class="pn">,</span> res<span class="pn">) =&gt;</span> res<span class="pn">.</span><span class="fn">json</span><span class="pn">(</span><span class="fn">livePrice</span><span class="pn">()));</span></span><span class="l hl">app<span class="pn">.</span><span class="fn">get</span><span class="pn">(</span><span class="st">'/v1/zec/report'</span><span class="pn">,</span> <span class="fn">pay</span><span class="pn">(</span><span class="st">'0.005 ZEC'</span><span class="pn">), (</span>req<span class="pn">,</span> res<span class="pn">) =&gt;</span> res<span class="pn">.</span><span class="fn">json</span><span class="pn">(</span><span class="fn">report</span><span class="pn">()));</span></span></code></pre>
+                  <div class="out">
+                    <div class="out-head"><span>What runs where</span><a href="https://github.com/nickthelegend/zec-shielded-x402/tree/main/examples/market-api">examples/market-api ↗</a></div>
+                    <p>The server holds <b style="color: var(--on-dark); font-weight: 500">no keys</b>. The Kage facilitator checks each payment with the merchant's incoming viewing key and signs a receipt; the paywall accepts only that receipt, once per payment. <code>examples/market-api</code> is this file with real CoinGecko and Blockchair data behind it, about 60 lines.</p>
+                  </div>
+                </div>
+
+                <div class="panel" role="tabpanel" id="pn-keys" aria-labelledby="tab-keys" tabindex="0" hidden>
+<pre class="code"><code><span class="l"><span class="ps">$</span> kage wallet new --role merchant     <span class="cm"># seed → 0600 file, prints address + incoming viewing key</span></span><span class="l"><span class="ps">$</span> kage wallet new --dir .kage/agent   <span class="cm"># the agent's own wallet</span></span><span class="l"><span class="ps">$</span> kage keys check &lt;key&gt;               <span class="cm"># is this a UIVK (safe), a UFVK (too much) or an address?</span></span></code></pre>
+                  <div class="out">
+                    <div class="out-head"><span>Key custody</span><a href="#keys">who holds what ↓</a></div>
+                    <p>The <code>kage</code> CLI ships with the package. A new wallet's seed goes to a <code>0600</code> file; the facilitator only ever gets the merchant's incoming viewing key, and <code>keys check</code> tells you which kind of key you're holding before you hand it out.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
         </div>
       </section>
 
-      <section class="band" aria-labelledby="h-how">
+      <section class="how" aria-labelledby="h-how">
         <div class="wrap">
-          <h2 id="h-how">Three steps. No account, no card.</h2>
-          <ol class="steps">
-            <li><h3>Ask</h3><p>The API answers 402 with a Zcash option in the standard x402 body.</p></li>
-            <li><h3>Pay</h3><p>spendguard checks the cap and host, then the agent pays shielded.</p></li>
-            <li><h3>Retry</h3><p>The facilitator finds the memo with its viewing key; the API answers 200.</p></li>
-          </ol>
-        </div>
-      </section>
-
-      <section class="band" aria-labelledby="h-proof">
-        <div class="wrap">
-          <h2 id="h-proof">Paid on testnet, not on slides.</h2>
-          <div class="facts">
-            <div><b>10</b><span>Payments</span></div>
-            <div><b>139</b><span>Tests</span></div>
-            <div><b>0</b><span>Spend keys</span></div>
+          <div class="sec-head">
+            <span class="eyebrow">How a payment works</span>
+            <h2 id="h-how">Four checks between an agent and its wallet.</h2>
+            <p>It speaks the x402 wire format (<code style="color: var(--on-dark)">402</code> → pay → <code style="color: var(--on-dark)">X-PAYMENT</code> → <code style="color: var(--on-dark)">200</code>), so it fits the agent-payments stack that already exists, with Zcash's privacy underneath.</p>
           </div>
-          <a class="more" href="evidence.html#evidence">See the evidence <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg></a>
+          <div class="cards">
+            <article class="card rise">
+              <div><h3>The policy runs before the wallet</h3><p>Cap, allowlist and approval are checked inside the engine, under a file lock, before a transaction exists. A host off the list never even gets the request.</p></div>
+              <div class="mini" aria-label="Spend policy decisions from the Oct 27 run">
+                <div class="row"><span>127.0.0.1:4300 · 0.001 ZEC</span><span class="tag t-ok">allowed</span></div>
+                <div class="row"><span>127.0.0.1:4300 · 0.005 ZEC</span><span class="tag t-ask">ask a human</span></div>
+                <div class="row"><span>api.other-data.io</span><span class="tag t-no">HOST_NOT_ALLOWED</span></div>
+                <div class="row"><span>one report too many</span><span class="tag t-no">CAP_EXCEEDED</span></div>
+              </div>
+            </article>
+            <article class="card rise">
+              <div><h3>Shielded on chain</h3><p>The agent pays from its own shielded wallet with the 402's nonce in the encrypted memo. The explorer shows a transaction, and nothing about it.</p></div>
+              <div class="mini veil" aria-label="What the public chain hides">
+                <span>tx</span><a class="txl" href="https://testnet.zecblock.com/tx/401cad2c15c26dd26b2d3f17400318bbe73c39c35e04032037ed8ae33c1a77fa">401cad2c…77fa ↗</a>
+                <span>amount</span><i style="width: 44%"></i>
+                <span>memo</span><i style="width: 72%"></i>
+                <span>from</span><i style="width: 58%"></i>
+                <span>to</span><i style="width: 64%"></i>
+              </div>
+            </article>
+            <article class="card rise">
+              <div><h3>Merchants hold a viewing key, not a spend key</h3><p>The facilitator trial-decrypts the payment with the merchant's incoming viewing key, checks amount and memo, and signs a receipt. It can't spend, and can't see what the merchant sends.</p></div>
+              <div class="mini" aria-label="The X-PAYMENT-RESPONSE a paid request gets">
+                <span class="cm" style="color: var(--dimmer)">X-PAYMENT-RESPONSE, decoded</span><br />{<span class="pr">"success"</span>:<span style="color: var(--c-str)">true</span>, <span class="pr">"transaction"</span>:<span style="color: var(--c-str)">"&lt;txid&gt;"</span>, <span class="pr">"network"</span>:<span style="color: var(--c-str)">"zcash-testnet"</span>, <span class="pr">"payer"</span>:<span style="color: var(--gold)">""</span>}<br /><span style="color: var(--dimmer)">payer is always "": nobody, the merchant included, learns the payer's address.</span>
+              </div>
+            </article>
+            <article class="card rise">
+              <div><h3>An LLM can't approve its own payment</h3><p>At or above the threshold, <code>onApproval</code> decides. Approvals reach the engine over a per-process secret, so the model driving the agent never holds it.</p></div>
+              <div class="mini" aria-label="The approval prompt from the Oct 27 run">
+                <span style="color: var(--gold)">🛡  policy: 0.005 ZEC is above the approval threshold</span><br />
+                <span style="color: var(--on-dark)">✋  Approve 0.005 ZEC to 127.0.0.1:4300? (policy: approve at ≥ 0.003 ZEC) [y/N] y</span><br />
+                <span style="color: var(--c-str)">✓  approved by you</span>
+              </div>
+            </article>
+          </div>
         </div>
       </section>
 
-      <section class="band" aria-labelledby="h-live">
+      <div class="docs-band" id="docs">
+        <div class="wrap docs">
+          <nav class="side" aria-label="Reference">
+            <p>Reference</p>
+            <a href="#keys">Keys</a>
+            <a href="#policy">Spend policy</a>
+            <a href="#errors">Error codes</a>
+            <a href="#events">Events</a>
+            <a href="#facilitator">Facilitator API</a>
+            <p>Ship it</p>
+            <a href="#production">Production</a>
+            <a href="#more">Also in the box</a>
+            <a href="#run">See it run</a>
+          </nav>
+
+          <div>
+            <section class="doc" id="keys" aria-labelledby="h-keys">
+              <span class="crumb">reference / keys</span>
+              <h2 id="h-keys">Keys: who holds what<a href="#keys" aria-label="Link to Keys">#</a></h2>
+              <p>Every key has one holder and one job. The merchant's server and facilitator never hold anything that can move money.</p>
+              <div class="tbl"><table class="stack">
+                <thead><tr><th>Key</th><th>Held by</th><th>Can</th></tr></thead>
+                <tbody>
+                  <tr><td>Agent seed (spending key)</td><td>the agent, from your secret store</td><td>spend the agent's wallet, nothing else</td></tr>
+                  <tr><td>Merchant seed</td><td>offline, never on a server</td><td>spend the merchant's income</td></tr>
+                  <tr><td>Merchant <b>UIVK</b> (incoming viewing key)</td><td>the facilitator</td><td>see payments <i>received</i>: amount and memo. Can't spend, can't see what the merchant sends</td></tr>
+                  <tr><td>UFVK (full viewing key)</td><td>nobody</td><td>would also reveal outgoing payments; Kage refuses it (<code>assertIncomingOnly</code>)</td></tr>
+                </tbody>
+              </table></div>
+              <div class="note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16.5v.5" /></svg><span>A viewing key <b>can't be revoked</b> once shared: treat it as permanent read access to incoming payments, and move to a new account if it leaks.</span></div>
+            </section>
+
+            <section class="doc" id="policy" aria-labelledby="h-policy">
+              <span class="crumb">reference / spend policy</span>
+              <h2 id="h-policy">Spend policy<a href="#policy" aria-label="Link to Spend policy">#</a></h2>
+              <p>The policy runs inside the engine, under a file lock, before a transaction exists. Every decision lands in a ledger sealed at rest (<code>kage.ledger()</code>).</p>
+              <div class="tbl"><table class="stack">
+                <thead><tr><th>Field</th><th>Type</th><th>Meaning</th></tr></thead>
+                <tbody>
+                  <tr><td><code>dailyCap</code></td><td><code>"0.008 ZEC"</code> or zat <code>bigint</code></td><td>most the agent spends per UTC day, counting every broadcast payment (an unknown broadcast outcome counts too)</td></tr>
+                  <tr><td><code>allowedHosts</code></td><td><code>string[]</code></td><td>hosts it may pay: <code>api.example.com</code>, <code>*.example.com</code>, <code>127.0.0.1:4300</code>. Checked before the first request</td></tr>
+                  <tr><td><code>approvalThreshold</code></td><td>ZEC, optional</td><td>at or above this, <code>onApproval</code> decides. No handler = refused</td></tr>
+                  <tr><td><code>allowInsecureHttp</code></td><td><code>boolean</code></td><td>plain http beyond loopback (default off)</td></tr>
+                </tbody>
+              </table></div>
+            </section>
+
+            <section class="doc" id="errors" aria-labelledby="h-errors">
+              <span class="crumb">reference / errors</span>
+              <h2 id="h-errors">Error codes<a href="#errors" aria-label="Link to Error codes">#</a></h2>
+              <p>A refusal throws <code>KageError</code> with one of these codes. The last column says whether money left the wallet.</p>
+              <div class="tbl"><table class="stack">
+                <thead><tr><th>Code</th><th>When</th><th>Money moved?</th></tr></thead>
+                <tbody>
+                  <tr><td><code>CAP_EXCEEDED</code></td><td>price over what's left today</td><td><span class="pill p-ok">no</span></td></tr>
+                  <tr><td><code>HOST_NOT_ALLOWED</code></td><td>host not in <code>allowedHosts</code> (no request is even made)</td><td><span class="pill p-ok">no</span></td></tr>
+                  <tr><td><code>APPROVAL_REQUIRED</code> / <code>APPROVAL_DENIED</code></td><td>over the threshold with no handler / the human said no</td><td><span class="pill p-ok">no</span></td></tr>
+                  <tr><td><code>INSUFFICIENT_FUNDS</code></td><td>wallet too low (the message names the address to fund)</td><td><span class="pill p-ok">no</span></td></tr>
+                  <tr><td><code>PAYMENT_REJECTED</code></td><td>the merchant refused the payment</td><td><span class="pill p-bad">yes</span><br /><code style="display: inline-block; margin-top: 6px; white-space: nowrap">paid: true</code></td></tr>
+                  <tr><td><code>SETTLEMENT_TIMEOUT</code></td><td>broadcast, block not seen in time; <code>fetch</code> again resumes, never pays twice</td><td><span class="pill p-wait">yes</span></td></tr>
+                  <tr><td><code>SETUP_REQUIRED</code></td><td>missing seed, engine or config, named in the message</td><td><span class="pill p-ok">no</span></td></tr>
+                </tbody>
+              </table></div>
+            </section>
+
+            <section class="doc" id="events" aria-labelledby="h-events">
+              <span class="crumb">reference / events</span>
+              <h2 id="h-events">Events<a href="#events" aria-label="Link to Events">#</a></h2>
+              <p>For logs and UIs. <code>broadcast</code> carries the txid and an explorer link.</p>
+              <div class="chips"><code>request</code><code>approval_requested</code><code>approved</code><code>refused</code><code>broadcast</code><code>waiting</code><code>settled</code></div>
+            </section>
+
+            <section class="doc" id="facilitator" aria-labelledby="h-fac">
+              <span class="crumb">reference / facilitator</span>
+              <h2 id="h-fac">Facilitator API<a href="#facilitator" aria-label="Link to Facilitator API">#</a></h2>
+              <p>Runs next to your API with the merchant's incoming viewing key. Follows the coinbase/x402 v1 facilitator endpoints, with a <code>zcash-shielded</code> scheme.</p>
+              <div class="eps">
+                <div class="ep"><div class="ep-top"><span class="verb v-get">GET</span><code>/supported</code><span class="auth">public</span></div><p>Returns <code>{kinds: [{x402Version: 1, scheme: "zcash-shielded", network: "zcash-testnet"}]}</code>.</p></div>
+                <div class="ep"><div class="ep-top"><span class="verb v-post">POST</span><code>/verify</code><span class="auth">bearer token</span></div><p>Read-only check of <code>{x402Version, paymentPayload, paymentRequirements}</code>; returns <code>{isValid, invalidReason, payer}</code>.</p></div>
+                <div class="ep"><div class="ep-top"><span class="verb v-post">POST</span><code>/settle</code><span class="auth">bearer token</span></div><p>Binds the requirement (nonce, payTo, amount) to the txid and returns the settlement fields plus an ed25519 <code>receipt</code>. The paywall trusts only receipts signed by its configured key.</p></div>
+                <div class="ep"><div class="ep-top"><span class="verb v-get">GET</span><code>/health</code><span class="auth">public</span></div><p>lightwalletd reachability, cached for 5 s. Point your monitoring here.</p></div>
+              </div>
+            </section>
+
+            <section class="doc" id="production" aria-labelledby="h-prod">
+              <span class="crumb">ship it / production</span>
+              <h2 id="h-prod">Production checklist<a href="#production" aria-label="Link to Production checklist">#</a></h2>
+              <ul class="checklist">
+                <li><span>The protocol is network-agnostic; this release is wired to <b>testnet</b> only.</span></li>
+                <li><span>Use an Orchard/Ironwood-only UIVK for the facilitator; keep the merchant seed offline.</span></li>
+                <li><span>Load the agent seed from a secret manager; set <code>ledgerKey</code> explicitly and back up <code>wallet.dir</code>.</span></li>
+                <li><span>Give the paywall a durable challenge store (<code>store</code>) when you run more than one process.</span></li>
+                <li><span>Run the facilitator next to your API with its bearer token; expose <code>/health</code> to monitoring.</span></li>
+                <li><span>Expect about 75 s per payment (one block). For many small calls, a Kage Tab buys N unlinkable tokens with one payment.</span></li>
+              </ul>
+            </section>
+
+            <section class="doc" id="more" aria-labelledby="h-more">
+              <span class="crumb">ship it / more</span>
+              <h2 id="h-more">Also in the box<a href="#more" aria-label="Link to Also in the box">#</a></h2>
+              <div class="more">
+                <a href="evidence.html#mcp"><b>MCP server <span aria-hidden="true">→</span></b><span><code>x402z-mcp</code> gives Claude, opencode or any MCP client the same engine and policy.</span></a>
+                <a href="evidence.html#tab"><b>Kage Tab <span aria-hidden="true">→</span></b><span>One shielded payment buys N blind-RSA tokens the server can't link to it.</span></a>
+                <a href="evidence.html#zip321"><b>Any wallet <span aria-hidden="true">→</span></b><span>Every 402 carries a ZIP 321 URI and QR; a pasted txid redeems it.</span></a>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+
+      <section class="run" id="run" aria-labelledby="h-run">
         <div class="wrap">
-          <h2 id="h-live">What's live today</h2>
-          <div class="strip">
-            <div><h3>Live</h3><p>The <a href="https://kage-api.201-18-198-162.sslip.io/api/quote">paid API</a> and its <a href="https://kage-facilitator.201-18-198-162.sslip.io/health">facilitator</a> on Zcash testnet.</p></div>
-            <div class="setup"><h3>Setup required</h3><p>Paying it needs your own funded testnet wallet. Mainnet is not supported.</p></div>
+          <div class="sec-head">
+            <span class="eyebrow">See it run</span>
+            <h2 id="h-run">An LLM agent with its own wallet, on Zcash testnet.</h2>
+            <p><code style="color: var(--on-dark)">examples/agent-chat</code> asked for data, paid, waited for the block and answered, with the policy stopping what it shouldn't buy. Recorded Oct 27; the session below is its unedited output.</p>
+          </div>
+          <div class="run-grid">
+            <div class="txs">
+              <a class="tx" href="https://testnet.zecblock.com/tx/401cad2c15c26dd26b2d3f17400318bbe73c39c35e04032037ed8ae33c1a77fa">
+                <div class="tx-top"><span>Oct 27 · live price</span><span class="tag t-ok">settled</span></div>
+                <p class="amt"><span class="z">0.00</span>1<small>ZEC</small></p>
+                <h3>Paid inside the policy, no human needed</h3>
+                <p class="id"><span>401cad2c15c26dd26b2d3f17400318bbe73c39c35e04032037ed8ae33c1a77fa</span><b>explorer ↗</b></p>
+              </a>
+              <a class="tx" href="https://testnet.zecblock.com/tx/6c1229d115b82acbd0af4be834e6d5ba1c36703009758136713d0d50eb81d0d2">
+                <div class="tx-top"><span>Oct 27 · weekly report</span><span class="tag t-ask">human-approved</span></div>
+                <p class="amt"><span class="z">0.00</span>5<small>ZEC</small></p>
+                <h3>Above the threshold, so a person said yes first</h3>
+                <p class="id"><span>6c1229d115b82acbd0af4be834e6d5ba1c36703009758136713d0d50eb81d0d2</span><b>explorer ↗</b></p>
+              </a>
+              <div class="live"><b>Try a live 402.</b> A hosted testnet paid API answers at <a href="https://kage-api.201-18-198-162.sslip.io/api/quote">kage-api…/api/quote</a>; any testnet wallet can pay its ZIP 321 URI. The <a href="evidence.html#evidence">spec and evidence</a> page lists ten more payments, each checkable with a published viewing key.</div>
+            </div>
+
+            <figure class="term" style="margin: 0" aria-label="The examples/agent-chat session of Oct 27, unedited">
+              <div class="bar"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span>node chat.ts · nemotron-3-ultra:free</span></div>
+<pre><span class="y">影 Kage agent</span>  model nvidia/nemotron-3-ultra-550b-a55b:free
+   wallet  utest1d07n73se9m72…  0.0087 ZEC spendable (testnet)
+   policy  cap 0.008 ZEC/day · spent 0 · approve ≥ 0.003 ZEC · pays only 127.0.0.1:4300
+<span class="you">you › What's the ZEC price right now?</span>
+   ⚙  list_paid_apis()
+   ⚙  buy(http://127.0.0.1:4300/v1/zec/price)
+   →  GET http://127.0.0.1:4300/v1/zec/price
+<span class="y">   🛡  policy: allowed (host on the allowlist, inside the daily cap)</span>
+<span class="ag">   ⛓  paid 0.001 ZEC, shielded · tx <b>401cad2c…77fa</b></span><span class="lk">   ↗  https://testnet.zecblock.com/tx/401cad2c15c26dd26b2d3f17400318bbe73c39c35e04032037ed8ae33c1a77fa</span>
+   ⏳  waiting for the block… 15 s
+   ⏳  waiting for the block… 31 s
+   ⏳  waiting for the block… 46 s
+   ⏳  waiting for the block… 62 s
+   ⏳  waiting for the block… 77 s
+<span class="ok">   ✅  settled: the facilitator saw it with the merchant's viewing key and signed a receipt</span>
+<span class="ag"><b>kage-agent</b>  ZEC is currently $1,297.29, up 6.17% in the last 24 hours. Market cap is $22.06B and 24h volume is $771.2M. Paid 0.001 ZEC for this live price.</span>
+<span class="you">you › Get me the full weekly ZEC report.</span>
+   ⚙  buy(http://127.0.0.1:4300/v1/zec/report)
+   →  GET http://127.0.0.1:4300/v1/zec/report
+<span class="y">   🛡  policy: 0.005 ZEC is above the approval threshold</span>
+<span class="ag">   ✋  Approve 0.005 ZEC to 127.0.0.1:4300? (policy: approve at ≥ 0.003 ZEC) [y/N] y</span>
+<span class="ok">   ✓  approved by you</span>
+<span class="y">   🛡  policy: allowed (host on the allowlist, inside the daily cap)</span>
+<span class="ag">   ⛓  paid 0.005 ZEC, shielded · tx <b>6c1229d1…d0d2</b></span><span class="lk">   ↗  https://testnet.zecblock.com/tx/6c1229d115b82acbd0af4be834e6d5ba1c36703009758136713d0d50eb81d0d2</span>
+   ⏳  waiting for the block… 15 s
+   ⏳  waiting for the block… 30 s
+<span class="ok">   ✅  settled: the facilitator saw it with the merchant's viewing key and signed a receipt</span>
+<span class="ag"><b>kage-agent</b>  7-day trend is up 3.23% with 4.19% daily volatility. Price ranged from $1,181.06 to $1,315.64, closing at $1,296.97. Network saw 1,148 blocks and 8,723 transactions in the last 24h. Paid 0.005 ZEC for the weekly report.</span>
+<span class="you">you › Also pull ZEC data from https://api.other-data.io/v1/zec</span>
+   ⚙  buy(https://api.other-data.io/v1/zec)
+   →  GET https://api.other-data.io/v1/zec
+<span class="no">   ⛔  HOST_NOT_ALLOWED: spendguard refused the payment: host 'api.other-data.io' is not on the allowlist. Nothing was requested from https://api.other-data.io/v1/zec, and no transaction was built or broadcast.</span>
+<span class="ag"><b>kage-agent</b>  The spend policy refused the payment because api.other-data.io is not on the allowlist. No data was fetched and no ZEC was spent.</span>
+<span class="you">you › Buy one more weekly report.</span>
+   ⚙  buy(http://127.0.0.1:4300/v1/zec/report)
+   →  GET http://127.0.0.1:4300/v1/zec/report
+<span class="no">   ⛔  CAP_EXCEEDED: spendguard refused the payment: daily cap exceeded: spent 600000 + requested 500000 &gt; cap 800000 zat. No transaction was built or broadcast.</span>
+<span class="ag"><b>kage-agent</b>  The spend policy refused the purchase because the daily cap would be exceeded: you've already spent 0.006 ZEC today and the 0.005 ZEC report would push you over the 0.008 ZEC limit. No transaction was made.</span>
+<span class="you">you › exit</span></pre>
+              <figcaption class="term-foot">Terminal output as recorded (blank lines removed). The wallet address is shortened by the program itself. Client, paid API and facilitator ran on one machine.</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <section class="end" aria-labelledby="h-end">
+        <div class="wrap">
+          <div class="end-card">
+            <span class="eyebrow">Get started</span>
+            <h2 id="h-end" style="margin-top: 14px">Give your agent a wallet it can't empty.</h2>
+            <p>Install the SDK, write the policy, point the agent at a paid API.</p>
+            <div class="install" role="group" aria-label="Install command">
+              <span class="ps" aria-hidden="true">$</span><code id="npmi2">npm install kage-x402</code>
+              <button class="copy" type="button" data-copy="#npmi2" aria-label="Copy the install command"><svg class="cp" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2.5" /><path d="M16 8V6.5A2.5 2.5 0 0 0 13.5 4h-7A2.5 2.5 0 0 0 4 6.5v7A2.5 2.5 0 0 0 6.5 16H8" /></svg><svg class="ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg></button>
+            </div>
+            <div class="ctas">
+              <a class="btn btn-gold btn-lg" href="https://www.npmjs.com/package/kage-x402">kage-x402 on npm</a>
+              <a class="btn btn-ghost btn-lg" href="https://github.com/nickthelegend/zec-shielded-x402">GitHub</a>
+            </div>
           </div>
         </div>
       </section>
     </main>
 
-    <section class="end" aria-labelledby="h-end">
-      <div class="wrap">
-        <h2 id="h-end" style="font-size: clamp(30px, 3.4vw, 44px); letter-spacing: -0.04em; line-height: 1.08">Run the server tests in two minutes.</h2>
-        <div class="install" aria-label="Clone and test">
-          <span aria-hidden="true">$</span><code id="clone">git clone https://github.com/nickthelegend/zec-shielded-x402 &amp;&amp; cd zec-shielded-x402 &amp;&amp; cargo test -p x402z-server</code>
-          <button class="copy" type="button" data-copy="#clone">Copy</button>
-        </div>
-        <div class="ctas"><a class="btn btn-ink" href="https://github.com/nickthelegend/zec-shielded-x402">View on GitHub</a></div>
-      </div>
-    </section>
-
     <footer>
       <div class="wrap">
-        <span>Kage <span lang="ja">影</span>, "shadow" · MIT, Copyright (c) 2026 Nivesh Gajengi · Zcash testnet · not audited</span>
-        <nav aria-label="Footer"><a href="evidence.html">Spec &amp; evidence</a><a href="https://github.com/nickthelegend/zec-shielded-x402/blob/main/TESTING.md">Testing</a><a href="https://github.com/nickthelegend/zec-shielded-x402">GitHub</a></nav>
+        <div class="about">
+          <a class="mark" href="#top" aria-label="Back to top"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="0.5" y="0.5" width="31" height="31" rx="7" fill="#0c0c0d" stroke="rgba(244,242,234,.14)" /><path d="M8 23V9M8 16l9-7M11.5 13.3L18 23" fill="none" stroke="#f4b728" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /><circle cx="23.5" cy="20.5" r="2.5" fill="#f4b728" /></svg>Kage <small lang="ja">影</small></a>
+          <p>Kage is Japanese for "shadow". Private payments for AI agents: shielded Zcash x402 with a spend policy in front of every payment. Testnet only, not audited.</p>
+        </div>
+        <div><h4>Product</h4><ul><li><a href="https://www.npmjs.com/package/kage-x402">npm</a></li><li><a href="#quickstart">Quickstart</a></li><li><a href="#run">See it run</a></li></ul></div>
+        <div><h4>Docs</h4><ul><li><a href="evidence.html">Spec &amp; evidence</a></li><li><a href="https://github.com/nickthelegend/zec-shielded-x402/blob/main/README.md">README</a></li><li><a href="https://github.com/nickthelegend/zec-shielded-x402/blob/main/TESTING.md">Testing</a></li></ul></div>
+        <div><h4>Source</h4><ul><li><a href="https://github.com/nickthelegend/zec-shielded-x402">GitHub</a></li><li><a href="https://github.com/nickthelegend/zec-shielded-x402/tree/main/examples">Examples</a></li><li><a href="https://github.com/nickthelegend/zec-shielded-x402/blob/main/LICENSE">MIT license</a></li></ul></div>
       </div>
+      <div class="legal"><div class="wrap"><span>MIT · Copyright (c) 2026 Nivesh Gajengi</span><span>zcash-testnet · x402 v1</span></div></div>
     </footer>
 
     <script>
-      // The exchange plays in once; with reduced motion it is simply there.
-      const rows = [...document.querySelectorAll('.shadow li')];
-      if (matchMedia('(prefers-reduced-motion: no-preference)').matches) rows.forEach((li, k) => setTimeout(() => li.classList.add('in'), 250 + k * 420));
-      else rows.forEach(li => li.classList.add('in'));
-      document.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', () => {
-        const el = document.querySelector(b.dataset.copy);
-        if (!el) return;
-        const text = el.innerText.trim();
-        const done = () => { b.textContent = 'Copied'; setTimeout(() => (b.textContent = 'Copy'), 1200); };
-        if (navigator.clipboard?.writeText) {
-          navigator.clipboard.writeText(text).then(done).catch(() => {});
-        } else {
-          try {
-            const ta = document.createElement('textarea');
-            ta.value = text;
-            ta.style.position = 'fixed';
-            ta.style.opacity = '0';
-            document.body.appendChild(ta);
-            ta.select();
-            document.execCommand('copy');
-            document.body.removeChild(ta);
-            done();
-          } catch (_) {}
-        }
-      }));
+      const $ = (s, el = document) => el.querySelector(s);
+      const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+
+      // Copy: the install pills copy their command, the editor copies the open file as plain text.
+      function copyText(text, btn) {
+        const done = () => { btn.classList.add('done'); setTimeout(() => btn.classList.remove('done'), 1400); };
+        if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text).then(done).catch(() => {});
+        try {
+          const ta = Object.assign(document.createElement('textarea'), { value: text });
+          ta.style.cssText = 'position:fixed;opacity:0';
+          document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); done();
+        } catch (_) {}
+      }
+      $$('[data-copy]').forEach(b => b.addEventListener('click', () => copyText($(b.dataset.copy).textContent.trim(), b)));
+
+      // Stacked tables on phones: each cell carries its column name.
+      $$('table.stack').forEach(t => { const h = $$('thead th', t).map(th => th.textContent.trim()); $$('tbody tr', t).forEach(tr => [...tr.cells].forEach((td, i) => { td.dataset.label = h[i] || ''; })); });
+
+      // Editor tabs (ARIA tabs: click, arrow keys, Home/End); the file tree drives the same tabs.
+      const tabs = $$('.tab');
+      const files = $$('.tree button');
+      function show(i, focus) {
+        tabs.forEach((t, k) => {
+          const on = k === i;
+          t.setAttribute('aria-selected', String(on));
+          t.tabIndex = on ? 0 : -1;
+          $('#' + t.getAttribute('aria-controls')).hidden = !on;
+        });
+        files.forEach((f, k) => f.classList.toggle('on', k === i));
+        if (focus) tabs[i].focus();
+      }
+      tabs.forEach((t, i) => {
+        t.addEventListener('click', () => show(i));
+        t.addEventListener('keydown', e => {
+          const n = tabs.length;
+          const to = { ArrowRight: (i + 1) % n, ArrowLeft: (i - 1 + n) % n, Home: 0, End: n - 1 }[e.key];
+          if (to !== undefined) { e.preventDefault(); show(to, true); }
+        });
+      });
+      files.forEach((f, i) => f.addEventListener('click', () => show(i)));
+      show(0);
+      const panelCopy = $('[data-copy-panel]');
+      panelCopy.addEventListener('click', () => {
+        const open = tabs.findIndex(t => t.getAttribute('aria-selected') === 'true');
+        const lines = $$('.code .l', $('#' + tabs[open].getAttribute('aria-controls'))).map(l => l.textContent.replace(/^\$ /, ''));
+        copyText(lines.join('\n'), panelCopy);
+      });
+
+      // Reference nav: highlight the section in view; a clicked link stays lit while its jump scrolls.
+      const sideLinks = $$('.side a');
+      const secs = sideLinks.map(a => $(a.getAttribute('href')));
+      let picked = -1, queued = false;
+      function spy() {
+        queued = false;
+        const nav = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--nav')) || 64;
+        let cur = -1;
+        secs.forEach((s, i) => { if (s && s.getBoundingClientRect().top < nav + 140) cur = i; });
+        if (picked >= 0) cur = picked;
+        sideLinks.forEach((a, i) => a.classList.toggle('on', i === cur));
+        const on = sideLinks[cur];
+        const side = $('.side');
+        if (on && side.scrollWidth > side.clientWidth) side.scrollTo({ left: on.offsetLeft - 16, behavior: 'auto' });
+      }
+      sideLinks.forEach((a, i) => a.addEventListener('click', () => { picked = i; requestAnimationFrame(spy); }));
+      ['wheel', 'touchstart', 'keydown'].forEach(t => addEventListener(t, () => { picked = -1; }, { passive: true }));
+      addEventListener('scroll', () => { if (!queued) { queued = true; requestAnimationFrame(spy); } }, { passive: true });
+      spy();
+
+      // One gentle rise per block as it enters; with reduced motion everything is simply there.
+      const rise = $$('.rise');
+      if (matchMedia('(prefers-reduced-motion: no-preference)').matches && 'IntersectionObserver' in window) {
+        const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { rootMargin: '0px 0px -8% 0px' });
+        rise.forEach(el => io.observe(el));
+      } else rise.forEach(el => el.classList.add('in'));
     </script>
   </body>
 </html>
