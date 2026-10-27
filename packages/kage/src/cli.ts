@@ -9,7 +9,7 @@
  *   kage facilitator                                              run the facilitator (needs X402Z_MERCHANT_UIVK, ...)
  */
 import { spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createKage, KageError } from './agent.ts';
 import { enginePath, KageSetupError } from './engine.ts';
@@ -28,17 +28,18 @@ async function main() {
     const dir = flag('dir', '.kage/agent');
     const role = flag('role', 'agent');
     const w = createWallet({ dir });
-    console.log(`New ${role} wallet (Zcash testnet, birthday ${w.birthday})`);
-    console.log(`  address  ${w.address}`);
-    console.log(`  uivk     ${w.uivk}`);
-    console.log(`  seed     saved to ${w.secretFile} (0600; never printed)`);
+    const cut = (k: string) => `${k.slice(0, 14)}…${k.slice(-6)}`;
+    console.log(`New ${role} wallet · Zcash testnet · birthday ${w.birthday}`);
+    console.log(`  address   ${cut(w.address)}   public: where payments go`);
+    console.log(`  uivk      ${cut(w.uivk)}   incoming viewing key: sees payments in, can't spend`);
+    console.log(`  seed      ${w.secretFile}   0600, never printed: the only key that can spend`);
     if (role === 'merchant') {
-      console.log('\nMerchant setup:');
-      console.log(`  KAGE_PAY_TO=${w.address}           # your server's .env: where payments go`);
-      console.log(`  X402Z_MERCHANT_UIVK=${w.uivk.slice(0, 24)}…  # the facilitator's .env: verifies payments, can't spend`);
-      console.log(`  Move ${w.secretFile} off the server: the facilitator never needs the seed.`);
+      const envFile = join(dir, 'merchant.env');
+      writeFileSync(envFile, `# public address and incoming viewing key (no spending power)\nKAGE_PAY_TO=${w.address}\nX402Z_MERCHANT_UIVK=${w.uivk}\n`, { mode: 0o600 });
+      console.log(`\n  ${envFile}  →  KAGE_PAY_TO for your API, X402Z_MERCHANT_UIVK for the facilitator`);
+      console.log(`  Move ${w.secretFile} off the server. The facilitator never needs it.`);
     } else {
-      console.log(`\nFund it: send testnet ZEC to the address, then \`kage wallet status --dir ${dir}\`.`);
+      console.log(`\n  Fund the address with testnet ZEC, then: kage wallet status --dir ${dir}`);
     }
     return;
   }

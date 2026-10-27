@@ -18,6 +18,8 @@ if (!process.env.OPENROUTER_API_KEY) {
 const c = (n: number) => (s: string) => `\x1b[${n}m${s}\x1b[0m`;
 const [dim, bold, gold, green, red, cyan, magenta] = [c(2), c(1), c(33), c(32), c(31), c(36), c(35)];
 const step = (icon: string, text: string) => console.log(`   ${icon}  ${text}`);
+// **bold** and `code` from the model's markdown, as terminal styles
+const md = (t: string) => t.replace(/\*\*(.+?)\*\*/g, (_, x) => bold(x)).replace(/`([^`]+)`/g, (_, x) => cyan(x)).replace(/ +\n/g, '\n');
 const short = (tx: string) => `${tx.slice(0, 8)}…${tx.slice(-4)}`;
 
 const rl = createInterface({ input: stdin, output: stdout });
@@ -27,6 +29,7 @@ const { seed, birthday } = readSeedFile(process.env.KAGE_SEED_FILE ?? '../../.ka
 
 const kage = await createKage({
   wallet: { seed, birthday, dir: process.env.KAGE_AGENT_DIR ?? '../../.kage/agent' },
+  name: process.env.KAGE_AGENT_NAME ?? 'research-agent',
   policy: {
     dailyCap: '0.008 ZEC',               // hard daily budget
     allowedHosts: [new URL(API).host],   // the only API it may pay
@@ -83,7 +86,8 @@ const messages: Msg[] = [
     content:
       `You are a market research agent with your own shielded Zcash wallet. You can buy data from the API at ${API} (call list_paid_apis to see prices). ` +
       'Buy only what the question needs, then answer in 2-4 short sentences with the numbers, and say what you paid. ' +
-      'If a purchase is refused, tell the user plainly why (budget, approval, or a host you are not allowed to pay) and do not retry it. Never invent data.',
+      'When the user asks you to get data from any URL, call buy on it: your wallet\'s spend policy, not you, decides what may be paid. ' +
+      'If a purchase is refused, tell the user plainly why (budget, approval, or a host you are not allowed to pay) and do not retry it. Never invent data. Plain text, no markdown tables.',
   },
 ];
 
@@ -107,7 +111,7 @@ async function turn(question: string) {
     const m = await llm();
     messages.push({ role: 'assistant', content: m.content ?? null, tool_calls: m.tool_calls });
     if (!m.tool_calls?.length) {
-      console.log(`\n${bold(gold('kage-agent'))}  ${m.content?.trim()}\n`);
+      console.log(`\n${bold(gold('kage-agent'))}  ${md(m.content?.trim() ?? '')}\n`);
       return;
     }
     for (const call of m.tool_calls) {
@@ -130,12 +134,12 @@ const scripted = process.argv.slice(2);
 try {
   if (scripted.length) {
     for (const q of scripted) {
-      console.log(`${bold(cyan('you'))}  ${q}`);
+      console.log(`${bold(cyan('you'))} › ${q}`);
       await turn(q);
     }
   } else {
     for (;;) {
-      const q = (await rl.question(`${bold(cyan('you'))}  `)).trim();
+      const q = (await rl.question(`${bold(cyan('you'))} › `)).trim();
       if (!q || q === 'exit') break;
       await turn(q);
     }

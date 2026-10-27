@@ -1,6 +1,6 @@
 {
   "name": "kage-x402",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Private payments for AI agents: fetch that pays HTTP 402s with shielded Zcash inside a spend policy (daily cap, host allowlist, human approval), and a paywall that verifies payments with an incoming viewing key only.",
   "license": "MIT",
   "author": "Nivesh Gajengi",
