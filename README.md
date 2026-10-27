@@ -206,13 +206,13 @@ What Kage adds:
 
 1. Run the fast tests one crate at a time (low-RAM friendly):
    ```sh
-   cargo test -p spendguard -p x402z-protocol -p x402z-server   # 16 + 14 + 42
+   cargo test -p spendguard -p x402z-protocol -p x402z-server   # 16 + 14 + 44
    cargo test -p x402z-agent                                      # 32 (Tab client and key rules against a localhost issuer, redirects, races, allowlist before any request)
-   cargo test -p x402z-mcp                                        # 7 (drives the binary over stdio)
+   cargo test -p x402z-mcp                                        # 8 (drives the binary over stdio)
    cargo test -p x402z-facilitator                                # 17: 6 prove Halo2 bundles (~40 s), 3 hit testnet live
-   cd packages/kage && npm test                             # 11: TypeScript, 2 against the real binaries and testnet
+   cd packages/kage && npm run build && npm test             # 19: TypeScript; 8 SDK tests against the real engine, 2 against the real binaries and testnet
    ```
-   That makes 128 Rust tests and 11 TypeScript tests, 139 in all; 5 of them reach live testnet (the facilitator's 3 and the TypeScript package's 2, which need network). The browser E2E suite is separate: see [Run the whole stack locally](#run-the-whole-stack-locally-four-commands).
+   That makes 131 Rust tests and 19 TypeScript tests, 150 in all; 13 of them reach live testnet (the facilitator's 3, the SDK's 8 that sync wallets through lightwalletd, and the paywall's 2). The browser E2E suite is separate: see [Run the whole stack locally](#run-the-whole-stack-locally-four-commands).
 2. Run `cargo run -p x402z-facilitator` with no `.env`. It prints `error: X402Z_MERCHANT_UIVK not configured` and exits with code 2. With the key but no `X402Z_FACILITATOR_TOKEN`, it prints `error: Setup required: X402Z_FACILITATOR_TOKEN not configured …` and exits 2.
    - If `ZCASH_LWD_URL` is unset, it says so and uses `https://testnet.zec.rocks:443`.
    - If lightwalletd is unreachable, it prints `error: cannot connect to lightwalletd: …` and exits with code 1.

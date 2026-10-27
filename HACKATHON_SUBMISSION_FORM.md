@@ -7,30 +7,30 @@
 **Commit to submit:** the tip of `main` on GitHub (`git log origin/main -1`, which must equal the local `git log main -1`). Do not submit `1e232bb` or any earlier hash named in older notes.
 
 ## Form fields still open (Nick decides)
-- **Demo video (2:43, ready; Nick uploads it and pastes the link):** the film is kept out of git
-  (`grokbot/videos/kage/kage-film-v4.mp4`, 1920x1080, Chatterbox narration, one-line captions, a LIVE or REPLAY
-  badge on every scene). It shows, in order: the live testnet server answering 402 with a zcash-shielded offer;
-  the merchant console issuing a challenge with a ZIP 321 QR and refusing a real payment made for a different
-  challenge; the console's Spendguard panel; a replay of the Oct 22 LLM run over MCP (paid_fetch, redeem,
-  a 3-token Kage Tab), one line per tool call; that payment on testnet.zecblock.com (fully shielded, fee only);
-  `check_uivk` opening it with the published UIVK; spendguard and MCP refusals over the daily cap; the evidence
-  page. **Not in it:** a payment made live on camera. Every paid step is a replay of a real testnet txid, badged
-  REPLAY. If Nick records one live paid call from his wallet, it goes in after the console scene.
-  Do NOT submit `x402-demo-v2.mp4`: it is 44 s and predates x402 v1.
+- **Demo video (3:21, ready; Nick uploads it and pastes the link):** the film is kept out of git
+  (`grokbot/videos/kage/kage-film-v5.mp4`, 1920x1080, HyperFrames, Kokoro narration, one-line captions). It opens
+  with the problem in plain words (public agent payments leak strategy; an unlimited wallet drains; both badged
+  Illustration), then shows, all recorded live on Oct 27-28: `npm install kage-x402` from the public registry; the
+  10-line agent code with its policy; the merchant's `pay('0.001 ZEC')` routes; `kage wallet new --role merchant`
+  (seed to a 0600 file, UIVK for the facilitator); and an LLM agent chat on Zcash testnet that pays 0.001 ZEC for the
+  live price (`401cad2c…77fa`, shown on testnet.zecblock.com), asks a human before paying 0.005 ZEC for the weekly
+  report (`6c1229d1…d0d2`), is refused `HOST_NOT_ALLOWED` for a host off its list (no request made) and
+  `CAP_EXCEEDED` for one report too many. Idle pauses are shortened and block waits sped up, badged on screen.
+  Do NOT submit `x402-demo-v2.mp4` or the v4 film (v4 replays an older run).
 - **Working demo URL:** https://nickthelegend.github.io/zec-shielded-x402/ (GitHub Pages; `.github/workflows/pages.yml` publishes `landing/` on every push to `main`). It is **docs and recorded output, not a hosted paywall**; the page says so. A judge can run the whole stack locally with four commands (a cargo build, then `cd e2e && npm ci && npm run stack`, and `npm run test:e2e` in Google Chrome). Hosted now: the same page at https://kage-landing.vercel.app, and a live testnet 402 at https://kage-api.201-18-198-162.sslip.io/api/quote (facilitator health: https://kage-facilitator.201-18-198-162.sslip.io/health), on a small VPS behind TLS.
 
 ## Description (paste-ready, 1,810 of 2,000 characters)
 
 ```
-Kage lets AI agents pay for HTTP APIs with Zcash shielded payments, in the x402 v1 wire format. A server answers 402 with a zcash-shielded offer: a shielded address, an amount, a memo nonce and a ZIP 321 URI. The agent's spendguard checks a daily cap, a host allowlist and an approval threshold before any transaction exists. The agent pays, then retries with X-PAYMENT. The merchant's facilitator verifies the payment with only an incoming viewing key, never a spend key, and returns payer: "".
+Kage lets AI agents pay for HTTP APIs with Zcash shielded payments, in the x402 v1 wire format, inside a spend policy the developer writes. `npm install kage-x402`: createKage({wallet, policy, onApproval}) gives an agent kage.fetch, which answers a 402 by checking a daily cap, a host allowlist and an approval threshold before any transaction exists, then pays from the agent's own shielded wallet and returns the paid response. Above the threshold a human approves through a secret the LLM never sees. Merchants add kagePaywall('0.001 ZEC') per route; their facilitator verifies payments with only an incoming viewing key and returns payer: "".
 
-Any wallet can pay the QR and paste the txid. An MCP server gives LLM agents paid_fetch, redeem_payment and tab_fetch. Kage Tab sells N RFC 9474 blind-RSA tokens for one shielded payment, each paying one later request the server can't link to the payment. A TypeScript client and Express middleware speak the same protocol.
+Also: an MCP server for LLM clients, any-wallet ZIP 321 payment with paste-txid, Kage Tab (N blind-RSA tokens for one payment, unlinkable to it), a CLI that keeps seeds in 0600 files.
 
-What is real: 10 testnet payments, each checkable with the published demo merchant UIVK and re-verified by a live test. Two were paid from the agent's own wallet by an LLM over MCP (a paid_fetch and a 3-token tab). 139 tests (128 Rust, 11 TypeScript); 6 build transactions in-process with real Halo2 proofs; 5 run against live testnet. A Playwright suite drives the dashboard in Chrome.
+What is real: 15 testnet payments, each checkable on testnet.zecblock.com; on Oct 27 an LLM agent chat paid 0.001 and (human-approved) 0.005 ZEC for live market data from a paid API built on the SDK, and was refused for a host off its list and over its cap. kage-x402 is on npm. 150 tests (131 Rust, 19 TypeScript); 6 build transactions with real Halo2 proofs; the SDK tests drive the real engine against live lightwalletd.
 
-Not real or not done: testnet only, pre-release librustzcash crates. Sapling outputs in the in-process tests use mock proof bytes. Server tests use an in-process stand-in for our own facilitator. Every recorded live run was on one machine; the hosted 402 has not been paid yet. Not audited.
+Not real or not done: testnet only, pre-release librustzcash crates, macOS arm64 engine binary only (others build from source), not audited.
 
-Leaks: the client IP reaches the merchant; lightwalletd sees txid lookups; X-PAYMENT is a bearer credential (served again for 10 min after it settles); Kage Tab unlinkability assumes one key per epoch for every buyer; timing can link a 402 to its block. The agent ledger and tab tokens are encrypted at rest.
+Leaks: the client IP reaches the merchant; lightwalletd sees txid lookups; X-PAYMENT is a bearer credential; Kage Tab unlinkability assumes one key per epoch; timing can link a 402 to its block. The agent ledger is encrypted at rest.
 ```
 
 ## What it does
@@ -42,7 +42,7 @@ Leaks: the client IP reaches the merchant; lightwalletd sees txid lookups; X-PAY
 - **Private by default on both sides.** The dashboard, feed and status sit on a loopback admin port that answers only to its own Host (DNS rebinding); the public port serves only the paid API, and every payment attempt shares a per-client budget. The agent ledger and Kage Tab tokens are sealed with XChaCha20-Poly1305.
 - **MCP server** (`x402z-mcp`) with `paid_fetch`, `redeem_payment`, `tab_fetch`, `spend_status` and `ledger_tail`. `paid_fetch` returns `settlement_pending` right after the broadcast, so an MCP client's ~60 s timeout can't trigger a second payment.
 - **Kage Tab.** One shielded payment buys N unlinkable RFC 9474 blind-RSA tokens, each spendable once with `X-PAYMENT` scheme `zcash-shielded-tab`. The agent pins the merchant's key per epoch; a key rotation keeps a grace period and never strands a paid tab.
-- **TypeScript** (`packages/x402-zcash`): client helpers and an Express/Node paywall middleware (per-client rate limit, facilitator timeout, pruned and capped in-memory store, resend window), tested against the real binaries and testnet.
+- **TypeScript** (`packages/kage`, npm `kage-x402`): client helpers and an Express/Node paywall middleware (per-client rate limit, facilitator timeout, pruned and capped in-memory store, resend window), tested against the real binaries and testnet.
 
 **Prior art.** coinbase/x402 v1 defines the wire format for EVM payments; Kage adds a `zcash-shielded` scheme on it. A Zcash Community Grants application, "Shielded x402" (forum topic 57826, posted 2026-09-25 by the forum user baby-zack-agent), proposed private machine payments over x402 and was rejected on 2026-09-28. That application is another applicant's, not this team's: Kage is a separate build by Nivesh Gajengi and shares none of its code. Kage adds the UIVK-only facilitator, spendguard before the wallet, Kage Tab blind-RSA batching, x402 v1 wire compliance and live, checkable transactions.
 
@@ -60,11 +60,16 @@ Leaks: the client IP reaches the merchant; lightwalletd sees txid lookups; X-PAY
 | `f037d5978fec7817340ff118d328995288f0a575a1850b083ca05f7d71d4e22a` | 4529425 | **LLM over MCP, agent's own wallet:** `paid_fetch` → `settlement_pending` → `redeem_payment` → `200` (Oct 22) |
 | `b75b2415347a7ce317a9b8b5799d07a2ad9ebc44eea92090f0db9d9b590e4b91` | 4529427 | **Kage Tab, LLM over MCP, agent's own wallet:** 300,000 zat → 3 tokens → 3 requests; four retries collected the same tab, none paid again (Oct 22) |
 
-Anyone can check all ten with the published demo merchant UIVK. See the README, "Verified testnet runs", the `live_testnet` tests and `docs/mcp-paid-run.txt` (the LLM run, rendered from the raw opencode events in `docs/mcp-paid-run.jsonl`).
+| `5080f61a476cad3eafd19769d5694fd442128cde7cdfb92955a5012b4e8f0302` | — | **kage-x402 agent chat** (`examples/agent-chat`): LLM buys the live ZEC price, 0.001 ZEC (Oct 27) |
+| `4f74601665fe8f288200012b1270eddbd782da49b15ac1df917777fd4a0ae891` | 4548529 | agent chat, film take 1: live price (Oct 27) |
+| `80af9466590d7e3125f7bfd7037d8ab86ae2df742fe1978aa5b9a2f73613acd6` | — | agent chat, take 1: weekly report, 0.005 ZEC after human approval (Oct 27) |
+| `401cad2c15c26dd26b2d3f17400318bbe73c39c35e04032037ed8ae33c1a77fa` | 4548551 | agent chat, film take 2 (in the v5 film): live price, 0.001 ZEC (Oct 27) |
+| `6c1229d115b82acbd0af4be834e6d5ba1c36703009758136713d0d50eb81d0d2` | — | agent chat, take 2 (in the film): weekly report, 0.005 ZEC after human approval (Oct 27) |
+Anyone can check the first ten with the published demo merchant UIVK; the five agent-chat payments went to a new merchant created with `kage wallet new --role merchant`. See the README, "Verified testnet runs", the `live_testnet` tests and `docs/mcp-paid-run.txt` (the LLM run, rendered from the raw opencode events in `docs/mcp-paid-run.jsonl`).
 
-139 tests, listed in TESTING.md:
-- 128 Rust: 6 build in-process transactions with real keys, real note encryption and real Halo2 proofs for the Orchard/Ironwood parts (Sapling outputs use sapling-crypto's mock proof bytes; not broadcast); 3 verify the ten real payments live against testnet.zec.rocks; 7 drive the MCP binary over stdio; 6 attack the Kage Tab on the server; 11 run the agent's Tab client, key rules, redirect refusal, racing calls, lost answers and the pre-request allowlist against localhost servers.
-- 11 TypeScript: 2 run the client and middleware against the real binaries and testnet; 9 need no chain.
+150 tests, listed in TESTING.md:
+- 131 Rust (8 MCP stdio tests, one proving a wrong or missing approval secret approves nothing): 6 build in-process transactions with real keys, real note encryption and real Halo2 proofs for the Orchard/Ironwood parts (Sapling outputs use sapling-crypto's mock proof bytes; not broadcast); 3 verify the ten real payments live against testnet.zec.rocks; 7 drive the MCP binary over stdio; 6 attack the Kage Tab on the server; 11 run the agent's Tab client, key rules, redirect refusal, racing calls, lost answers and the pre-request allowlist against localhost servers.
+- 19 TypeScript: 8 drive the kage-x402 SDK against the real engine and testnet lightwalletd (policy refusals, human approval, wallet sync); 2 run the client and middleware against the real binaries and testnet; 9 need no chain.
 - Separately, 32 Playwright specs drive the dashboard and the landing page in Google Chrome at 1280 px and 375 px.
 
 ## Honest limits
