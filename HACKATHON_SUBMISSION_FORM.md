@@ -7,8 +7,9 @@
 **Commit to submit:** the tip of `main` on GitHub (`git log origin/main -1`, which must equal the local `git log main -1`). Do not submit `1e232bb` or any earlier hash named in older notes.
 
 ## Form fields still open (Nick decides)
-- **Demo video (3:32, ready; Nick uploads it and pastes the link):** the film is kept out of git
-  (`grokbot/videos/kage/kage-film-v5.mp4`, 1920x1080, HyperFrames, Kokoro narration, one-line captions). It opens
+- **Demo video (4:24, v6, ready; Nick uploads it and pastes the link):** the film is kept out of git
+  (`grokbot/videos/kage/kage-film-v6.mp4`, 1920x1080, HyperFrames, Chatterbox narration, one-line captions; phone copy
+  `grokbot/videos/phone/kage-film-v6-phone.mp4`). It opens
   with the problem in plain words over a live capture of x402scan.com (real public x402 payment totals: 3.13M
   payments and 34.87K buyers in 30 days, and one service's 591 buyers) and a kinetic-type line on runaway wallets
   (no invented numbers anywhere), then shows, all recorded live on Oct 27-28: `npm install kage-x402` from the public registry; the
@@ -16,8 +17,13 @@
   (seed to a 0600 file, UIVK for the facilitator); and an LLM agent chat on Zcash testnet that pays 0.001 ZEC for the
   live price (`401cad2c…77fa`, shown on testnet.zecblock.com), asks a human before paying 0.005 ZEC for the weekly
   report (`6c1229d1…d0d2`), is refused `HOST_NOT_ALLOWED` for a host off its list (no request made) and
-  `CAP_EXCEEDED` for one report too many. Idle pauses are shortened and block waits sped up, badged on screen.
-  Do NOT submit `x402-demo-v2.mp4` or the v4 film (v4 replays an older run).
+  `CAP_EXCEEDED` for one report too many. v6 adds three more examples from a second live session on Oct 28 with a
+  tighter policy (cap 0.003 ZEC/day, approval from 0.001 ZEC): the agent buys 12 ZEC in euros from a new converter
+  endpoint for 0.0005 ZEC (`f5b4fdd1…f000`) and live Zcash network activity for 0.0005 ZEC (`c00b0175…04d4`), both
+  shown on testnet.zecblock.com, then asks before paying 0.001 ZEC for 30 days of price history and the human
+  declines (`APPROVAL_DENIED`, nothing paid). Idle pauses are shortened and block waits sped up, badged on screen.
+  The closing card shows `npm install kage-x402` and no repository URL.
+  Do NOT submit `x402-demo-v2.mp4`, the v4 film (v4 replays an older run) or v5 (replaced by v6).
 - **Working demo URL:** https://nickthelegend.github.io/zec-shielded-x402/ (GitHub Pages; `.github/workflows/pages.yml` publishes `landing/` on every push to `main`). It is **docs and recorded output, not a hosted paywall**; the page says so. A judge can run the whole stack locally with four commands (a cargo build, then `cd e2e && npm ci && npm run stack`, and `npm run test:e2e` in Google Chrome). Hosted now: the same page at https://kage-landing.vercel.app, and a live testnet 402 at https://kage-api.201-18-198-162.sslip.io/api/quote (facilitator health: https://kage-facilitator.201-18-198-162.sslip.io/health), on a small VPS behind TLS.
 
 ## Description (paste-ready, 1,810 of 2,000 characters)
@@ -66,7 +72,9 @@ Leaks: the client IP reaches the merchant; lightwalletd sees txid lookups; X-PAY
 | `80af9466590d7e3125f7bfd7037d8ab86ae2df742fe1978aa5b9a2f73613acd6` | — | agent chat, take 1: weekly report, 0.005 ZEC after human approval (Oct 27) |
 | `401cad2c15c26dd26b2d3f17400318bbe73c39c35e04032037ed8ae33c1a77fa` | 4548551 | agent chat, film take 2 (in the v5 film): live price, 0.001 ZEC (Oct 27) |
 | `6c1229d115b82acbd0af4be834e6d5ba1c36703009758136713d0d50eb81d0d2` | — | agent chat, take 2 (in the film): weekly report, 0.005 ZEC after human approval (Oct 27) |
-Anyone can check the first ten with the published demo merchant UIVK; the five agent-chat payments went to a new merchant created with `kage wallet new --role merchant`. See the README, "Verified testnet runs", the `live_testnet` tests and `docs/mcp-paid-run.txt` (the LLM run, rendered from the raw opencode events in `docs/mcp-paid-run.jsonl`).
+| `f5b4fdd10a07a2e28d3f92edc0995043693f31f7fa5f3ddeedf1756a2b33f000` | 4550355 | agent chat, second session (in the v6 film): `/v1/zec/convert` 12 ZEC in euros, 0.0005 ZEC, no approval needed (Oct 28) |
+| `c00b01754d20dc7bdd41a5d87f8b4e5789792511ea7978213ca093d1e2a104d4` | 4550358 | agent chat, second session (in the v6 film): `/v1/zec/network` live network activity, 0.0005 ZEC (Oct 28); the same session's 0.001 ZEC history request was declined by the human, nothing paid |
+Anyone can check the first ten with the published demo merchant UIVK; the seven agent-chat payments went to a new merchant created with `kage wallet new --role merchant`. See the README, "Verified testnet runs", the `live_testnet` tests and `docs/mcp-paid-run.txt` (the LLM run, rendered from the raw opencode events in `docs/mcp-paid-run.jsonl`).
 
 150 tests, listed in TESTING.md:
 - 131 Rust (8 MCP stdio tests, one proving a wrong or missing approval secret approves nothing): 6 build in-process transactions with real keys, real note encryption and real Halo2 proofs for the Orchard/Ironwood parts (Sapling outputs use sapling-crypto's mock proof bytes; not broadcast); 3 verify the ten real payments live against testnet.zec.rocks; 8 drive the MCP binary over stdio; 6 attack the Kage Tab on the server; 11 run the agent's Tab client, key rules, redirect refusal, racing calls, lost answers and the pre-request allowlist against localhost servers.
