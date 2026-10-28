@@ -31,9 +31,9 @@ const kage = await createKage({
   wallet: { seed, birthday, dir: process.env.KAGE_AGENT_DIR ?? '../../.kage/agent' },
   name: process.env.KAGE_AGENT_NAME ?? 'research-agent',
   policy: {
-    dailyCap: '0.008 ZEC',               // hard daily budget
-    allowedHosts: [new URL(API).host],   // the only API it may pay
-    approvalThreshold: '0.003 ZEC',      // a human approves anything this big
+    dailyCap: process.env.KAGE_DAILY_CAP ?? '0.008 ZEC',                     // hard daily budget
+    allowedHosts: [new URL(API).host],                                       // the only API it may pay
+    approvalThreshold: process.env.KAGE_APPROVAL_THRESHOLD ?? '0.003 ZEC',   // a human approves anything this big
   },
   onApproval: async (r: ApprovalRequest) => {
     const a = await rl.question(`   ${gold('✋')}  ${bold(`Approve ${r.amount} ZEC to ${r.host}?`)} ${dim(`(policy: approve at ≥ ${formatZec(r.thresholdZat)} ZEC)`)} [y/N] `);
