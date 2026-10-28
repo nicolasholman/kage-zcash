@@ -1,4 +1,4 @@
-# Kage Market Data — a paid API in ~60 lines
+# Kage Market Data — a paid API in ~140 lines
 
 Live Zcash market data sold per call for shielded ZEC with [`kage-x402`](../../packages/kage):
 
@@ -7,6 +7,11 @@ Live Zcash market data sold per call for shielded ZEC with [`kage-x402`](../../p
 | `GET /` | free | the catalog |
 | `GET /v1/zec/price` | 0.001 ZEC | ZEC/USD, 24h change, volume, market cap (CoinGecko) |
 | `GET /v1/zec/report` | 0.005 ZEC | 7-day open/close/high/low, trend, daily volatility, Zcash network activity (CoinGecko + Blockchair) |
+| `GET /v1/zec/convert?amount=12&to=eur` | 0.0005 ZEC | an amount of ZEC in usd, eur, gbp, inr, jpy, chf, cad or aud at the live rate (CoinGecko) |
+| `GET /v1/zec/network` | 0.0005 ZEC | Zcash mainnet now: best block, blocks and transactions in 24h, mempool, hashrate, nodes (Blockchair) |
+| `GET /v1/zec/history?days=30` | 0.001 ZEC | daily ZEC/USD closes for 7-90 days, with high, low and change (CoinGecko) |
+
+A malformed `convert` or `history` query is answered 400 before the paywall, so it is never charged.
 
 The server holds no keys. Payments go to `KAGE_PAY_TO`; the facilitator verifies them with the
 merchant's incoming viewing key and signs receipts the paywall checks.
